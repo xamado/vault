@@ -1,12 +1,14 @@
 #include "plib/xfile/dfile.h"
+#include "plib/os/os_filesystem.h"
+#include "plib/os/os_string.h"
 
 #include <assert.h>
-#include <io.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <fpattern.h>
+
 
 static_assert(sizeof(DBase) == 20, "wrong size");
 static_assert(sizeof(DBaseEntry) == 20, "wrong size");
@@ -14,6 +16,7 @@ static_assert(sizeof(DFile) == 44, "wrong size");
 static_assert(sizeof(DFileFindData) == 524, "wrong size");
 
 static int dinfo_bsearch_compare(const void* a1, const void* a2);
+static int dinfo_qsort_compare(const void* a1, const void* a2);
 static DFile* dfile_fopen_helper(DBase* dbase, const char* filename, const char* mode, DFile* a4);
 static int dfile_fgetc_helper(DFile* stream);
 static bool dfile_read_comp_bytes(DFile* stream, void* ptr, size_t size);
@@ -26,7 +29,7 @@ DBase* dbase_open(const char* filePath)
 {
     assert(filePath); // "filename", "dfile.c", 74
 
-    FILE* stream = fopen(filePath, "rb");
+    FILE* stream = os_fs_fopen(filePath, "rb");
     if (stream == NULL) {
         return NULL;
     }
@@ -41,7 +44,7 @@ DBase* dbase_open(const char* filePath)
 
     // Get file size, and reposition stream to read footer, which contains two
     // 32-bits ints.
-    int fileSize = filelength(fileno(stream));
+    int fileSize = os_filesystem_file_size(fileno(stream));
     if (fseek(stream, fileSize - sizeof(int) * 2, SEEK_SET) != 0) {
         goto err;
     }
@@ -125,6 +128,10 @@ DBase* dbase_open(const char* filePath)
     dbase->dataOffset = fileSize - dbaseDataSize;
 
     fclose(stream);
+
+    // The original engine relied on entries already being sorted by stricmp
+    // order. We sort defensively so bsearch works regardless of DAT origin.
+    qsort(dbase->entries, dbase->entriesLength, sizeof(*dbase->entries), dinfo_qsort_compare);
 
     return dbase;
 
@@ -602,7 +609,14 @@ static int dinfo_bsearch_compare(const void* a1, const void* a2)
     const char* filePath = (const char*)a1;
     DBaseEntry* entry = (DBaseEntry*)a2;
 
-    return stricmp(filePath, entry->path);
+    return os_stricmp(filePath, entry->path);
+}
+
+static int dinfo_qsort_compare(const void* a1, const void* a2)
+{
+    const DBaseEntry* e1 = (const DBaseEntry*)a1;
+    const DBaseEntry* e2 = (const DBaseEntry*)a2;
+    return os_stricmp(e1->path, e2->path);
 }
 
 // 0x4E5D9C
@@ -645,7 +659,7 @@ static DFile* dfile_fopen_helper(DBase* dbase, const char* filePath, const char*
     dfile->entry = entry;
 
     // Open stream to .DAT file.
-    dfile->stream = fopen(dbase->path, "rb");
+    dfile->stream = os_fs_fopen(dbase->path, "rb");
     if (dfile->stream == NULL) {
         goto err;
     }

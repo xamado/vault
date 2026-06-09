@@ -229,7 +229,7 @@ int RealMain(int argc, char** argv)
 // 0x480CC0
 static bool main_init_system(int argc, char** argv)
 {
-    if (game_init("FALLOUT II", false, 0, 0, argc, argv) == -1) {
+    if (game_init("FALLOUT II", 0, 0, argc, argv) == -1) {
         return false;
     }
 

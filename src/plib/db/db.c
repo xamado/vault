@@ -1,4 +1,7 @@
 #include "plib/db/db.h"
+#include "plib/os/os_string.h"
+
+#include "plib/os/os_filesystem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -327,7 +330,7 @@ int db_freadInt(File* stream, int* valuePtr)
 }
 
 // NOTE: Uncollapsed 0x4C614C.
-int db_freadLong(File* stream, unsigned long* valuePtr)
+int db_freadLong(File* stream, int* valuePtr)
 {
     return db_freadInt(stream, valuePtr);
 }
@@ -335,7 +338,7 @@ int db_freadLong(File* stream, unsigned long* valuePtr)
 // NOTE: Uncollapsed 0x4C614C.
 int db_freadFloat(File* stream, float* valuePtr)
 {
-    return db_freadInt(stream, (unsigned long*)valuePtr);
+    return db_freadInt(stream, (int*)valuePtr);
 }
 
 int fileReadBool(File* stream, bool* valuePtr)
@@ -382,7 +385,7 @@ int db_fwriteInt(File* stream, int value)
 }
 
 // 0x4C6244
-int db_fwriteLong(File* stream, unsigned long value)
+int db_fwriteLong(File* stream, int value)
 {
     if (db_fwriteShort(stream, (value >> 16) & 0xFFFF) == -1) {
         return -1;
@@ -399,7 +402,7 @@ int db_fwriteLong(File* stream, unsigned long value)
 int db_fwriteFloat(File* stream, float value)
 {
     // NOTE: Uninline.
-    return db_fwriteLong(stream, *(unsigned long*)&value);
+    return db_fwriteLong(stream, *(int*)&value);
 }
 
 int fileWriteBool(File* stream, bool value)
@@ -459,7 +462,7 @@ int db_freadIntCount(File* stream, int* arr, int count)
 }
 
 // NOTE: Uncollapsed 0x4C63BC.
-int db_freadLongCount(File* stream, unsigned long* arr, int count)
+int db_freadLongCount(File* stream, int* arr, int count)
 {
     return db_freadIntCount(stream, arr, count);
 }
@@ -504,7 +507,7 @@ int db_fwriteIntCount(File* stream, int* arr, int count)
 }
 
 // 0x4C6550
-int db_fwriteLongCount(File* stream, unsigned long* arr, int count)
+int db_fwriteLongCount(File* stream, int* arr, int count)
 {
     for (int index = 0; index < count; index++) {
         int value = arr[index];
@@ -545,7 +548,7 @@ int db_get_file_list(const char* pattern, char*** fileNameListPtr, int a3, int a
 
         int fileNamesLength = xlist->fileNamesLength;
         for (int index = 0; index < fileNamesLength - 1; index++) {
-            if (stricmp(xlist->fileNames[index], xlist->fileNames[index + 1]) == 0) {
+            if (os_stricmp(xlist->fileNames[index], xlist->fileNames[index + 1]) == 0) {
                 char* temp = xlist->fileNames[index + 1];
                 memmove(&(xlist->fileNames[index + 1]), &(xlist->fileNames[index + 2]), sizeof(*xlist->fileNames) * (xlist->fileNamesLength - index - 1));
                 xlist->fileNames[xlist->fileNamesLength - 1] = temp;
@@ -562,7 +565,7 @@ int db_get_file_list(const char* pattern, char*** fileNameListPtr, int a3, int a
             char dir[_MAX_DIR];
             char fileName[_MAX_FNAME];
             char extension[_MAX_EXT];
-            _splitpath(name, NULL, dir, fileName, extension);
+            os_filesystem_split_path(name, NULL, dir, fileName, extension);
 
             if (!isWildcard || *dir == '\0' || strchr(dir, '\\') == NULL) {
                 // FIXME: There is a buffer overlow bug in this implementation.
@@ -658,5 +661,5 @@ void db_enable_hash_table()
 // 0x4C68E8
 static int db_list_compare(const void* p1, const void* p2)
 {
-    return stricmp(*(const char**)p1, *(const char**)p2);
+    return os_stricmp(*(const char**)p1, *(const char**)p2);
 }

@@ -15,7 +15,7 @@ typedef enum PipboyOpenIntent {
 
 typedef void(PipboyRenderProc)(int a1);
 
-PipboyRenderProc* PipFnctn[5];
+extern PipboyRenderProc* PipFnctn[5];
 
 int pipboy(int intent);
 void pip_init();

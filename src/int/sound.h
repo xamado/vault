@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 #include "memory_defs.h"
-#include "plib/gnw/gnw95dx.h"
+#include "plib/os/os_audio.h"
 
 #define SOUND_FLAG_SOUND_IS_DONE 0x01
 #define SOUND_FLAG_SOUND_IS_PLAYING 0x02
@@ -76,8 +76,8 @@ typedef void SoundCallback(void* userData, int a2);
 typedef struct Sound {
     SoundFileIO io;
     unsigned char* field_20;
-    LPDIRECTSOUNDBUFFER directSoundBuffer;
-    DSBUFFERDESC directSoundBufferDescription;
+    OSAudioBuffer* directSoundBuffer;
+    OSAudioBufferDesc directSoundBufferDescription;
     int field_3C;
     // flags
     int field_40;
@@ -95,7 +95,7 @@ typedef struct Sound {
     int field_68;
     int readLimit;
     int field_70;
-    DWORD field_74;
+    unsigned int field_74;
     int field_78;
     int field_7C;
     int field_80;
@@ -108,8 +108,7 @@ typedef struct Sound {
     struct Sound* prev;
 } Sound;
 
-extern LPDIRECTSOUNDBUFFER primaryDSBuffer;
-extern LPDIRECTSOUND soundDSObject;
+extern OSAudioDevice* soundDSObject;
 
 void soundRegisterAlloc(MallocProc* mallocProc, ReallocProc* reallocProc, FreeProc* freeProc);
 const char* soundError(int err);

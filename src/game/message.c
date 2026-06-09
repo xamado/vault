@@ -1,4 +1,5 @@
 #include "game/message.h"
+#include "plib/os/os_string.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -79,7 +80,7 @@ int init_message()
             break;
         }
 
-        strupr(bad_word[index]);
+        os_strupr(bad_word[index]);
 
         bad_len[index] = len;
     }
@@ -527,7 +528,7 @@ bool message_filter(MessageList* messageList)
     for (int index = 0; index < messageList->entries_num; index++) {
         MessageListItem* item = &(messageList->entries[index]);
         strcpy(bad_copy, item->text);
-        strupr(bad_copy);
+        os_strupr(bad_copy);
 
         for (int badwordIndex = 0; badwordIndex < bad_total; badwordIndex++) {
             // I don't quite understand the loop below. It has no stop

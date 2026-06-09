@@ -1,4 +1,5 @@
 #include "int/window.h"
+#include "plib/os/os_string.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -90,7 +91,7 @@ static void doRightButtonProc(int btn, int mouseEvent);
 static void doRightButtonRelease(int btn, int keyCode);
 static void setButtonGFX(int width, int height, unsigned char* normal, unsigned char* pressed, unsigned char* a5);
 static void redrawButton(ManagedButton* button);
-static void removeProgramReferences(Program* program);
+static void windowRemoveProgramReferences(Program* program);
 
 // 0x51DCAC
 static int holdTime = 250;
@@ -494,7 +495,7 @@ bool windowActivateRegion(const char* regionName, int a2)
     if (a2 <= 4) {
         for (int index = 0; index < managedWindow->regionsLength; index++) {
             Region* region = managedWindow->regions[index];
-            if (stricmp(regionGetName(region), regionName) == 0) {
+            if (os_stricmp(regionGetName(region), regionName) == 0) {
                 doRegionFunc(region, a2);
                 return true;
             }
@@ -502,7 +503,7 @@ bool windowActivateRegion(const char* regionName, int a2)
     } else {
         for (int index = 0; index < managedWindow->regionsLength; index++) {
             Region* region = managedWindow->regions[index];
-            if (stricmp(regionGetName(region), regionName) == 0) {
+            if (os_stricmp(regionGetName(region), regionName) == 0) {
                 doRegionRightFunc(region, a2 - 5);
                 return true;
             }
@@ -857,7 +858,7 @@ bool deleteWindow(const char* windowName)
     int index;
     for (index = 0; index < MANAGED_WINDOW_COUNT; index++) {
         ManagedWindow* managedWindow = &(windows[index]);
-        if (stricmp(managedWindow->name, windowName) == 0) {
+        if (os_stricmp(managedWindow->name, windowName) == 0) {
             break;
         }
     }
@@ -940,7 +941,7 @@ int createWindow(const char* windowName, int x, int y, int width, int height, in
             windowIndex = index;
             break;
         } else {
-            if (stricmp(managedWindow->name, windowName) == 0) {
+            if (os_stricmp(managedWindow->name, windowName) == 0) {
                 deleteWindow(windowName);
                 windowIndex = index;
                 break;
@@ -1036,7 +1037,7 @@ int selectWindow(const char* windowName)
 {
     if (currentWindow != -1) {
         ManagedWindow* managedWindow = &(windows[currentWindow]);
-        if (stricmp(managedWindow->name, windowName) == 0) {
+        if (os_stricmp(managedWindow->name, windowName) == 0) {
             return currentWindow;
         }
     }
@@ -1045,7 +1046,7 @@ int selectWindow(const char* windowName)
     for (index = 0; index < MANAGED_WINDOW_COUNT; index++) {
         ManagedWindow* managedWindow = &(windows[index]);
         if (managedWindow->window != -1) {
-            if (stricmp(managedWindow->name, windowName) == 0) {
+            if (os_stricmp(managedWindow->name, windowName) == 0) {
                 break;
             }
         }
@@ -1066,7 +1067,7 @@ int windowGetDefined(const char* name)
     int index;
 
     for (index = 0; index < MANAGED_WINDOW_COUNT; index++) {
-        if (windows[index].window != -1 && stricmp(windows[index].name, name) == 0) {
+        if (windows[index].window != -1 && os_stricmp(windows[index].name, name) == 0) {
             return 1;
         }
     }
@@ -1585,7 +1586,7 @@ int windowGetYres()
 }
 
 // 0x4B9058
-static void removeProgramReferences(Program* program)
+static void windowRemoveProgramReferences(Program* program)
 {
     for (int index = 0; index < MANAGED_WINDOW_COUNT; index++) {
         ManagedWindow* managedWindow = &(windows[index]);
@@ -1624,7 +1625,7 @@ void initWindow(int resolution, int a2)
     int rc;
     int i, j;
 
-    interpretRegisterProgramDeleteCallback(removeProgramReferences);
+    interpretRegisterProgramDeleteCallback(windowRemoveProgramReferences);
 
     currentTextColorR = 0;
     currentTextColorG = 0;
@@ -1814,7 +1815,7 @@ bool windowDeleteButton(const char* buttonName)
 
     for (int index = 0; index < managedWindow->buttonsLength; index++) {
         ManagedButton* managedButton = &(managedWindow->buttons[index]);
-        if (stricmp(managedButton->name, buttonName) == 0) {
+        if (os_stricmp(managedButton->name, buttonName) == 0) {
             win_delete_button(managedButton->btn);
 
             if (managedButton->hover != NULL) {
@@ -1866,7 +1867,7 @@ void windowEnableButton(const char* buttonName, int enabled)
     int index;
 
     for (index = 0; index < windows[currentWindow].buttonsLength; index++) {
-        if (stricmp(windows[currentWindow].buttons[index].name, buttonName) == 0) {
+        if (os_stricmp(windows[currentWindow].buttons[index].name, buttonName) == 0) {
             if (enabled) {
                 if (soundPressFunc != NULL || soundReleaseFunc != NULL) {
                     win_register_button_sound_func(windows[currentWindow].buttons[index].btn, soundPressFunc, soundReleaseFunc);
@@ -1892,7 +1893,7 @@ int windowGetButtonID(const char* buttonName)
     int index;
 
     for (index = 0; index < windows[currentWindow].buttonsLength; index++) {
-        if (stricmp(windows[currentWindow].buttons[index].name, buttonName) == 0) {
+        if (os_stricmp(windows[currentWindow].buttons[index].name, buttonName) == 0) {
             return windows[currentWindow].buttons[index].btn;
         }
     }
@@ -1914,7 +1915,7 @@ bool windowSetButtonFlag(const char* buttonName, int value)
 
     for (int index = 0; index < managedWindow->buttonsLength; index++) {
         ManagedButton* managedButton = &(managedWindow->buttons[index]);
-        if (stricmp(managedButton->name, buttonName) == 0) {
+        if (os_stricmp(managedButton->name, buttonName) == 0) {
             managedButton->flags |= value;
             return true;
         }
@@ -1944,7 +1945,7 @@ bool windowAddButton(const char* buttonName, int x, int y, int width, int height
     int index;
     for (index = 0; index < managedWindow->buttonsLength; index++) {
         ManagedButton* managedButton = &(managedWindow->buttons[index]);
-        if (stricmp(managedButton->name, buttonName) == 0) {
+        if (os_stricmp(managedButton->name, buttonName) == 0) {
             win_delete_button(managedButton->btn);
 
             if (managedButton->hover != NULL) {
@@ -2053,7 +2054,7 @@ bool windowAddButtonGfx(const char* buttonName, char* pressedFileName, char* nor
     ManagedWindow* managedWindow = &(windows[currentWindow]);
     for (int index = 0; index < managedWindow->buttonsLength; index++) {
         ManagedButton* managedButton = &(managedWindow->buttons[index]);
-        if (stricmp(managedButton->name, buttonName) == 0) {
+        if (os_stricmp(managedButton->name, buttonName) == 0) {
             int width;
             int height;
 
@@ -2109,7 +2110,7 @@ int windowAddButtonMask(const char* buttonName, unsigned char* buffer)
 
     for (index = 0; index < windows[currentWindow].buttonsLength; index++) {
         button = &(windows[currentWindow].buttons[index]);
-        if (stricmp(button->name, buttonName) == 0) {
+        if (os_stricmp(button->name, buttonName) == 0) {
             copy = (unsigned char*)mymalloc(button->width * button->height, __FILE__, __LINE__); // "..\\int\\WINDOW.C, 1871
             memcpy(copy, buffer, button->width * button->height);
             win_register_button_mask(button->btn, copy);
@@ -2131,7 +2132,7 @@ int windowAddButtonBuf(const char* buttonName, unsigned char* normal, unsigned c
 
     for (index = 0; index < windows[currentWindow].buttonsLength; index++) {
         button = &(windows[currentWindow].buttons[index]);
-        if (stricmp(button->name, buttonName) == 0) {
+        if (os_stricmp(button->name, buttonName) == 0) {
             if (normal != NULL) {
                 memset(button->normal, 0, button->width * button->height);
                 drawScaled(button->normal,
@@ -2195,7 +2196,7 @@ bool windowAddButtonProc(const char* buttonName, Program* program, int mouseEnte
 
     for (int index = 0; index < managedWindow->buttonsLength; index++) {
         ManagedButton* managedButton = &(managedWindow->buttons[index]);
-        if (stricmp(managedButton->name, buttonName) == 0) {
+        if (os_stricmp(managedButton->name, buttonName) == 0) {
             managedButton->procs[MANAGED_BUTTON_MOUSE_EVENT_ENTER] = mouseEnterProc;
             managedButton->procs[MANAGED_BUTTON_MOUSE_EVENT_EXIT] = mouseExitProc;
             managedButton->procs[MANAGED_BUTTON_MOUSE_EVENT_BUTTON_DOWN] = mouseDownProc;
@@ -2222,7 +2223,7 @@ bool windowAddButtonRightProc(const char* buttonName, Program* program, int righ
 
     for (int index = 0; index < managedWindow->buttonsLength; index++) {
         ManagedButton* managedButton = &(managedWindow->buttons[index]);
-        if (stricmp(managedButton->name, buttonName) == 0) {
+        if (os_stricmp(managedButton->name, buttonName) == 0) {
             managedButton->rightProcs[MANAGED_BUTTON_RIGHT_MOUSE_EVENT_BUTTON_UP] = rightMouseUpProc;
             managedButton->rightProcs[MANAGED_BUTTON_RIGHT_MOUSE_EVENT_BUTTON_DOWN] = rightMouseDownProc;
             managedButton->program = program;
@@ -2249,7 +2250,7 @@ bool windowAddButtonCfunc(const char* buttonName, ManagedButtonMouseEventCallbac
 
     for (int index = 0; index < managedWindow->buttonsLength; index++) {
         ManagedButton* managedButton = &(managedWindow->buttons[index]);
-        if (stricmp(managedButton->name, buttonName) == 0) {
+        if (os_stricmp(managedButton->name, buttonName) == 0) {
             managedButton->mouseEventCallbackUserData = userData;
             managedButton->mouseEventCallback = callback;
             return true;
@@ -2275,7 +2276,7 @@ bool windowAddButtonRightCfunc(const char* buttonName, ManagedButtonMouseEventCa
 
     for (int index = 0; index < managedWindow->buttonsLength; index++) {
         ManagedButton* managedButton = &(managedWindow->buttons[index]);
-        if (stricmp(managedButton->name, buttonName) == 0) {
+        if (os_stricmp(managedButton->name, buttonName) == 0) {
             managedButton->rightMouseEventCallback = callback;
             managedButton->rightMouseEventCallbackUserData = userData;
             win_register_right_button(managedButton->btn, -1, -1, doRightButtonPress, doRightButtonRelease);
@@ -2306,7 +2307,7 @@ bool windowAddButtonTextWithOffsets(const char* buttonName, const char* text, in
 
     for (int index = 0; index < managedWindow->buttonsLength; index++) {
         ManagedButton* managedButton = &(managedWindow->buttons[index]);
-        if (stricmp(managedButton->name, buttonName) == 0) {
+        if (os_stricmp(managedButton->name, buttonName) == 0) {
             int normalImageHeight = text_height() + 1;
             int normalImageWidth = text_width(text) + 1;
             unsigned char* buffer = (unsigned char*)mymalloc(normalImageHeight * normalImageWidth, __FILE__, __LINE__); // "..\\int\\WINDOW.C", 2010
@@ -2496,7 +2497,7 @@ void* windowRegionGetUserData(const char* windowRegionName)
 
     for (index = 0; index < windows[currentWindow].regionsLength; index++) {
         regionName = windows[currentWindow].regions[index]->name;
-        if (stricmp(regionName, windowRegionName) == 0) {
+        if (os_stricmp(regionName, windowRegionName) == 0) {
             return regionGetUserData(windows[currentWindow].regions[index]);
         }
     }
@@ -2518,7 +2519,7 @@ void windowRegionSetUserData(const char* windowRegionName, void* userData)
 
     for (index = 0; index < windows[currentWindow].regionsLength; index++) {
         regionName = windows[currentWindow].regions[index]->name;
-        if (stricmp(regionName, windowRegionName) == 0) {
+        if (os_stricmp(regionName, windowRegionName) == 0) {
             regionSetUserData(windows[currentWindow].regions[index], userData);
             return;
         }
@@ -2540,7 +2541,7 @@ bool windowCheckRegionExists(const char* regionName)
     for (int index = 0; index < managedWindow->regionsLength; index++) {
         Region* region = managedWindow->regions[index];
         if (region != NULL) {
-            if (stricmp(regionGetName(region), regionName) == 0) {
+            if (os_stricmp(regionGetName(region), regionName) == 0) {
                 return true;
             }
         }
@@ -2640,7 +2641,7 @@ int windowAddRegionCfunc(const char* regionName, RegionMouseEventCallback* callb
 
     for (index = 0; index < windows[currentWindow].regionsLength; index++) {
         region = windows[currentWindow].regions[index];
-        if (region != NULL && stricmp(region->name, regionName) == 0) {
+        if (region != NULL && os_stricmp(region->name, regionName) == 0) {
             region->mouseEventCallback = callback;
             region->mouseEventCallbackUserData = userData;
             return 1;
@@ -2664,7 +2665,7 @@ int windowAddRegionRightCfunc(const char* regionName, RegionMouseEventCallback* 
 
     for (index = 0; index < windows[currentWindow].regionsLength; index++) {
         region = windows[currentWindow].regions[index];
-        if (region != NULL && stricmp(region->name, regionName) == 0) {
+        if (region != NULL && os_stricmp(region->name, regionName) == 0) {
             region->rightMouseEventCallback = callback;
             region->rightMouseEventCallbackUserData = userData;
             return 1;
@@ -2685,7 +2686,7 @@ bool windowAddRegionProc(const char* regionName, Program* program, int a3, int a
     for (int index = 0; index < managedWindow->regionsLength; index++) {
         Region* region = managedWindow->regions[index];
         if (region != NULL) {
-            if (stricmp(region->name, regionName) == 0) {
+            if (os_stricmp(region->name, regionName) == 0) {
                 region->procs[2] = a3;
                 region->procs[3] = a4;
                 region->procs[0] = a5;
@@ -2710,7 +2711,7 @@ bool windowAddRegionRightProc(const char* regionName, Program* program, int a3, 
     for (int index = 0; index < managedWindow->regionsLength; index++) {
         Region* region = managedWindow->regions[index];
         if (region != NULL) {
-            if (stricmp(region->name, regionName) == 0) {
+            if (os_stricmp(region->name, regionName) == 0) {
                 region->rightProcs[0] = a3;
                 region->rightProcs[1] = a4;
                 region->program = program;
@@ -2730,7 +2731,7 @@ bool windowSetRegionFlag(const char* regionName, int value)
         for (int index = 0; index < managedWindow->regionsLength; index++) {
             Region* region = managedWindow->regions[index];
             if (region != NULL) {
-                if (stricmp(region->name, regionName) == 0) {
+                if (os_stricmp(region->name, regionName) == 0) {
                     regionSetFlag(region, value);
                     return true;
                 }
@@ -2758,7 +2759,7 @@ bool windowAddRegionName(const char* regionName)
         if (index != managedWindow->currentRegionIndex) {
             Region* other = managedWindow->regions[index];
             if (other != NULL) {
-                if (stricmp(regionGetName(other), regionName) == 0) {
+                if (os_stricmp(regionGetName(other), regionName) == 0) {
                     regionDelete(other);
                     managedWindow->regions[index] = NULL;
                     break;
@@ -2790,7 +2791,7 @@ bool windowDeleteRegion(const char* regionName)
         for (int index = 0; index < managedWindow->regionsLength; index++) {
             Region* region = managedWindow->regions[index];
             if (region != NULL) {
-                if (stricmp(regionGetName(region), regionName) == 0) {
+                if (os_stricmp(regionGetName(region), regionName) == 0) {
                     regionDelete(region);
                     managedWindow->regions[index] = NULL;
                     managedWindow->field_38++;

@@ -1,34 +1,27 @@
 #include "game/loadsave.h"
 
 #include <assert.h>
-#include <direct.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
 #include "game/automap.h"
-#include "game/editor.h"
-#include "plib/color/color.h"
+#include "game/bmpdlog.h"
 #include "game/combat.h"
 #include "game/combatai.h"
-#include "plib/gnw/input.h"
 #include "game/critter.h"
 #include "game/cycle.h"
-#include "game/bmpdlog.h"
-#include "plib/gnw/button.h"
-#include "plib/gnw/debug.h"
 #include "game/display.h"
-#include "plib/gnw/grbuf.h"
-#include "game/gz.h"
+#include "game/editor.h"
 #include "game/game.h"
 #include "game/gconfig.h"
 #include "game/gmouse.h"
 #include "game/gmovie.h"
 #include "game/gsound.h"
+#include "game/gz.h"
 #include "game/intface.h"
 #include "game/item.h"
 #include "game/map.h"
-#include "plib/gnw/memory.h"
 #include "game/object.h"
 #include "game/options.h"
 #include "game/perk.h"
@@ -39,13 +32,19 @@
 #include "game/scripts.h"
 #include "game/skill.h"
 #include "game/stat.h"
-#include "plib/gnw/text.h"
 #include "game/tile.h"
 #include "game/trait.h"
 #include "game/version.h"
-#include "plib/gnw/gnw.h"
 #include "game/wordwrap.h"
 #include "game/worldmap.h"
+#include "plib/color/color.h"
+#include "plib/gnw/button.h"
+#include "plib/gnw/debug.h"
+#include "plib/gnw/gnw.h"
+#include "plib/gnw/grbuf.h"
+#include "plib/gnw/input.h"
+#include "plib/gnw/memory.h"
+#include "plib/gnw/text.h"
 
 #define LOAD_SAVE_SIGNATURE "FALLOUT SAVE FILE"
 #define LOAD_SAVE_DESCRIPTION_LENGTH 30
@@ -1463,21 +1462,21 @@ static int SaveSlot()
     gsound_background_pause();
 
     sprintf(gmpath, "%s\\%s", patches, "SAVEGAME");
-    mkdir(gmpath);
+    os_fs_mkdir(gmpath);
 
     sprintf(gmpath, "%s\\%s\\%s%.2d", patches, "SAVEGAME", "SLOT", slot_cursor + 1);
-    mkdir(gmpath);
+    os_fs_mkdir(gmpath);
 
     strcat(gmpath, "\\proto");
-    mkdir(gmpath);
+    os_fs_mkdir(gmpath);
 
     char* protoBasePath = gmpath + strlen(gmpath);
 
     strcpy(protoBasePath, "\\critters");
-    mkdir(gmpath);
+    os_fs_mkdir(gmpath);
 
     strcpy(protoBasePath, "\\items");
-    mkdir(gmpath);
+    os_fs_mkdir(gmpath);
 
     if (SaveBackup() == -1) {
         debug_printf("\nLOADSAVE: Warning, can't backup save file!\n");
@@ -2311,7 +2310,7 @@ static int GameMap2Slot(File* stream)
     sprintf(gmpath, "%s\\%s\\%s%.2d\\", patches, "SAVEGAME", "SLOT", slot_cursor + 1);
     strmfe(str0, "AUTOMAP.DB", "SAV");
     strcat(gmpath, str0);
-    remove(gmpath);
+    os_fs_remove(gmpath);
 
     for (int index = 0; index < fileNameListLength; index += 1) {
         char* string = fileNameList[index];
@@ -2400,7 +2399,7 @@ static int SlotMap2Game(File* stream)
     }
 
     sprintf(str0, "%s\\%s\\%s", patches, "MAPS", "AUTOMAP.DB");
-    remove(str0);
+    os_fs_remove(str0);
 
     for (int index = 1; index < partyMemberMaxCount; index += 1) {
         int pid = partyMemberPidList[index];
@@ -2578,7 +2577,7 @@ int MapDirErase(const char* relativePath, const char* extension)
     int fileListLength = db_get_file_list(path, &fileList, 0, 0);
     while (--fileListLength >= 0) {
         sprintf(path, "%s\\%s%s", patches, relativePath, fileList[fileListLength]);
-        remove(path);
+        os_fs_remove(path);
     }
     db_free_file_list(&fileList, 0);
 
@@ -2591,7 +2590,7 @@ int MapDirEraseFile(const char* a1, const char* a2)
     char path[MAX_PATH];
 
     sprintf(path, "%s\\%s%s", patches, a1, a2);
-    if (remove(path) != 0) {
+    if (os_fs_remove(path) != 0) {
         return -1;
     }
 
@@ -2613,7 +2612,7 @@ static int SaveBackup()
     File* stream1 = db_fopen(str0, "rb");
     if (stream1 != NULL) {
         db_fclose(stream1);
-        if (rename(str0, str1) != 0) {
+        if (os_fs_rename(str0, str1) != 0) {
             return -1;
         }
     }
@@ -2635,7 +2634,7 @@ static int SaveBackup()
         strcat(str0, fileList[index]);
 
         strmfe(str1, str0, "BAK");
-        if (rename(str0, str1) != 0) {
+        if (os_fs_rename(str0, str1) != 0) {
             db_free_file_list(&fileList, 0);
             return -1;
         }
@@ -2680,9 +2679,9 @@ static int RestoreSave()
     strcpy(str0, gmpath);
     strcat(str0, "SAVE.DAT");
     strmfe(str1, str0, "BAK");
-    remove(str0);
+    os_fs_remove(str0);
 
-    if (rename(str1, str0) != 0) {
+    if (os_fs_rename(str1, str0) != 0) {
         EraseSave();
         return -1;
     }
@@ -2708,8 +2707,8 @@ static int RestoreSave()
         strcpy(str0, gmpath);
         strcat(str0, fileList[index]);
         strmfe(str1, str0, "SAV");
-        remove(str1);
-        if (rename(str0, str1) != 0) {
+        os_fs_remove(str1);
+        if (os_fs_rename(str0, str1) != 0) {
             // FIXME: Probably leaks fileList.
             EraseSave();
             return -1;
@@ -2731,7 +2730,7 @@ static int RestoreSave()
     strcpy(str1, gmpath);
     strcat(str1, v2);
 
-    if (rename(str0, str1) != 0) {
+    if (os_fs_rename(str0, str1) != 0) {
         EraseSave();
         return -1;
     }
@@ -2767,7 +2766,7 @@ static int EraseSave()
     sprintf(gmpath, "%s\\%s\\%s%.2d\\", patches, "SAVEGAME", "SLOT", slot_cursor + 1);
     strcpy(str0, gmpath);
     strcat(str0, "SAVE.DAT");
-    remove(str0);
+    os_fs_remove(str0);
 
     sprintf(gmpath, "%s\\%s%.2d\\", "SAVEGAME", "SLOT", slot_cursor + 1);
     sprintf(str0, "%s*.%s", gmpath, "SAV");
@@ -2782,7 +2781,7 @@ static int EraseSave()
     for (int index = fileListLength - 1; index >= 0; index--) {
         strcpy(str0, gmpath);
         strcat(str0, fileList[index]);
-        remove(str0);
+        os_fs_remove(str0);
     }
 
     db_free_file_list(&fileList, 0);
@@ -2793,7 +2792,7 @@ static int EraseSave()
     strcpy(str0, gmpath);
     strcat(str0, v1);
 
-    remove(str0);
+    os_fs_remove(str0);
 
     return 0;
 }

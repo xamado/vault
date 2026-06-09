@@ -1,4 +1,5 @@
 #include "int/dialog.h"
+#include "plib/os/os_string.h"
 
 #include <string.h>
 
@@ -449,7 +450,7 @@ int dialogGotoReply(const char* a1)
         ptr = &(dialog[tods]);
         for (i = 0; i < ptr->field_8; i++) {
             v5 = &(ptr->field_4[i]);
-            if (v5->field_4 != NULL && stricmp(v5->field_4, a1) == 0) {
+            if (v5->field_4 != NULL && os_stricmp(v5->field_4, a1) == 0) {
                 ptr->field_10 = i;
                 return 0;
             }

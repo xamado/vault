@@ -1,15 +1,20 @@
 #include "int/sound.h"
 
-#include <io.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <math.h>
-#include <mmsystem.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include <SDL2/SDL.h>
 
 #include "plib/gnw/debug.h"
 #include "plib/gnw/memory.h"
 #include "plib/gnw/winmain.h"
+#include "plib/os/os_audio.h"
+#include "plib/os/os_filesystem.h"
 
 typedef struct FadeSound {
     Sound* sound;
@@ -38,7 +43,7 @@ static char* defaultMangler(char* fname);
 static void refreshSoundBuffers(Sound* sound);
 static int preloadBuffers(Sound* sound);
 static int addSoundData(Sound* sound, unsigned char* buf, int size);
-static void CALLBACK doTimerEvent(UINT uTimerID, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dw1, DWORD_PTR dw2);
+static Uint32 doTimerEvent(Uint32 interval, void* param);
 static void removeTimedEvent(unsigned int* timerId);
 static void removeFadeSound(FadeSound* fadeSound);
 static void fadeSounds();
@@ -120,8 +125,7 @@ static int soundErrorno;
 // 0x668154
 static int masterVol;
 
-// 0x668158
-LPDIRECTSOUNDBUFFER primaryDSBuffer;
+// 0x668158 (removed: primaryDSBuffer — no longer needed under SDL audio)
 
 // 0x66815C
 static int sampleRate;
@@ -147,7 +151,7 @@ static bool driverInit;
 static Sound* soundMgrList;
 
 // 0x668178
-LPDIRECTSOUND soundDSObject;
+OSAudioDevice* soundDSObject;
 
 // 0x4AC6F0
 static void* defaultMalloc(size_t size)
@@ -181,7 +185,7 @@ static long soundFileSize(int fileHandle)
     long pos;
     long size;
 
-    pos = tell(fileHandle);
+    pos = os_filesystem_tell(fileHandle);
     size = lseek(fileHandle, 0, SEEK_END);
     lseek(fileHandle, pos, SEEK_SET);
 
@@ -191,7 +195,7 @@ static long soundFileSize(int fileHandle)
 // 0x4AC750
 static long soundTellData(int fileHandle)
 {
-    return tell(fileHandle);
+    return os_filesystem_tell(fileHandle);
 }
 
 // 0x4AC758
@@ -251,10 +255,10 @@ static void refreshSoundBuffers(Sound* sound)
         return;
     }
 
-    DWORD readPos;
-    DWORD writePos;
-    HRESULT hr = IDirectSoundBuffer_GetCurrentPosition(sound->directSoundBuffer, &readPos, &writePos);
-    if (hr != DS_OK) {
+    unsigned int readPos;
+    unsigned int writePos;
+    int hr = os_audio_buffer_get_current_position(sound->directSoundBuffer, &readPos, &writePos);
+    if (hr != OS_AUDIO_OK) {
         return;
     }
 
@@ -305,17 +309,16 @@ static void refreshSoundBuffers(Sound* sound)
         return;
     }
 
-    VOID* audioPtr1;
-    VOID* audioPtr2;
-    DWORD audioBytes1;
-    DWORD audioBytes2;
-    hr = IDirectSoundBuffer_Lock(sound->directSoundBuffer, sound->field_7C * sound->field_70, sound->field_7C * v53, &audioPtr1, &audioBytes1, &audioPtr2, &audioBytes2, 0);
-    if (hr == DSERR_BUFFERLOST) {
-        IDirectSoundBuffer_Restore(sound->directSoundBuffer);
-        hr = IDirectSoundBuffer_Lock(sound->directSoundBuffer, sound->field_7C * sound->field_70, sound->field_7C * v53, &audioPtr1, &audioBytes1, &audioPtr2, &audioBytes2, 0);
+    void* audioPtr1;
+    void* audioPtr2;
+    unsigned int audioBytes1;
+    unsigned int audioBytes2;
+    hr = os_audio_buffer_lock(sound->directSoundBuffer, sound->field_7C * sound->field_70, sound->field_7C * v53, &audioPtr1, &audioBytes1, &audioPtr2, &audioBytes2);
+    if (hr == OS_AUDIO_ERR_BUFFERLOST) {
+        hr = os_audio_buffer_lock(sound->directSoundBuffer, sound->field_7C * sound->field_70, sound->field_7C * v53, &audioPtr1, &audioBytes1, &audioPtr2, &audioBytes2);
     }
 
-    if (hr != DS_OK) {
+    if (hr != OS_AUDIO_OK) {
         return;
     }
 
@@ -416,7 +419,7 @@ static void refreshSoundBuffers(Sound* sound)
         }
     }
 
-    IDirectSoundBuffer_Unlock(sound->directSoundBuffer, audioPtr1, audioBytes1, audioPtr2, audioBytes2);
+    os_audio_buffer_unlock(sound->directSoundBuffer, audioPtr1, audioBytes1, audioPtr2, audioBytes2);
 
     sound->field_70 = v6;
 
@@ -426,17 +429,9 @@ static void refreshSoundBuffers(Sound* sound)
 // 0x4ACC58
 int soundInit(int a1, int a2, int a3, int a4, int rate)
 {
-    HRESULT hr;
-    DWORD v24;
-
-    if (GNW95_DirectSoundCreate(0, &soundDSObject, 0) != DS_OK) {
+    if (os_audio_create_device(&soundDSObject) != OS_AUDIO_OK) {
         soundDSObject = NULL;
         soundErrorno = SOUND_SOS_DETECTION_FAILURE;
-        return soundErrorno;
-    }
-
-    if (IDirectSound_SetCooperativeLevel(soundDSObject, GNW95_hwnd, DSSCL_EXCLUSIVE) != DS_OK) {
-        soundErrorno = SOUND_UNKNOWN_ERROR;
         return soundErrorno;
     }
 
@@ -445,112 +440,6 @@ int soundInit(int a1, int a2, int a3, int a4, int rate)
     numBuffers = a2;
     driverInit = true;
     deviceInit = 1;
-
-    DSBUFFERDESC dsbdesc;
-    memset(&dsbdesc, 0, sizeof(dsbdesc));
-    dsbdesc.dwSize = sizeof(dsbdesc);
-    dsbdesc.dwFlags = DSCAPS_PRIMARYMONO;
-    dsbdesc.dwBufferBytes = 0;
-
-    hr = IDirectSound_CreateSoundBuffer(soundDSObject, &dsbdesc, &primaryDSBuffer, NULL);
-    if (hr != DS_OK) {
-        switch (hr) {
-        case DSERR_ALLOCATED:
-            debug_printf("%s:%s\n", "CreateSoundBuffer", "DSERR_ALLOCATED");
-            break;
-        case DSERR_BADFORMAT:
-            debug_printf("%s:%s\n", "CreateSoundBuffer", "DSERR_BADFORMAT");
-            break;
-        case DSERR_INVALIDPARAM:
-            debug_printf("%s:%s\n", "CreateSoundBuffer", "DSERR_INVALIDPARAM");
-            break;
-        case DSERR_NOAGGREGATION:
-            debug_printf("%s:%s\n", "CreateSoundBuffer", "DSERR_NOAGGREGATION");
-            break;
-        case DSERR_OUTOFMEMORY:
-            debug_printf("%s:%s\n", "CreateSoundBuffer", "DSERR_OUTOFMEMORY");
-            break;
-        case DSERR_UNINITIALIZED:
-            debug_printf("%s:%s\n", "CreateSoundBuffer", "DSERR_UNINITIALIZED");
-            break;
-        case DSERR_UNSUPPORTED:
-            debug_printf("%s:%s\n", "CreateSoundBuffer", "DSERR_UNSUPPORTED");
-            break;
-        }
-
-        exit(1);
-    }
-
-    WAVEFORMATEX pcmwf;
-    memset(&pcmwf, 0, sizeof(pcmwf));
-
-    DSCAPS dscaps;
-    memset(&dscaps, 0, sizeof(dscaps));
-    dscaps.dwSize = sizeof(dscaps);
-
-    hr = IDirectSound_GetCaps(soundDSObject, &dscaps);
-    if (hr != DS_OK) {
-        debug_printf("soundInit: Error getting primary buffer parameters\n");
-        goto out;
-    }
-
-    pcmwf.nSamplesPerSec = rate;
-    pcmwf.wFormatTag = WAVE_FORMAT_PCM;
-
-    if (dscaps.dwFlags & DSCAPS_PRIMARY16BIT) {
-        pcmwf.wBitsPerSample = 16;
-    } else {
-        pcmwf.wBitsPerSample = 8;
-    }
-
-    pcmwf.nChannels = (dscaps.dwFlags & DSCAPS_PRIMARYSTEREO) ? 2 : 1;
-    pcmwf.nBlockAlign = pcmwf.wBitsPerSample * pcmwf.nChannels / 8;
-    pcmwf.nSamplesPerSec = rate;
-    pcmwf.cbSize = 0;
-    pcmwf.nAvgBytesPerSec = pcmwf.nBlockAlign * rate;
-
-    debug_printf("soundInit: Setting primary buffer to: %d bit, %d channels, %d rate\n", pcmwf.wBitsPerSample, pcmwf.nChannels, rate);
-    hr = IDirectSoundBuffer_SetFormat(primaryDSBuffer, &pcmwf);
-    if (hr != DS_OK) {
-        debug_printf("soundInit: Couldn't change rate to %d\n", rate);
-
-        switch (hr) {
-        case DSERR_BADFORMAT:
-            debug_printf("%s:%s\n", "SetFormat", "DSERR_BADFORMAT");
-            break;
-        case DSERR_INVALIDCALL:
-            debug_printf("%s:%s\n", "SetFormat", "DSERR_INVALIDCALL");
-            break;
-        case DSERR_INVALIDPARAM:
-            debug_printf("%s:%s\n", "SetFormat", "DSERR_INVALIDPARAM");
-            break;
-        case DSERR_OUTOFMEMORY:
-            debug_printf("%s:%s\n", "SetFormat", "DSERR_OUTOFMEMORY");
-            break;
-        case DSERR_PRIOLEVELNEEDED:
-            debug_printf("%s:%s\n", "SetFormat", "DSERR_PRIOLEVELNEEDED");
-            break;
-        case DSERR_UNSUPPORTED:
-            debug_printf("%s:%s\n", "SetFormat", "DSERR_UNSUPPORTED");
-            break;
-        }
-
-        goto out;
-    }
-
-    hr = IDirectSoundBuffer_GetFormat(primaryDSBuffer, &pcmwf, sizeof(WAVEFORMATEX), &v24);
-    if (hr != DS_OK) {
-        debug_printf("soundInit: Couldn't read new settings\n");
-        goto out;
-    }
-
-    debug_printf("soundInit: Primary buffer settings set to: %d bit, %d channels, %d rate\n", pcmwf.wBitsPerSample, pcmwf.nChannels, pcmwf.nSamplesPerSec);
-
-    if (dscaps.dwFlags & DSCAPS_EMULDRIVER) {
-        debug_printf("soundInit: using DirectSound emulated drivers\n");
-    }
-
-out:
 
     soundSetMasterVolume(VOLUME_MAX);
     soundErrorno = SOUND_NO_ERROR;
@@ -577,13 +466,8 @@ void soundClose()
         fadeFreeList = next;
     }
 
-    if (primaryDSBuffer != NULL) {
-        IDirectSoundBuffer_Release(primaryDSBuffer);
-        primaryDSBuffer = NULL;
-    }
-
     if (soundDSObject != NULL) {
-        IDirectSound_Release(soundDSObject);
+        os_audio_destroy_device(soundDSObject);
         soundDSObject = NULL;
     }
 
@@ -604,51 +488,31 @@ Sound* soundAllocate(int a1, int a2)
 
     memcpy(&(sound->io), &defaultStream, sizeof(defaultStream));
 
-    WAVEFORMATEX* wfxFormat = (WAVEFORMATEX*)mallocPtr(sizeof(*wfxFormat));
-    memset(wfxFormat, 0, sizeof(*wfxFormat));
-
-    wfxFormat->wFormatTag = 1;
-    wfxFormat->nChannels = 1;
+    OSAudioWaveFormat wfxFormat;
+    memset(&wfxFormat, 0, sizeof(wfxFormat));
+    wfxFormat.channels = 1;
 
     if (a2 & 0x08) {
-        wfxFormat->wBitsPerSample = 16;
+        wfxFormat.bitsPerSample = 16;
     } else {
-        wfxFormat->wBitsPerSample = 8;
+        wfxFormat.bitsPerSample = 8;
     }
 
     if (!(a2 & 0x02)) {
         a2 |= 0x02;
     }
 
-    wfxFormat->nSamplesPerSec = sampleRate;
-    wfxFormat->nBlockAlign = wfxFormat->nChannels * (wfxFormat->wBitsPerSample / 8);
-    wfxFormat->cbSize = 0;
-    wfxFormat->nAvgBytesPerSec = wfxFormat->nBlockAlign * wfxFormat->nSamplesPerSec;
+    wfxFormat.sampleRate = sampleRate;
 
     sound->field_3C = a2;
     sound->field_44 = a1;
     sound->field_7C = dataSize;
     sound->field_64 = 0;
-    sound->directSoundBuffer = 0;
+    sound->directSoundBuffer = NULL;
     sound->field_40 = 0;
-    sound->directSoundBufferDescription.dwSize = sizeof(DSBUFFERDESC);
-    sound->directSoundBufferDescription.dwFlags = DSBCAPS_GETCURRENTPOSITION2;
+    sound->directSoundBufferDescription.format = wfxFormat;
     sound->field_78 = numBuffers;
     sound->readLimit = sound->field_7C * numBuffers;
-
-    if (a2 & 0x2) {
-        sound->directSoundBufferDescription.dwFlags |= DSBCAPS_CTRLVOLUME;
-    }
-
-    if (a2 & 0x4) {
-        sound->directSoundBufferDescription.dwFlags |= DSBCAPS_CTRLPAN;
-    }
-
-    if (a2 & 0x40) {
-        sound->directSoundBufferDescription.dwFlags |= DSBCAPS_CTRLFREQUENCY;
-    }
-
-    sound->directSoundBufferDescription.lpwfxFormat = wfxFormat;
 
     if (a1 & 0x10) {
         sound->field_50 = -1;
@@ -761,7 +625,7 @@ int soundLoad(Sound* sound, char* filePath)
 // 0x4AD504
 int soundRewind(Sound* sound)
 {
-    HRESULT hr;
+    int hr;
 
     if (!driverInit) {
         soundErrorno = SOUND_NOT_INITIALIZED;
@@ -779,13 +643,13 @@ int soundRewind(Sound* sound)
         sound->field_74 = 0;
         sound->field_64 = 0;
         sound->field_3C &= 0xFD7F;
-        hr = IDirectSoundBuffer_SetCurrentPosition(sound->directSoundBuffer, 0);
+        hr = os_audio_buffer_set_current_position(sound->directSoundBuffer, 0);
         preloadBuffers(sound);
     } else {
-        hr = IDirectSoundBuffer_SetCurrentPosition(sound->directSoundBuffer, 0);
+        hr = os_audio_buffer_set_current_position(sound->directSoundBuffer, 0);
     }
 
-    if (hr != DS_OK) {
+    if (hr != OS_AUDIO_OK) {
         soundErrorno = SOUND_UNKNOWN_ERROR;
         return soundErrorno;
     }
@@ -799,19 +663,18 @@ int soundRewind(Sound* sound)
 // 0x4AD5C8
 static int addSoundData(Sound* sound, unsigned char* buf, int size)
 {
-    HRESULT hr;
+    int hr;
     void* audio_ptr_1;
-    DWORD audio_bytes_1;
+    unsigned int audio_bytes_1;
     void* audio_ptr_2;
-    DWORD audio_bytes_2;
+    unsigned int audio_bytes_2;
 
-    hr = IDirectSoundBuffer_Lock(sound->directSoundBuffer, 0, size, &audio_ptr_1, &audio_bytes_1, &audio_ptr_2, &audio_bytes_2, DSBLOCK_FROMWRITECURSOR);
-    if (hr == DSERR_BUFFERLOST) {
-        IDirectSoundBuffer_Restore(sound->directSoundBuffer);
-        hr = IDirectSoundBuffer_Lock(sound->directSoundBuffer, 0, size, &audio_ptr_1, &audio_bytes_1, &audio_ptr_2, &audio_bytes_2, DSBLOCK_FROMWRITECURSOR);
+    hr = os_audio_buffer_lock(sound->directSoundBuffer, 0, size, &audio_ptr_1, &audio_bytes_1, &audio_ptr_2, &audio_bytes_2);
+    if (hr == OS_AUDIO_ERR_BUFFERLOST) {
+        hr = os_audio_buffer_lock(sound->directSoundBuffer, 0, size, &audio_ptr_1, &audio_bytes_1, &audio_ptr_2, &audio_bytes_2);
     }
 
-    if (hr != DS_OK) {
+    if (hr != OS_AUDIO_OK) {
         soundErrorno = SOUND_UNKNOWN_ERROR;
         return soundErrorno;
     }
@@ -822,8 +685,8 @@ static int addSoundData(Sound* sound, unsigned char* buf, int size)
         memcpy(audio_ptr_2, buf + audio_bytes_1, audio_bytes_2);
     }
 
-    hr = IDirectSoundBuffer_Unlock(sound->directSoundBuffer, audio_ptr_1, audio_bytes_1, audio_ptr_2, audio_bytes_2);
-    if (hr != DS_OK) {
+    hr = os_audio_buffer_unlock(sound->directSoundBuffer, audio_ptr_1, audio_bytes_1, audio_ptr_2, audio_bytes_2);
+    if (hr != OS_AUDIO_OK) {
         soundErrorno = SOUND_UNKNOWN_ERROR;
         return soundErrorno;
     }
@@ -846,9 +709,9 @@ int soundSetData(Sound* sound, unsigned char* buf, int size)
     }
 
     if (sound->directSoundBuffer == NULL) {
-        sound->directSoundBufferDescription.dwBufferBytes = size;
+        sound->directSoundBufferDescription.bufferBytes = size;
 
-        if (IDirectSound_CreateSoundBuffer(soundDSObject, &(sound->directSoundBufferDescription), &(sound->directSoundBuffer), NULL) != DS_OK) {
+        if (os_audio_create_buffer(soundDSObject, &(sound->directSoundBufferDescription), &(sound->directSoundBuffer)) != OS_AUDIO_OK) {
             soundErrorno = SOUND_UNKNOWN_ERROR;
             return soundErrorno;
         }
@@ -860,9 +723,9 @@ int soundSetData(Sound* sound, unsigned char* buf, int size)
 // 0x4AD73C
 int soundPlay(Sound* sound)
 {
-    HRESULT hr;
-    DWORD readPos;
-    DWORD writePos;
+    int hr;
+    unsigned int readPos;
+    unsigned int writePos;
 
     if (!driverInit) {
         soundErrorno = SOUND_NOT_INITIALIZED;
@@ -881,12 +744,12 @@ int soundPlay(Sound* sound)
 
     soundVolume(sound, sound->volume);
 
-    hr = IDirectSoundBuffer_Play(sound->directSoundBuffer, 0, 0, sound->field_3C & 0x20 ? DSBPLAY_LOOPING : 0);
+    hr = os_audio_buffer_play(sound->directSoundBuffer, sound->field_3C & 0x20 ? OS_AUDIO_PLAY_LOOPING : 0);
 
-    IDirectSoundBuffer_GetCurrentPosition(sound->directSoundBuffer, &readPos, &writePos);
+    os_audio_buffer_get_current_position(sound->directSoundBuffer, &readPos, &writePos);
     sound->field_70 = readPos / sound->field_7C;
 
-    if (hr != DS_OK) {
+    if (hr != OS_AUDIO_OK) {
         soundErrorno = SOUND_UNKNOWN_ERROR;
         return soundErrorno;
     }
@@ -902,7 +765,7 @@ int soundPlay(Sound* sound)
 // 0x4AD828
 int soundStop(Sound* sound)
 {
-    HRESULT hr;
+    int hr;
 
     if (!driverInit) {
         soundErrorno = SOUND_NOT_INITIALIZED;
@@ -919,8 +782,8 @@ int soundStop(Sound* sound)
         return soundErrorno;
     }
 
-    hr = IDirectSoundBuffer_Stop(sound->directSoundBuffer);
-    if (hr != DS_OK) {
+    hr = os_audio_buffer_stop(sound->directSoundBuffer);
+    if (hr != OS_AUDIO_OK) {
         soundErrorno = SOUND_UNKNOWN_ERROR;
         return soundErrorno;
     }
@@ -959,8 +822,9 @@ int soundDelete(Sound* sample)
 // 0x4AD948
 int soundContinue(Sound* sound)
 {
-    HRESULT hr;
-    DWORD status;
+    int hr;
+    bool is_playing;
+    bool is_looping;
 
     if (!driverInit) {
         soundErrorno = SOUND_NOT_INITIALIZED;
@@ -987,15 +851,15 @@ int soundContinue(Sound* sound)
         return soundErrorno;
     }
 
-    hr = IDirectSoundBuffer_GetStatus(sound->directSoundBuffer, &status);
-    if (hr != DS_OK) {
+    hr = os_audio_buffer_get_status(sound->directSoundBuffer, &is_playing, &is_looping);
+    if (hr != OS_AUDIO_OK) {
         debug_printf("Error in soundContinue, %x\n", hr);
 
         soundErrorno = SOUND_UNKNOWN_ERROR;
         return soundErrorno;
     }
 
-    if (!(sound->field_3C & 0x80) && (status & (DSBSTATUS_PLAYING | DSBSTATUS_LOOPING))) {
+    if (!(sound->field_3C & 0x80) && (is_playing || is_looping)) {
         if (!(sound->field_40 & SOUND_FLAG_SOUND_IS_PAUSED) && (sound->field_44 & 0x02)) {
             refreshSoundBuffers(sound);
         }
@@ -1102,7 +966,7 @@ int soundLength(Sound* sound)
         return soundErrorno;
     }
 
-    int bytesPerSec = sound->directSoundBufferDescription.lpwfxFormat->nAvgBytesPerSec;
+    int bytesPerSec = sound->directSoundBufferDescription.format.channels * (sound->directSoundBufferDescription.format.bitsPerSample / 8) * sound->directSoundBufferDescription.format.sampleRate;
     int v3 = sound->field_60;
     int v4 = v3 % bytesPerSec;
     int result = v3 / bytesPerSec;
@@ -1165,7 +1029,7 @@ int soundVolumeHMItoDirectSound(int volume)
 int soundVolume(Sound* sound, int volume)
 {
     int normalizedVolume;
-    HRESULT hr;
+    int hr;
 
     if (!driverInit) {
         soundErrorno = SOUND_NOT_INITIALIZED;
@@ -1186,8 +1050,8 @@ int soundVolume(Sound* sound, int volume)
 
     normalizedVolume = soundVolumeHMItoDirectSound(masterVol * volume / VOLUME_MAX);
 
-    hr = IDirectSoundBuffer_SetVolume(sound->directSoundBuffer, normalizedVolume);
-    if (hr != DS_OK) {
+    hr = os_audio_buffer_set_volume(sound->directSoundBuffer, normalizedVolume);
+    if (hr != OS_AUDIO_OK) {
         soundErrorno = SOUND_UNKNOWN_ERROR;
         return soundErrorno;
     }
@@ -1214,7 +1078,11 @@ int soundGetVolume(Sound* sound)
         return soundErrorno;
     }
 
-    IDirectSoundBuffer_GetVolume(sound->directSoundBuffer, &volume);
+    {
+        int tmpVol = 0;
+        os_audio_buffer_get_volume(sound->directSoundBuffer, &tmpVol);
+        volume = tmpVol;
+    }
 
     if (volume == -10000) {
         v13 = 0;
@@ -1256,8 +1124,6 @@ int soundSetCallback(Sound* sound, SoundCallback* callback, void* userData)
 // 0x4AE02C
 int soundSetChannel(Sound* sound, int channels)
 {
-    LPWAVEFORMATEX format;
-
     if (!driverInit) {
         soundErrorno = SOUND_NOT_INITIALIZED;
         return soundErrorno;
@@ -1269,11 +1135,7 @@ int soundSetChannel(Sound* sound, int channels)
     }
 
     if (channels == 3) {
-        format = sound->directSoundBufferDescription.lpwfxFormat;
-
-        format->nBlockAlign = (2 * format->wBitsPerSample) / 8;
-        format->nChannels = 2;
-        format->nAvgBytesPerSec = format->nBlockAlign * sampleRate;
+        sound->directSoundBufferDescription.format.channels = 2;
     }
 
     soundErrorno = SOUND_NO_ERROR;
@@ -1304,9 +1166,9 @@ int soundSetReadLimit(Sound* sound, int readLimit)
 // 0x4AE0E4
 int soundPause(Sound* sound)
 {
-    HRESULT hr;
-    DWORD readPos;
-    DWORD writePos;
+    int hr;
+    unsigned int readPos;
+    unsigned int writePos;
 
     if (!driverInit) {
         soundErrorno = SOUND_NOT_INITIALIZED;
@@ -1333,8 +1195,8 @@ int soundPause(Sound* sound)
         return soundErrorno;
     }
 
-    hr = IDirectSoundBuffer_GetCurrentPosition(sound->directSoundBuffer, &readPos, &writePos);
-    if (hr != DS_OK) {
+    hr = os_audio_buffer_get_current_position(sound->directSoundBuffer, &readPos, &writePos);
+    if (hr != OS_AUDIO_OK) {
         soundErrorno = SOUND_UNKNOWN_ERROR;
         return soundErrorno;
     }
@@ -1350,7 +1212,7 @@ int soundPause(Sound* sound)
 // 0x4AE1F0
 int soundUnpause(Sound* sound)
 {
-    HRESULT hr;
+    int hr;
 
     if (!driverInit) {
         soundErrorno = SOUND_NOT_INITIALIZED;
@@ -1372,8 +1234,8 @@ int soundUnpause(Sound* sound)
         return soundErrorno;
     }
 
-    hr = IDirectSoundBuffer_SetCurrentPosition(sound->directSoundBuffer, sound->field_48);
-    if (hr != DS_OK) {
+    hr = os_audio_buffer_set_current_position(sound->directSoundBuffer, sound->field_48);
+    if (hr != OS_AUDIO_OK) {
         soundErrorno = SOUND_UNKNOWN_ERROR;
         return soundErrorno;
     }
@@ -1460,7 +1322,7 @@ void soundMgrDelete(Sound* sound)
             sound->callback(sound->callbackUserData, 1);
         }
 
-        IDirectSoundBuffer_Release(sound->directSoundBuffer);
+        os_audio_destroy_buffer(sound->directSoundBuffer);
         sound->directSoundBuffer = NULL;
     }
 
@@ -1471,10 +1333,6 @@ void soundMgrDelete(Sound* sound)
     if (sound->field_20 != NULL) {
         freePtr(sound->field_20);
         sound->field_20 = NULL;
-    }
-
-    if (sound->directSoundBufferDescription.lpwfxFormat != NULL) {
-        freePtr(sound->directSoundBufferDescription.lpwfxFormat);
     }
 
     v10 = sound->next;
@@ -1513,21 +1371,20 @@ int soundSetMasterVolume(int volume)
 }
 
 // 0x4AE5C8
-static void CALLBACK doTimerEvent(UINT uTimerID, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dw1, DWORD_PTR dw2)
+static Uint32 doTimerEvent(Uint32 interval, void* param)
 {
-    void (*fn)();
-
-    if (dwUser != 0) {
-        fn = (void (*)())dwUser;
+    if (param != NULL) {
+        void (*fn)() = (void (*)())param;
         fn();
     }
+    return interval;
 }
 
 // 0x4AE614
 static void removeTimedEvent(unsigned int* timerId)
 {
-    if (*timerId != -1) {
-        timeKillEvent(*timerId);
+    if (*timerId != (unsigned int)-1) {
+        SDL_RemoveTimer((SDL_TimerID)*timerId);
         *timerId = -1;
     }
 }
@@ -1545,9 +1402,9 @@ int soundGetPosition(Sound* sound)
         return soundErrorno;
     }
 
-    DWORD playPos;
-    DWORD writePos;
-    IDirectSoundBuffer_GetCurrentPosition(sound->directSoundBuffer, &playPos, &writePos);
+    unsigned int playPos;
+    unsigned int writePos;
+    os_audio_buffer_get_current_position(sound->directSoundBuffer, &playPos, &writePos);
 
     if ((sound->field_44 & 0x02) != 0) {
         if (playPos < sound->field_74) {
@@ -1581,7 +1438,7 @@ int soundSetPosition(Sound* sound, int a2)
     if (sound->field_44 & 0x02) {
         int v6 = a2 / sound->field_7C % sound->field_78;
 
-        IDirectSoundBuffer_SetCurrentPosition(sound->directSoundBuffer, v6 * sound->field_7C + a2 % sound->field_7C);
+        os_audio_buffer_set_current_position(sound->directSoundBuffer, v6 * sound->field_7C + a2 % sound->field_7C);
 
         sound->io.seek(sound->io.fd, v6 * sound->field_7C, SEEK_SET);
         int bytes_read = sound->io.read(sound->io.fd, sound->field_20, sound->field_7C);
@@ -1605,7 +1462,7 @@ int soundSetPosition(Sound* sound, int a2)
 
         soundContinue(sound);
     } else {
-        IDirectSoundBuffer_SetCurrentPosition(sound->directSoundBuffer, a2);
+        os_audio_buffer_set_current_position(sound->directSoundBuffer, a2);
     }
 
     soundErrorno = SOUND_NO_ERROR;
@@ -1774,7 +1631,7 @@ static int internalSoundFade(Sound* sound, int duration, int targetVolume, int a
         return soundErrorno;
     }
 
-    fadeEventHandle = timeSetEvent(40, 10, doTimerEvent, (DWORD_PTR)fadeSounds, 1);
+    fadeEventHandle = (unsigned int)SDL_AddTimer(40, doTimerEvent, (void*)fadeSounds);
     if (fadeEventHandle == 0) {
         soundErrorno = SOUND_UNKNOWN_ERROR;
         return soundErrorno;

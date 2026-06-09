@@ -4,9 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
 #include "plib/color/color.h"
 #include "plib/db/db.h"
 #include "plib/gnw/memory.h"
@@ -147,9 +144,21 @@ static int load_font(int n)
         goto out;
     }
 
-    if (db_fread(textFontDescriptor, sizeof(Font), 1, stream) != 1) {
+    struct {
+        int num;
+        int height;
+        int spacing;
+        int dummy1;
+        int dummy2;
+    } fontHeader;
+
+    if (db_fread(&fontHeader, 20, 1, stream) != 1) {
         goto out;
     }
+
+    textFontDescriptor->num = fontHeader.num;
+    textFontDescriptor->height = fontHeader.height;
+    textFontDescriptor->spacing = fontHeader.spacing;
 
     textFontDescriptor->info = (FontInfo*)mem_malloc(textFontDescriptor->num * sizeof(FontInfo));
     if (textFontDescriptor->info == NULL) {

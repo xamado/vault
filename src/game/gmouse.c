@@ -1,4 +1,5 @@
 #include "game/gmouse.h"
+#include "plib/os/os_string.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -2287,16 +2288,6 @@ static int gmouse_3d_move_to(int x, int y, int elevation, Rect* a4)
             tile = HEX_GRID_WIDTH * (2 * (squareTile / SQUARE_GRID_WIDTH) + 1) + 2 * (squareTile % SQUARE_GRID_WIDTH) + 1;
             x1 = -8;
             y1 = 13;
-
-            char* executable;
-            config_get_string(&game_config, GAME_CONFIG_SYSTEM_KEY, GAME_CONFIG_EXECUTABLE_KEY, &executable);
-            if (stricmp(executable, "mapper") == 0) {
-                if (tile_roof_visible()) {
-                    if ((obj_dude->flags & OBJECT_HIDDEN) == 0) {
-                        y1 = -83;
-                    }
-                }
-            }
         } else {
             tile = -1;
         }

@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #include "plib/gnw/memory.h"
+#include "plib/math.h"
 
 // 0x51DEF4
 static RectPtr rlist = NULL;

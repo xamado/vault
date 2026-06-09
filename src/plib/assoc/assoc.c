@@ -1,4 +1,5 @@
 #include "plib/assoc/assoc.h"
+#include "plib/os/os_string.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -153,7 +154,7 @@ static int assoc_find(assoc_array* a, const char* name, int* position)
     while (r >= l) {
         mid = (l + r) / 2;
 
-        cmp = stricmp(name, a->list[mid].name);
+        cmp = os_stricmp(name, a->list[mid].name);
         if (cmp == 0) {
             break;
         }

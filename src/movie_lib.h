@@ -1,19 +1,11 @@
 #ifndef MOVIE_LIB_H
 #define MOVIE_LIB_H
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
-#define DIRECTDRAW_VERSION 0x0300
-#include <ddraw.h>
-#include <mmreg.h>
-
-#define DIRECTSOUND_VERSION 0x0300
-#include <dsound.h>
-
-#include <stdbool.h>
-
 #include "memory_defs.h"
+#include "plib/os/os_audio.h"
+
+#include <stdint.h>
+#include <stdbool.h>
 
 typedef struct STRUCT_6B3690 {
     void* field_0;
@@ -31,7 +23,7 @@ typedef struct Mve {
 } Mve;
 #pragma pack()
 
-typedef bool MovieReadProc(int fileHandle, void* buffer, int count);
+typedef bool MovieReadProc(intptr_t fileHandle, void* buffer, int count);
 
 typedef struct STRUCT_4F6930 {
     int field_0;
@@ -39,8 +31,8 @@ typedef struct STRUCT_4F6930 {
     STRUCT_6B3690 field_8;
     int fileHandle;
     int field_18;
-    LPDIRECTDRAWSURFACE field_24;
-    LPDIRECTDRAWSURFACE field_28;
+    unsigned char* field_24;
+    unsigned char* field_28;
     int field_2C;
     unsigned char* field_30;
     unsigned char* field_34;
@@ -59,17 +51,16 @@ typedef struct STRUCT_4F6930 {
 extern int dword_51EBD8;
 extern int dword_51EBDC;
 extern unsigned short word_51EBE0[256];
-extern LPDIRECTDRAW gMovieLibDirectDraw;
+
 extern int _sync_active;
 extern int _sync_late;
 extern int _sync_FrameDropped;
-extern LPDIRECTSOUND gMovieLibDirectSound;
-extern LPDIRECTSOUNDBUFFER gMovieLibDirectSoundBuffer;
+extern OSAudioBuffer* gMovieAudioStream;
 extern int gMovieLibVolume;
 extern int gMovieLibPan;
-extern LPDIRECTDRAWSURFACE gMovieDirectDrawSurface1;
-extern LPDIRECTDRAWSURFACE gMovieDirectDrawSurface2;
-extern void (*_sf_ShowFrame)(LPDIRECTDRAWSURFACE, int, int, int, int, int, int, int, int);
+extern unsigned char* gMovieDirectDrawSurface1;
+extern unsigned char* gMovieDirectDrawSurface2;
+extern void (*_sf_ShowFrame)(unsigned char*, int, int, int, int, int, int, int, int);
 extern int dword_51EE0C;
 extern void (*_pal_SetPalette)(unsigned char*, int, int);
 extern int _rm_hold;
@@ -83,7 +74,6 @@ extern unsigned int _$$R0004[256];
 extern unsigned int _$$R0063[256];
 
 extern int dword_6B3660;
-extern DSBCAPS stru_6B3668;
 extern int _sf_ScreenWidth;
 extern int dword_6B3680;
 extern int _rm_FrameDropCount;
@@ -101,7 +91,7 @@ extern int (*_rm_ctl)();
 extern int _rm_dx;
 extern int _rm_dy;
 extern int _gSoundTimeBase;
-extern int _io_handle;
+extern intptr_t _io_handle;
 extern int _rm_len;
 extern FreeProc* gMovieLibFreeProc;
 extern int _snd_comp;
@@ -144,20 +134,19 @@ void movieLibSetMemoryProcs(MallocProc* mallocProc, FreeProc* freeProc);
 void movieLibSetReadProc(MovieReadProc* readProc);
 void _MVE_MemInit(STRUCT_6B3690* a1, int a2, void* a3);
 void _MVE_MemFree(STRUCT_6B3690* a1);
-void movieLibSetDirectSound(LPDIRECTSOUND ds);
 void movieLibSetVolume(int volume);
 void movieLibSetPan(int pan);
 void _MVE_sfSVGA(int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9);
-void _MVE_sfCallbacks(void (*fn)(LPDIRECTDRAWSURFACE, int, int, int, int, int, int, int, int));
-void _do_nothing_2(LPDIRECTDRAWSURFACE a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9);
+void _MVE_sfCallbacks(void (*fn)(unsigned char*, int, int, int, int, int, int, int, int));
+void _do_nothing_2(unsigned char* a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9);
 void movieLibSetPaletteEntriesProc(void (*fn)(unsigned char*, int, int));
 int _sub_4F4B5();
-void movieLibSetDirectDraw(LPDIRECTDRAW dd);
+
 void _MVE_rmCallbacks(int (*fn)());
 void _sub_4F4BB(int a1);
 void _MVE_rmFrameCounts(int* a1, int* a2);
-int _MVE_rmPrepMovie(int fileHandle, int a2, int a3, char a4);
-int _ioReset(int fileHandle);
+int _MVE_rmPrepMovie(intptr_t fileHandle, int a2, int a3, char a4);
+int _ioReset(intptr_t fileHandle);
 void* _ioRead(int size);
 void* _MVE_MemAlloc(STRUCT_6B3690* a1, unsigned int a2);
 unsigned char* _ioNextRecord();

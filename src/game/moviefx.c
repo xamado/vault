@@ -6,10 +6,11 @@
 #include <string.h>
 
 #include "game/config.h"
+#include "game/palette.h"
+#include "int/movie.h"
 #include "plib/gnw/debug.h"
 #include "plib/gnw/memory.h"
-#include "int/movie.h"
-#include "game/palette.h"
+#include "plib/os/os_string.h"
 
 typedef enum MovieEffectType {
     MOVIE_EFFECT_TYPE_NONE = 0,
@@ -155,7 +156,7 @@ int moviefx_start(const char* filePath)
         int movieEffectsCreated = 0;
         for (int index = 0; index < movieEffectsLength; index++) {
             char section[20];
-            itoa(movieEffectFrameList[index], section, 10);
+            sprintf(section, "%d", movieEffectFrameList[index]);
 
             char* fadeTypeString;
             if (!config_get_string(&config, section, "fade_type", &fadeTypeString)) {
@@ -163,9 +164,9 @@ int moviefx_start(const char* filePath)
             }
 
             int fadeType = MOVIE_EFFECT_TYPE_NONE;
-            if (stricmp(fadeTypeString, "in") == 0) {
+            if (os_stricmp(fadeTypeString, "in") == 0) {
                 fadeType = MOVIE_EFFECT_TYPE_FADE_IN;
-            } else if (stricmp(fadeTypeString, "out") == 0) {
+            } else if (os_stricmp(fadeTypeString, "out") == 0) {
                 fadeType = MOVIE_EFFECT_TYPE_FADE_OUT;
             }
 

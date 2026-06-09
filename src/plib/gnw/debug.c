@@ -1,12 +1,10 @@
 #include "plib/gnw/debug.h"
+#include "plib/os/os_string.h"
 
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 
 #include "plib/gnw/memory.h"
 #include "plib/gnw/intrface.h"
@@ -90,7 +88,7 @@ void debug_register_env()
     }
 
     strcpy(copy, type);
-    strlwr(copy);
+    os_strlwr(copy);
 
     if (strcmp(copy, "mono") == 0) {
         // NOTE: Uninline.
@@ -144,7 +142,7 @@ int debug_printf(const char* format, ...)
 #ifdef _DEBUG
         char string[260];
         vsprintf(string, format, args);
-        OutputDebugStringA(string);
+        fputs(string, stderr);
 #endif
         rc = -1;
     }

@@ -4,9 +4,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
 #include "plib/gnw/gnw_types.h"
 #include "plib/gnw/rect.h"
 

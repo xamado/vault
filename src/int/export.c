@@ -1,4 +1,5 @@
 #include "int/export.h"
+#include "plib/os/os_string.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -28,7 +29,7 @@ static ExternalProcedure* findProc(const char* identifier);
 static ExternalProcedure* findEmptyProc(const char* identifier);
 static ExternalVariable* findVar(const char* identifier);
 static ExternalVariable* findEmptyVar(const char* identifier);
-static void removeProgramReferences(Program* program);
+static void exportRemoveProgramReferences(Program* program);
 
 // 0x570C00
 static ExternalProcedure procHashTable[1013];
@@ -62,7 +63,7 @@ static ExternalProcedure* findProc(const char* identifier)
 
     ExternalProcedure* externalProcedure = &(procHashTable[v1]);
     if (externalProcedure->program != NULL) {
-        if (stricmp(externalProcedure->name, identifier) == 0) {
+        if (os_stricmp(externalProcedure->name, identifier) == 0) {
             return externalProcedure;
         }
     }
@@ -75,7 +76,7 @@ static ExternalProcedure* findProc(const char* identifier)
 
         externalProcedure = &(procHashTable[v1]);
         if (externalProcedure->program != NULL) {
-            if (stricmp(externalProcedure->name, identifier) == 0) {
+            if (os_stricmp(externalProcedure->name, identifier) == 0) {
                 return externalProcedure;
             }
         }
@@ -119,7 +120,7 @@ static ExternalVariable* findVar(const char* identifier)
     unsigned int v2 = v1;
 
     ExternalVariable* exportedVariable = &(varHashTable[v1]);
-    if (stricmp(exportedVariable->name, identifier) == 0) {
+    if (os_stricmp(exportedVariable->name, identifier) == 0) {
         return exportedVariable;
     }
 
@@ -135,7 +136,7 @@ static ExternalVariable* findVar(const char* identifier)
         }
 
         exportedVariable = &(varHashTable[v1]);
-        if (stricmp(exportedVariable->name, identifier) == 0) {
+        if (os_stricmp(exportedVariable->name, identifier) == 0) {
             return exportedVariable;
         }
     } while (v1 != v2);
@@ -294,7 +295,7 @@ int exportExportVariable(Program* program, const char* identifier)
     ExternalVariable* exportedVariable = findVar(identifier);
 
     if (exportedVariable != NULL) {
-        if (stricmp(exportedVariable->programName, programName) != 0) {
+        if (os_stricmp(exportedVariable->programName, programName) != 0) {
             return 1;
         }
 
@@ -320,7 +321,7 @@ int exportExportVariable(Program* program, const char* identifier)
 }
 
 // 0x4414FC
-static void removeProgramReferences(Program* program)
+static void exportRemoveProgramReferences(Program* program)
 {
     for (int index = 0; index < 1013; index++) {
         ExternalProcedure* externalProcedure = &(procHashTable[index]);
@@ -334,7 +335,7 @@ static void removeProgramReferences(Program* program)
 // 0x44152C
 void initExport()
 {
-    interpretRegisterProgramDeleteCallback(removeProgramReferences);
+    interpretRegisterProgramDeleteCallback(exportRemoveProgramReferences);
 }
 
 // 0x441538

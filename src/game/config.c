@@ -237,7 +237,7 @@ bool config_get_values(Config* config, const char* sectionKey, const char* key, 
 bool config_set_value(Config* config, const char* sectionKey, const char* key, int value)
 {
     char stringValue[20];
-    itoa(value, stringValue, 10);
+    sprintf(stringValue, "%d", value);
 
     return config_set_string(config, sectionKey, key, stringValue);
 }
@@ -262,7 +262,7 @@ bool config_load(Config* config, const char* filePath, bool isDb)
             db_fclose(stream);
         }
     } else {
-        FILE* stream = fopen(filePath, "rt");
+        FILE* stream = os_fs_fopen(filePath, "rt");
         if (stream != NULL) {
             while (fgets(string, sizeof(string), stream) != NULL) {
                 config_parse_line(config, string);
@@ -308,7 +308,7 @@ bool config_save(Config* config, const char* filePath, bool isDb)
 
         db_fclose(stream);
     } else {
-        FILE* stream = fopen(filePath, "wt");
+        FILE* stream = os_fs_fopen(filePath, "wt");
         if (stream == NULL) {
             return false;
         }

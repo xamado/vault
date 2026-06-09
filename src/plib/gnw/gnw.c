@@ -13,19 +13,21 @@
 #include "plib/gnw/intrface.h"
 #include "plib/gnw/svga.h"
 #include "plib/gnw/winmain.h"
+#include "plib/os/os_mutex.h"
+#include "plib/os/os_window.h"
 
 static void win_free(int win);
 static void win_clip(Window* window, RectPtr* rectListNodePtr, unsigned char* a3);
 static void refresh_all(Rect* rect, unsigned char* a2);
-static int colorOpen(const char* path, int flags);
-static int colorRead(int fd, void* buf, size_t count);
-static int colorClose(int fd);
+static intptr_t colorOpen(const char* path, int flags);
+static int colorRead(intptr_t fd, void* buf, size_t count);
+static int colorClose(intptr_t fd);
 
 // 0x51E3D8
 static bool GNW95_already_running = false;
 
 // 0x51E3DC
-static HANDLE GNW95_title_mutex = INVALID_HANDLE_VALUE;
+static os_mutex* GNW95_title_mutex = NULL;
 
 // 0x51E3E0
 bool GNW_win_init_flag = false;
@@ -41,7 +43,7 @@ int GNW_wcolor[6] = {
 };
 
 // 0x51E3FC
-static unsigned char* screen_buffer = NULL;
+unsigned char* screen_buffer = NULL;
 
 // 0x6ADD90
 static int window_index[MAX_WINDOW_COUNT];
@@ -76,14 +78,11 @@ void* GNW_texture;
 // 0x4D5C30
 int win_init(VideoSystemInitProc* videoSystemInitProc, VideoSystemExitProc* videoSystemExitProc, int a3)
 {
-    CloseHandle(GNW95_mutex);
-    GNW95_mutex = INVALID_HANDLE_VALUE;
-
     if (GNW95_already_running) {
         return WINDOW_MANAGER_ERR_ALREADY_RUNNING;
     }
 
-    if (GNW95_title_mutex == INVALID_HANDLE_VALUE) {
+    if (GNW95_title_mutex == NULL) {
         return WINDOW_MANAGER_ERR_TITLE_NOT_SET;
     }
 
@@ -257,8 +256,8 @@ void win_exit(void)
 
             GNW_win_init_flag = false;
 
-            CloseHandle(GNW95_title_mutex);
-            GNW95_title_mutex = INVALID_HANDLE_VALUE;
+            os_mutex_destroy(GNW95_title_mutex);
+            GNW95_title_mutex = NULL;
         }
         insideWinExit = false;
     }
@@ -1227,9 +1226,9 @@ void win_set_minimized_title(const char* title)
         return;
     }
 
-    if (GNW95_title_mutex == INVALID_HANDLE_VALUE) {
-        GNW95_title_mutex = CreateMutexA(NULL, TRUE, title);
-        if (GetLastError() != ERROR_SUCCESS) {
+    if (GNW95_title_mutex == NULL) {
+        GNW95_title_mutex = os_mutex_create(title);
+        if (GNW95_title_mutex == NULL || !os_mutex_try_lock(GNW95_title_mutex)) {
             GNW95_already_running = true;
             return;
         }
@@ -1238,15 +1237,13 @@ void win_set_minimized_title(const char* title)
     strncpy(GNW95_title, title, 256);
     GNW95_title[256 - 1] = '\0';
 
-    if (GNW95_hwnd != NULL) {
-        SetWindowTextA(GNW95_hwnd, GNW95_title);
-    }
+    os_window_set_title(GNW95_title);
 }
 
 // [open] implementation for palette operations backed by [XFile].
 //
 // 0x4D8174
-static int colorOpen(const char* path, int flags)
+static intptr_t colorOpen(const char* path, int flags)
 {
     char mode[4];
     memset(mode, 0, sizeof(mode));
@@ -1267,7 +1264,7 @@ static int colorOpen(const char* path, int flags)
 
     File* stream = db_fopen(path, mode);
     if (stream != NULL) {
-        return (int)stream;
+        return (intptr_t)stream;
     }
 
     return -1;
@@ -1276,7 +1273,7 @@ static int colorOpen(const char* path, int flags)
 // [read] implementation for palette file operations backed by [XFile].
 //
 // 0x4D81E8
-static int colorRead(int fd, void* buf, size_t count)
+static int colorRead(intptr_t fd, void* buf, size_t count)
 {
     return db_fread(buf, 1, count, (File*)fd);
 }
@@ -1284,7 +1281,7 @@ static int colorRead(int fd, void* buf, size_t count)
 // [close] implementation for palette file operations backed by [XFile].
 //
 // 0x4D81E0
-static int colorClose(int fd)
+static int colorClose(intptr_t fd)
 {
     return db_fclose((File*)fd);
 }
@@ -1292,11 +1289,6 @@ static int colorClose(int fd)
 // 0x4D8200
 bool GNWSystemError(const char* text)
 {
-    HCURSOR cursor = LoadCursorA(GNW95_hInstance, MAKEINTRESOURCEA(IDC_ARROW));
-    HCURSOR prev = SetCursor(cursor);
-    ShowCursor(TRUE);
-    MessageBoxA(NULL, text, NULL, MB_ICONSTOP);
-    ShowCursor(FALSE);
-    SetCursor(prev);
+    os_window_messagebox("Error", text);
     return true;
 }

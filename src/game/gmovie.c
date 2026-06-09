@@ -1,10 +1,8 @@
 #include "game/gmovie.h"
+#include "plib/os/os_string.h"
 
 #include <stdio.h>
 #include <string.h>
-
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 
 #include "int/window.h"
 #include "plib/color/color.h"
@@ -148,7 +146,7 @@ int gmovie_play(int movie, int flags)
     int movieFileSize;
     bool movieFound = false;
 
-    if (stricmp(language, ENGLISH) != 0) {
+    if (os_stricmp(language, ENGLISH) != 0) {
         sprintf(movieFilePath, "art\\%s\\cuts\\%s", language, movie_list[movie]);
         movieFound = db_dir_entry(movieFilePath, &movieFileSize) == 0;
     }

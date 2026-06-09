@@ -4,7 +4,7 @@ set(EXECUTABLE_NAME fallout2-re)
 
 project(${EXECUTABLE_NAME})
 
-add_executable(${EXECUTABLE_NAME} WIN32
+add_executable(${EXECUTABLE_NAME}
     "src/game/ability.c"
     "src/game/ability.h"
     "src/game/actions.c"
@@ -23,9 +23,7 @@ add_executable(${EXECUTABLE_NAME} WIN32
     "src/game/bmpdlog.h"
     "src/game/cache.c"
     "src/game/cache.h"
-    "src/game/cd.c"
-    "src/game/cd.h"
-    "src/game/combat_defs.h"
+        "src/game/combat_defs.h"
     "src/game/combat.c"
     "src/game/combat.h"
     "src/game/combatai_defs.h"
@@ -41,8 +39,6 @@ add_executable(${EXECUTABLE_NAME} WIN32
     "src/game/critter.h"
     "src/game/cycle.c"
     "src/game/cycle.h"
-    "src/game/diskspce.c"
-    "src/game/diskspce.h"
     "src/game/display.c"
     "src/game/display.h"
     "src/game/editor.c"
@@ -207,12 +203,6 @@ add_executable(${EXECUTABLE_NAME} WIN32
     "src/plib/gnw/button.h"
     "src/plib/gnw/debug.c"
     "src/plib/gnw/debug.h"
-    "src/plib/gnw/doscmdln.c"
-    "src/plib/gnw/doscmdln.h"
-    "src/plib/gnw/dxinput.c"
-    "src/plib/gnw/dxinput.h"
-    "src/plib/gnw/gnw95dx.c"
-    "src/plib/gnw/gnw95dx.h"
     "src/plib/gnw/grbuf.c"
     "src/plib/gnw/grbuf.h"
     "src/plib/gnw/input.c"
@@ -239,6 +229,20 @@ add_executable(${EXECUTABLE_NAME} WIN32
     "src/plib/gnw/vcr.h"
     "src/plib/gnw/winmain.c"
     "src/plib/gnw/winmain.h"
+    "src/plib/os/os_audio.c"
+    "src/plib/os/os_audio.h"
+    "src/plib/os/os_string.c"
+    "src/plib/os/os_string.h"
+    "src/plib/os/os_filesystem.c"
+    "src/plib/os/os_filesystem.h"
+    "src/plib/os/os_input.c"
+    "src/plib/os/os_input.h"
+    "src/plib/os/os_mutex.c"
+    "src/plib/os/os_mutex.h"
+    "src/plib/os/os_time.c"
+    "src/plib/os/os_time.h"
+    "src/plib/os/os_window.c"
+    "src/plib/os/os_window.h"
     "src/plib/xfile/dfile.c"
     "src/plib/xfile/dfile.h"
     "src/plib/xfile/xfile.c"
@@ -261,9 +265,17 @@ target_compile_definitions(${EXECUTABLE_NAME} PUBLIC
     _CRT_NONSTDC_NO_WARNINGS
 )
 
-target_link_libraries(${EXECUTABLE_NAME}
-    winmm
+target_compile_options(${EXECUTABLE_NAME} PUBLIC
+    "-Dstatic_assert(x,y)="
+    -Wno-incompatible-pointer-types
+    -Wno-int-conversion
 )
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SDL2 REQUIRED sdl2)
+
+target_link_libraries(${EXECUTABLE_NAME} m ${SDL2_LIBRARIES})
+target_include_directories(${EXECUTABLE_NAME} PUBLIC ${SDL2_INCLUDE_DIRS})
 
 add_subdirectory("third_party/fpattern")
 target_link_libraries(${EXECUTABLE_NAME} ${FPATTERN_LIBRARY})

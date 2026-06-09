@@ -334,9 +334,9 @@ typedef enum Key {
     KEY_LAST_INPUT_CHARACTER = KEY_LOWERCASE_Z,
 } Key;
 
-unsigned char keys[256];
-int kb_layout;
-unsigned char keynumpress;
+extern unsigned char keys[256];
+extern int kb_layout;
+extern unsigned char keynumpress;
 
 int GNW_kb_set();
 void GNW_kb_restore();

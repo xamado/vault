@@ -450,11 +450,6 @@ static int obj_load_func(File* stream)
         return -1;
     }
 
-    bool fixMapInventory;
-    if (!configGetBool(&game_config, GAME_CONFIG_MAPPER_KEY, GAME_CONFIG_FIX_MAP_INVENTORY_KEY, &fixMapInventory)) {
-        fixMapInventory = false;
-    }
-
     if (!config_get_value(&game_config, GAME_CONFIG_PREFERENCES_KEY, GAME_CONFIG_VIOLENCE_LEVEL_KEY, &fix_violence_level)) {
         fix_violence_level = VIOLENCE_LEVEL_MAXIMUM_BLOOD;
     }
@@ -544,21 +539,8 @@ static int obj_load_func(File* stream)
                         return -1;
                     }
 
-                    if (fixMapInventory) {
-                        inventoryItem->item = (Object*)mem_malloc(sizeof(Object));
-                        if (inventoryItem->item == NULL) {
-                            debug_printf("Error loading inventory\n");
-                            return -1;
-                        }
-
-                        if (obj_read_obj(inventoryItem->item, stream) != 0) {
-                            debug_printf("Error loading inventory\n");
-                            return -1;
-                        }
-                    } else {
-                        if (obj_load_obj(stream, &(inventoryItem->item), elevation, objectListNode->obj) == -1) {
-                            return -1;
-                        }
+                    if (obj_load_obj(stream, &(inventoryItem->item), elevation, objectListNode->obj) == -1) {
+                        return -1;
                     }
                 }
             } else {

@@ -1,10 +1,8 @@
 #include "game/gsound.h"
+#include "plib/os/os_string.h"
 
 #include <stdio.h>
 #include <string.h>
-
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 
 #include "game/anim.h"
 #include "int/audio.h"
@@ -1453,7 +1451,7 @@ char* gsnd_build_character_sfx_name(Object* a1, int anim, int extra)
     }
 
     sprintf(sfx_file_name, "%s%c%c", v7, v8, v9);
-    strupr(sfx_file_name);
+    os_strupr(sfx_file_name);
     return sfx_file_name;
 }
 
@@ -1462,7 +1460,7 @@ char* gsnd_build_character_sfx_name(Object* a1, int anim, int extra)
 char* gsnd_build_ambient_sfx_name(const char* a1)
 {
     sprintf(sfx_file_name, "A%6s%1d", a1, 1);
-    strupr(sfx_file_name);
+    os_strupr(sfx_file_name);
     return sfx_file_name;
 }
 
@@ -1471,7 +1469,7 @@ char* gsnd_build_ambient_sfx_name(const char* a1)
 char* gsnd_build_interface_sfx_name(const char* a1)
 {
     sprintf(sfx_file_name, "N%6s%1d", a1, 1);
-    strupr(sfx_file_name);
+    os_strupr(sfx_file_name);
     return sfx_file_name;
 }
 
@@ -1545,7 +1543,7 @@ char* gsnd_build_weapon_sfx_name(int effectType, Object* weapon, int hitMode, Ob
     }
 
     sprintf(sfx_file_name, "W%c%c%1d%cXX%1d", effectTypeCode, weaponSoundCode, v6, materialCode, 1);
-    strupr(sfx_file_name);
+    os_strupr(sfx_file_name);
     return sfx_file_name;
 }
 
@@ -1557,7 +1555,7 @@ char* gsnd_build_scenery_sfx_name(int actionType, int action, const char* name)
     char actionCode = snd_lookup_scenery_action[action];
 
     sprintf(sfx_file_name, "S%c%c%4s%1d", actionTypeCode, actionCode, name, 1);
-    strupr(sfx_file_name);
+    os_strupr(sfx_file_name);
 
     return sfx_file_name;
 }
@@ -1580,7 +1578,7 @@ char* gsnd_build_open_sfx_name(Object* object, int action)
         proto_ptr(object->pid, &proto);
         sprintf(sfx_file_name, "I%cCNTNR%c", snd_lookup_scenery_action[action], proto->item.field_80);
     }
-    strupr(sfx_file_name);
+    os_strupr(sfx_file_name);
     return sfx_file_name;
 }
 
@@ -1994,7 +1992,7 @@ static void gsound_background_remove_last_copy()
     if (background_fname_copied[0] != '\0') {
         char path[MAX_PATH];
         sprintf(path, "%s%s%s", "sound\\music\\", background_fname_copied, ".ACM");
-        if (remove(path)) {
+        if (os_fs_remove(path)) {
             if (gsound_debug) {
                 debug_printf("Deleting old music file failed.\n");
             }

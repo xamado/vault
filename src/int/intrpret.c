@@ -1,4 +1,5 @@
 #include "int/intrpret.h"
+#include "plib/os/os_string.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -3207,7 +3208,7 @@ static void op_lookup_string_proc(Program* program)
     for (int index = 1; index < procedureCount; index++) {
         int offset = fetchLong(procedurePtr, 0);
         const char* procedureName = interpretGetName(program, offset);
-        if (stricmp(procedureName, procedureNameToLookup) == 0) {
+        if (os_stricmp(procedureName, procedureNameToLookup) == 0) {
             interpretPushLong(program, index);
             interpretPushShort(program, VALUE_TYPE_INT);
             return;
@@ -3574,7 +3575,7 @@ int interpretFindProcedure(Program* program, const char* name)
     unsigned char* ptr = program->procedures + 4;
     for (int index = 0; index < procedureCount; index++) {
         int identifierOffset = fetchLong(ptr, offsetof(Procedure, field_0));
-        if (stricmp((char*)(program->identifiers + identifierOffset), name) == 0) {
+        if (os_stricmp((char*)(program->identifiers + identifierOffset), name) == 0) {
             return index;
         }
 

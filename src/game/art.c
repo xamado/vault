@@ -1,4 +1,5 @@
 #include "game/art.h"
+#include "plib/os/os_string.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,9 +14,6 @@
 #include "plib/gnw/memory.h"
 #include "game/object.h"
 #include "game/proto.h"
-
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 
 // 0x510738
 static ArtListDescription art[OBJ_TYPE_COUNT] = {
@@ -85,10 +83,10 @@ static char art_name[MAX_PATH];
 HeadDescription* head_info;
 
 // 0x56CAEC
-static int* anon_alias;
+int* anon_alias;
 
 // 0x56CAF0
-static int* artCritterFidShouldRunData;
+int* artCritterFidShouldRunData;
 
 // 0x418840
 int art_init()
@@ -108,7 +106,7 @@ int art_init()
     }
 
     char* language;
-    if (config_get_string(&game_config, GAME_CONFIG_SYSTEM_KEY, GAME_CONFIG_LANGUAGE_KEY, &language) && stricmp(language, ENGLISH) != 0) {
+    if (config_get_string(&game_config, GAME_CONFIG_SYSTEM_KEY, GAME_CONFIG_LANGUAGE_KEY, &language) && os_stricmp(language, ENGLISH) != 0) {
         strcpy(darn_foreign_sub_path, language);
         darn_foreigners = true;
     }
@@ -171,16 +169,16 @@ int art_init()
 
     char* critterFileNames = art[OBJ_TYPE_CRITTER].fileNames;
     for (int critterIndex = 0; critterIndex < art[OBJ_TYPE_CRITTER].fileNamesLength; critterIndex++) {
-        if (stricmp(critterFileNames, "hmjmps") == 0) {
+        if (os_stricmp(critterFileNames, "hmjmps") == 0) {
             art_vault_person_nums[DUDE_NATIVE_LOOK_JUMPSUIT][GENDER_MALE] = critterIndex;
-        } else if (stricmp(critterFileNames, "hfjmps") == 0) {
+        } else if (os_stricmp(critterFileNames, "hfjmps") == 0) {
             art_vault_person_nums[DUDE_NATIVE_LOOK_JUMPSUIT][GENDER_FEMALE] = critterIndex;
         }
 
-        if (stricmp(critterFileNames, "hmwarr") == 0) {
+        if (os_stricmp(critterFileNames, "hmwarr") == 0) {
             art_vault_person_nums[DUDE_NATIVE_LOOK_TRIBAL][GENDER_MALE] = critterIndex;
             art_vault_guy_num = critterIndex;
-        } else if (stricmp(critterFileNames, "hfprim") == 0) {
+        } else if (os_stricmp(critterFileNames, "hfprim") == 0) {
             art_vault_person_nums[DUDE_NATIVE_LOOK_TRIBAL][GENDER_FEMALE] = critterIndex;
         }
 
@@ -212,7 +210,7 @@ int art_init()
 
     char* tileFileNames = art[OBJ_TYPE_TILE].fileNames;
     for (int tileIndex = 0; tileIndex < art[OBJ_TYPE_TILE].fileNamesLength; tileIndex++) {
-        if (stricmp(tileFileNames, "grid001.frm") == 0) {
+        if (os_stricmp(tileFileNames, "grid001.frm") == 0) {
             art_mapper_blank_tile = tileIndex;
         }
         tileFileNames += 13;

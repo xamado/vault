@@ -3,11 +3,9 @@
 
 #include <stdbool.h>
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
 #include "plib/gnw/kb.h"
 #include "plib/gnw/mouse.h"
+#include "plib/os/os_input.h"
 
 typedef unsigned long TOCKS;
 
@@ -41,7 +39,6 @@ unsigned int get_bk_time();
 void GNW95_hook_input(int hook);
 int GNW95_input_init();
 void GNW95_input_exit();
-LRESULT CALLBACK GNW95_keyboard_hook(int nCode, WPARAM wParam, LPARAM lParam);
 void GNW95_process_message();
 void GNW95_clear_time_stamps();
 void GNW95_lost_focus();

@@ -1,8 +1,7 @@
 #include "plib/gnw/kb.h"
 
 #include "plib/gnw/input.h"
-#include "plib/gnw/dxinput.h"
-#include "plib/gnw/gnw95dx.h"
+#include "plib/os/os_input.h"
 #include "plib/gnw/vcr.h"
 
 typedef struct key_ansi_t {
@@ -155,7 +154,6 @@ void kb_clear()
         kb_get = 0;
     }
 
-    dxinput_flush_keyboard_buffer();
     GNW95_clear_time_stamps();
 }
 
@@ -2082,15 +2080,15 @@ static void kb_map_ascii_Spanish()
 // 0x4D24F8
 static void kb_init_lock_status()
 {
-    if (GetKeyState(VK_CAPITAL) & 1) {
+    if (os_input_is_key_toggled(DIK_CAPITAL)) {
         kb_lock_flags |= MODIFIER_KEY_STATE_CAPS_LOCK;
     }
 
-    if (GetKeyState(VK_NUMLOCK) & 1) {
+    if (os_input_is_key_toggled(DIK_NUMLOCK)) {
         kb_lock_flags |= MODIFIER_KEY_STATE_NUM_LOCK;
     }
 
-    if (GetKeyState(VK_SCROLL) & 1) {
+    if (os_input_is_key_toggled(DIK_SCROLL)) {
         kb_lock_flags |= MODIFIER_KEY_STATE_SCROLL_LOCK;
     }
 }

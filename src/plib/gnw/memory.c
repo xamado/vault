@@ -1,5 +1,11 @@
 #include "plib/gnw/memory.h"
 
+#define _GNU_SOURCE
+#include <sys/mman.h>
+#ifndef MAP_32BIT
+#define MAP_32BIT 0x40
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,6 +39,70 @@ static void* my_realloc(void* ptr, size_t size);
 static void my_free(void* ptr);
 static void* mem_prep_block(void* block, size_t size);
 static void mem_check_block(void* block);
+
+typedef struct MemBlock {
+    size_t size;
+    int is_free;
+    struct MemBlock* next;
+    struct MemBlock* prev;
+} MemBlock;
+
+static MemBlock* heap_head = NULL;
+static void* heap_base = NULL;
+#define HEAP_SIZE (256 * 1024 * 1024)
+
+static void init_heap() {
+    heap_base = mmap(NULL, HEAP_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_32BIT, -1, 0);
+    if (heap_base == MAP_FAILED) {
+        debug_printf("Failed to mmap 256MB for 32-bit heap\n");
+        exit(1);
+    }
+    heap_head = (MemBlock*)heap_base;
+    heap_head->size = HEAP_SIZE - sizeof(MemBlock);
+    heap_head->is_free = 1;
+    heap_head->next = NULL;
+    heap_head->prev = NULL;
+}
+
+static void* my_malloc_impl(size_t size) {
+    if (!heap_head) init_heap();
+    size = (size + 15) & ~15;
+    MemBlock* curr = heap_head;
+    while(curr) {
+        if (curr->is_free && curr->size >= size) {
+            if (curr->size > size + sizeof(MemBlock) + 32) {
+                MemBlock* new_block = (MemBlock*)((unsigned char*)curr + sizeof(MemBlock) + size);
+                new_block->size = curr->size - size - sizeof(MemBlock);
+                new_block->is_free = 1;
+                new_block->next = curr->next;
+                new_block->prev = curr;
+                if (new_block->next) new_block->next->prev = new_block;
+                curr->next = new_block;
+                curr->size = size;
+            }
+            curr->is_free = 0;
+            return (unsigned char*)curr + sizeof(MemBlock);
+        }
+        curr = curr->next;
+    }
+    return NULL;
+}
+
+static void my_free_impl(void* ptr) {
+    if (!ptr) return;
+    MemBlock* block = (MemBlock*)((unsigned char*)ptr - sizeof(MemBlock));
+    block->is_free = 1;
+    if (block->next && block->next->is_free) {
+        block->size += sizeof(MemBlock) + block->next->size;
+        block->next = block->next->next;
+        if (block->next) block->next->prev = block;
+    }
+    if (block->prev && block->prev->is_free) {
+        block->prev->size += sizeof(MemBlock) + block->size;
+        block->prev->next = block->next;
+        if (block->next) block->next->prev = block->prev;
+    }
+}
 
 // 0x51DED0
 static MallocProc* p_malloc = my_malloc;
@@ -80,7 +150,7 @@ static void* my_malloc(size_t size)
     if (size != 0) {
         size += sizeof(MemoryBlockHeader) + sizeof(MemoryBlockFooter);
 
-        unsigned char* block = (unsigned char*)malloc(size);
+        unsigned char* block = (unsigned char*)my_malloc_impl(size);
         if (block != NULL) {
             // NOTE: Uninline.
             ptr = mem_prep_block(block, size);
@@ -119,12 +189,19 @@ static void* my_realloc(void* ptr, size_t size)
 
         mem_check_block(block);
 
-        if (size != 0) {
-            size += sizeof(MemoryBlockHeader) + sizeof(MemoryBlockFooter);
+        if (size == 0) {
+            my_free_impl(block);
+            num_blocks--;
+            return NULL;
         }
 
-        unsigned char* newBlock = (unsigned char*)realloc(block, size);
+        size += sizeof(MemoryBlockHeader) + sizeof(MemoryBlockFooter);
+
+        unsigned char* newBlock = (unsigned char*)my_malloc_impl(size);
         if (newBlock != NULL) {
+            memcpy(newBlock, block, oldSize < size ? oldSize : size);
+            my_free_impl(block);
+
             mem_allocated += size;
             if (mem_allocated > max_allocated) {
                 max_allocated = mem_allocated;
@@ -133,14 +210,10 @@ static void* my_realloc(void* ptr, size_t size)
             // NOTE: Uninline.
             ptr = mem_prep_block(newBlock, size);
         } else {
-            if (size != 0) {
-                mem_allocated += oldSize;
+            mem_allocated += oldSize;
 
-                debug_printf("%s,%u: ", __FILE__, __LINE__); // "Memory.c", 195
-                debug_printf("Realloc failure.\n");
-            } else {
-                num_blocks--;
-            }
+            debug_printf("%s,%u: ", __FILE__, __LINE__); // "Memory.c", 195
+            debug_printf("Realloc failure.\n");
             ptr = NULL;
         }
     } else {
@@ -168,7 +241,7 @@ static void my_free(void* ptr)
         mem_allocated -= header->size;
         num_blocks--;
 
-        free(block);
+        my_free_impl(block);
     }
 }
 

@@ -1,7 +1,7 @@
 #include "plib/gnw/mouse.h"
 
 #include "plib/color/color.h"
-#include "plib/gnw/dxinput.h"
+#include "plib/os/os_input.h"
 #include "plib/gnw/gnw.h"
 #include "plib/gnw/input.h"
 #include "plib/gnw/memory.h"
@@ -131,7 +131,7 @@ int GNW_mouse_init()
         return -1;
     }
 
-    if (!dxinput_acquire_mouse()) {
+    if (!os_input_acquire_mouse()) {
         return -1;
     }
 
@@ -148,7 +148,7 @@ int GNW_mouse_init()
 // 0x4C9FD8
 void GNW_mouse_exit()
 {
-    dxinput_unacquire_mouse();
+    os_input_unacquire_mouse();
 
     if (mouse_buf != NULL) {
         mem_free(mouse_buf);
@@ -432,8 +432,8 @@ void mouse_info()
     int y;
     int buttons = 0;
 
-    dxinput_mouse_state mouseData;
-    if (dxinput_get_mouse_state(&mouseData)) {
+    os_input_mouse_state mouseData;
+    if (os_input_get_mouse_state(&mouseData)) {
         x = mouseData.delta_x;
         y = mouseData.delta_y;
 
@@ -699,8 +699,8 @@ bool mouse_query_exist()
 // 0x4CAB5C
 void mouse_get_raw_state(int* out_x, int* out_y, int* out_buttons)
 {
-    dxinput_mouse_state mouseData;
-    if (!dxinput_get_mouse_state(&mouseData)) {
+    os_input_mouse_state mouseData;
+    if (!os_input_get_mouse_state(&mouseData)) {
         mouseData.delta_x = 0;
         mouseData.delta_y = 0;
         mouseData.left_button = (mouse_buttons & MOUSE_EVENT_LEFT_BUTTON_DOWN) != 0;

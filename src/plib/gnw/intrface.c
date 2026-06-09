@@ -5,6 +5,7 @@
 
 #include "plib/color/color.h"
 #include "plib/gnw/input.h"
+#include "plib/math.h"
 #include "plib/gnw/grbuf.h"
 #include "plib/gnw/button.h"
 #include "plib/gnw/memory.h"

@@ -1,4 +1,5 @@
 #include "game/combatai.h"
+#include "plib/os/os_string.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -231,7 +232,7 @@ static void parse_hurt_str(char* str, int* valuePtr)
 
     *valuePtr = 0;
 
-    str = strlwr(str);
+    str = os_strlwr(str);
     while (*str) {
         v5 = strspn(str, " ");
         str += v5;
@@ -266,7 +267,7 @@ static int cai_match_str_to_list(const char* str, const char** list, int count, 
 {
     *valuePtr = -1;
     for (int index = 0; index < count; index++) {
-        if (stricmp(str, list[index]) == 0) {
+        if (os_stricmp(str, list[index]) == 0) {
             *valuePtr = index;
         }
     }

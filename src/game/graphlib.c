@@ -5,6 +5,7 @@
 #include "plib/color/color.h"
 #include "plib/gnw/debug.h"
 #include "plib/gnw/memory.h"
+#include "plib/math.h"
 
 static void InitTree();
 static void InsertNode(int a1);

@@ -2,10 +2,11 @@
 
 #include <string.h>
 
-#include "plib/color/color.h"
-#include "plib/db/db.h"
 #include "int/memdbg.h"
 #include "int/pcx.h"
+#include "plib/color/color.h"
+#include "plib/db/db.h"
+#include "plib/os/os_string.h"
 
 static char* defaultMangleName(char* path);
 
@@ -90,7 +91,7 @@ unsigned char* loadRawDataFile(char* path, int* widthPtr, int* heightPtr)
     char* mangledPath = mangleName(path);
     char* dot = strrchr(mangledPath, '.');
     if (dot != NULL) {
-        if (stricmp(dot + 1, "pcx") == 0) {
+        if (os_stricmp(dot + 1, "pcx") == 0) {
             return loadPCX(mangledPath, widthPtr, heightPtr, pal);
         }
     }

@@ -26,6 +26,7 @@
 #include "game/tile.h"
 #include "plib/gnw/button.h"
 #include "plib/gnw/gnw.h"
+#include "plib/math.h"
 
 #define PREFERENCES_WINDOW_WIDTH 640
 #define PREFERENCES_WINDOW_HEIGHT 480

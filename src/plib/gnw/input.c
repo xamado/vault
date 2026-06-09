@@ -1,8 +1,10 @@
 #include "plib/gnw/input.h"
 
+#include <stdio.h>
+#include <SDL2/SDL.h>
+
 #include "plib/color/color.h"
 #include "plib/gnw/button.h"
-#include "plib/gnw/dxinput.h"
 #include "plib/gnw/grbuf.h"
 #include "plib/gnw/memory.h"
 #include "mmx.h"
@@ -12,6 +14,120 @@
 #include "plib/gnw/intrface.h"
 #include "plib/gnw/svga.h"
 #include "plib/gnw/winmain.h"
+#include "plib/os/os_input.h"
+#include "plib/os/os_time.h"
+
+typedef struct KeyboardEventData {
+    int code;
+    int state;
+} KeyboardEventData;
+
+static unsigned char sdl_to_dik(SDL_Scancode sc) {
+    switch (sc) {
+        case SDL_SCANCODE_ESCAPE: return DIK_ESCAPE;
+        case SDL_SCANCODE_1: return DIK_1;
+        case SDL_SCANCODE_2: return DIK_2;
+        case SDL_SCANCODE_3: return DIK_3;
+        case SDL_SCANCODE_4: return DIK_4;
+        case SDL_SCANCODE_5: return DIK_5;
+        case SDL_SCANCODE_6: return DIK_6;
+        case SDL_SCANCODE_7: return DIK_7;
+        case SDL_SCANCODE_8: return DIK_8;
+        case SDL_SCANCODE_9: return DIK_9;
+        case SDL_SCANCODE_0: return DIK_0;
+        case SDL_SCANCODE_MINUS: return DIK_MINUS;
+        case SDL_SCANCODE_EQUALS: return DIK_EQUALS;
+        case SDL_SCANCODE_BACKSPACE: return DIK_BACK;
+        case SDL_SCANCODE_TAB: return DIK_TAB;
+        case SDL_SCANCODE_Q: return DIK_Q;
+        case SDL_SCANCODE_W: return DIK_W;
+        case SDL_SCANCODE_E: return DIK_E;
+        case SDL_SCANCODE_R: return DIK_R;
+        case SDL_SCANCODE_T: return DIK_T;
+        case SDL_SCANCODE_Y: return DIK_Y;
+        case SDL_SCANCODE_U: return DIK_U;
+        case SDL_SCANCODE_I: return DIK_I;
+        case SDL_SCANCODE_O: return DIK_O;
+        case SDL_SCANCODE_P: return DIK_P;
+        case SDL_SCANCODE_LEFTBRACKET: return DIK_LBRACKET;
+        case SDL_SCANCODE_RIGHTBRACKET: return DIK_RBRACKET;
+        case SDL_SCANCODE_RETURN: return DIK_RETURN;
+        case SDL_SCANCODE_LCTRL: return DIK_LCONTROL;
+        case SDL_SCANCODE_A: return DIK_A;
+        case SDL_SCANCODE_S: return DIK_S;
+        case SDL_SCANCODE_D: return DIK_D;
+        case SDL_SCANCODE_F: return DIK_F;
+        case SDL_SCANCODE_G: return DIK_G;
+        case SDL_SCANCODE_H: return DIK_H;
+        case SDL_SCANCODE_J: return DIK_J;
+        case SDL_SCANCODE_K: return DIK_K;
+        case SDL_SCANCODE_L: return DIK_L;
+        case SDL_SCANCODE_SEMICOLON: return DIK_SEMICOLON;
+        case SDL_SCANCODE_APOSTROPHE: return DIK_APOSTROPHE;
+        case SDL_SCANCODE_GRAVE: return DIK_GRAVE;
+        case SDL_SCANCODE_LSHIFT: return DIK_LSHIFT;
+        case SDL_SCANCODE_BACKSLASH: return DIK_BACKSLASH;
+        case SDL_SCANCODE_Z: return DIK_Z;
+        case SDL_SCANCODE_X: return DIK_X;
+        case SDL_SCANCODE_C: return DIK_C;
+        case SDL_SCANCODE_V: return DIK_V;
+        case SDL_SCANCODE_B: return DIK_B;
+        case SDL_SCANCODE_N: return DIK_N;
+        case SDL_SCANCODE_M: return DIK_M;
+        case SDL_SCANCODE_COMMA: return DIK_COMMA;
+        case SDL_SCANCODE_PERIOD: return DIK_PERIOD;
+        case SDL_SCANCODE_SLASH: return DIK_SLASH;
+        case SDL_SCANCODE_RSHIFT: return DIK_RSHIFT;
+        case SDL_SCANCODE_KP_MULTIPLY: return DIK_MULTIPLY;
+        case SDL_SCANCODE_LALT: return DIK_LMENU;
+        case SDL_SCANCODE_SPACE: return DIK_SPACE;
+        case SDL_SCANCODE_CAPSLOCK: return DIK_CAPITAL;
+        case SDL_SCANCODE_F1: return DIK_F1;
+        case SDL_SCANCODE_F2: return DIK_F2;
+        case SDL_SCANCODE_F3: return DIK_F3;
+        case SDL_SCANCODE_F4: return DIK_F4;
+        case SDL_SCANCODE_F5: return DIK_F5;
+        case SDL_SCANCODE_F6: return DIK_F6;
+        case SDL_SCANCODE_F7: return DIK_F7;
+        case SDL_SCANCODE_F8: return DIK_F8;
+        case SDL_SCANCODE_F9: return DIK_F9;
+        case SDL_SCANCODE_F10: return DIK_F10;
+        case SDL_SCANCODE_NUMLOCKCLEAR: return DIK_NUMLOCK;
+        case SDL_SCANCODE_SCROLLLOCK: return DIK_SCROLL;
+        case SDL_SCANCODE_KP_7: return DIK_NUMPAD7;
+        case SDL_SCANCODE_KP_8: return DIK_NUMPAD8;
+        case SDL_SCANCODE_KP_9: return DIK_NUMPAD9;
+        case SDL_SCANCODE_KP_MINUS: return DIK_SUBTRACT;
+        case SDL_SCANCODE_KP_4: return DIK_NUMPAD4;
+        case SDL_SCANCODE_KP_5: return DIK_NUMPAD5;
+        case SDL_SCANCODE_KP_6: return DIK_NUMPAD6;
+        case SDL_SCANCODE_KP_PLUS: return DIK_ADD;
+        case SDL_SCANCODE_KP_1: return DIK_NUMPAD1;
+        case SDL_SCANCODE_KP_2: return DIK_NUMPAD2;
+        case SDL_SCANCODE_KP_3: return DIK_NUMPAD3;
+        case SDL_SCANCODE_KP_0: return DIK_NUMPAD0;
+        case SDL_SCANCODE_KP_PERIOD: return DIK_DECIMAL;
+        case SDL_SCANCODE_F11: return DIK_F11;
+        case SDL_SCANCODE_F12: return DIK_F12;
+        case SDL_SCANCODE_KP_ENTER: return DIK_NUMPADENTER;
+        case SDL_SCANCODE_RCTRL: return DIK_RCONTROL;
+        case SDL_SCANCODE_KP_DIVIDE: return DIK_DIVIDE;
+        case SDL_SCANCODE_PRINTSCREEN: return DIK_SYSRQ;
+        case SDL_SCANCODE_RALT: return DIK_RMENU;
+        case SDL_SCANCODE_PAUSE: return DIK_PAUSE;
+        case SDL_SCANCODE_HOME: return DIK_HOME;
+        case SDL_SCANCODE_UP: return DIK_UP;
+        case SDL_SCANCODE_PAGEUP: return DIK_PRIOR;
+        case SDL_SCANCODE_LEFT: return DIK_LEFT;
+        case SDL_SCANCODE_RIGHT: return DIK_RIGHT;
+        case SDL_SCANCODE_END: return DIK_END;
+        case SDL_SCANCODE_DOWN: return DIK_DOWN;
+        case SDL_SCANCODE_PAGEDOWN: return DIK_NEXT;
+        case SDL_SCANCODE_INSERT: return DIK_INSERT;
+        case SDL_SCANCODE_DELETE: return DIK_DELETE;
+        default: return 0;
+    }
+}
 
 typedef struct GNW95RepeatStruct {
     // Time when appropriate key was pressed down or -1 if it's up.
@@ -42,7 +158,7 @@ static int default_pause_window();
 static void buf_blit(unsigned char* src, int src_pitch, int a3, int x, int y, int width, int height, int dest_x, int dest_y);
 static void GNW95_build_key_map();
 static int GNW95_hook_keyboard(int hook);
-static void GNW95_process_key(dxinput_key_data* data);
+static void GNW95_process_key(KeyboardEventData* data);
 
 // NOT USED.
 static IdleFunc* idle_func = NULL;
@@ -78,8 +194,7 @@ static int input_mx;
 // 0x6AC754
 static int input_my;
 
-// 0x6AC758
-static HHOOK GNW95_keyboardHandle;
+// 0x6AC758 (removed: Win32 keyboard hook handle — SDL handles keyboard via event queue)
 
 // 0x6AC75C
 static bool game_paused;
@@ -120,7 +235,7 @@ static unsigned int bk_process_time;
 // 0x4C8A70
 int GNW_input_init(int use_msec_timer)
 {
-    if (!dxinput_init()) {
+    if (!os_input_init()) {
         return -1;
     }
 
@@ -163,7 +278,7 @@ void GNW_input_exit()
     GNW95_input_exit();
     GNW_mouse_exit();
     GNW_kb_restore();
-    dxinput_exit();
+    os_input_exit();
 
     FuncPtr curr = bk_list;
     while (curr != NULL) {
@@ -612,7 +727,7 @@ void register_screendump(int new_screendump_key, ScreenDumpFunc* new_screendump_
 TOCKS get_time()
 {
 #pragma warning(suppress : 28159)
-    return GetTickCount();
+    return os_get_ticks();
 }
 
 // 0x4C937C
@@ -638,7 +753,7 @@ void pause_for_tocks(unsigned int delay)
 void block_for_tocks(unsigned int ms)
 {
 #pragma warning(suppress : 28159)
-    unsigned int start = GetTickCount();
+    unsigned int start = os_get_ticks();
     unsigned int diff;
     do {
         // NOTE: Uninline
@@ -650,7 +765,7 @@ void block_for_tocks(unsigned int ms)
 unsigned int elapsed_time(unsigned int start)
 {
 #pragma warning(suppress : 28159)
-    unsigned int end = GetTickCount();
+    unsigned int end = os_get_ticks();
 
     // NOTE: Uninline.
     return elapsed_tocks(end, start);
@@ -1008,9 +1123,9 @@ void GNW95_hook_input(int hook)
     GNW95_hook_keyboard(hook);
 
     if (hook) {
-        dxinput_acquire_mouse();
+        os_input_acquire_mouse();
     } else {
-        dxinput_unacquire_mouse();
+        os_input_unacquire_mouse();
     }
 }
 
@@ -1029,6 +1144,10 @@ void GNW95_input_exit()
 }
 
 // 0x4C9C28
+//
+// NOTE: Under SDL the keyboard is delivered through the SDL event queue;
+// there's nothing to hook or unhook. We just track the flag and clear the
+// keyboard state.
 static int GNW95_hook_keyboard(int hook)
 {
     // 0x51E244
@@ -1038,30 +1157,13 @@ static int GNW95_hook_keyboard(int hook)
         return 0;
     }
 
-    if (!hook) {
-        dxinput_unacquire_keyboard();
-
-        UnhookWindowsHookEx(GNW95_keyboardHandle);
-
-        kb_clear();
-
-        hooked = hook;
-
-        return 0;
-    }
-
-    if (dxinput_acquire_keyboard()) {
-        GNW95_keyboardHandle = SetWindowsHookExA(WH_KEYBOARD, GNW95_keyboard_hook, 0, GetCurrentThreadId());
-        kb_clear();
-        hooked = hook;
-
-        return 0;
-    }
-
-    return -1;
+    kb_clear();
+    hooked = hook;
+    return 0;
 }
 
-// 0x4C9C4C
+// 0x4C9C4C (Win32-only keyboard hook callback removed under SDL.)
+#if 0
 LRESULT CALLBACK GNW95_keyboard_hook(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode >= 0) {
@@ -1086,16 +1188,37 @@ next:
 
     return CallNextHookEx(GNW95_keyboardHandle, nCode, wParam, lParam);
 }
+#endif
 
 // 0x4C9CF0
 void GNW95_process_message()
 {
-    if (GNW95_isActive && !kb_is_disabled()) {
-        dxinput_key_data data;
-        while (dxinput_read_keyboard_buffer(&data)) {
-            GNW95_process_key(&data);
+    SDL_Event e;
+    while (SDL_PollEvent(&e)) {
+        if (e.type == SDL_QUIT) {
+            win_exit();
+        } else if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) {
+            if (GNW95_isActive && !kb_is_disabled()) {
+                unsigned char dik = sdl_to_dik(e.key.keysym.scancode);
+                if (dik != 0) {
+                    KeyboardEventData data;
+                    data.code = dik;
+                    data.state = (e.type == SDL_KEYDOWN) ? 1 : 0;
+                    GNW95_process_key(&data);
+                }
+            }
+        } else if (e.type == SDL_WINDOWEVENT) {
+            if (e.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
+                GNW95_isActive = true;
+                GNW95_hook_input(1);
+            } else if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+                GNW95_isActive = false;
+                GNW95_hook_input(0);
+            }
         }
+    }
 
+    if (GNW95_isActive && !kb_is_disabled()) {
         // NOTE: Uninline
         TOCKS now = get_time();
 
@@ -1105,6 +1228,7 @@ void GNW95_process_message()
                 int elapsedTime = ptr->time > now ? INT_MAX : now - ptr->time;
                 int delay = ptr->count == 0 ? GNW95_repeat_delay : GNW95_repeat_rate;
                 if (elapsedTime > delay) {
+                    KeyboardEventData data;
                     data.code = key;
                     data.state = 1;
                     GNW95_process_key(&data);
@@ -1113,14 +1237,6 @@ void GNW95_process_message()
                     ptr->count++;
                 }
             }
-        }
-    }
-
-    MSG msg;
-    while (PeekMessageA(&msg, NULL, 0, 0, 0)) {
-        if (GetMessageA(&msg, NULL, 0, 0)) {
-            TranslateMessage(&msg);
-            DispatchMessageA(&msg);
         }
     }
 }
@@ -1135,7 +1251,7 @@ void GNW95_clear_time_stamps()
 }
 
 // 0x4C9E14
-static void GNW95_process_key(dxinput_key_data* data)
+static void GNW95_process_key(KeyboardEventData* data)
 {
     short key = data->code & 0xFF;
 

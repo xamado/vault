@@ -1,6 +1,6 @@
 #include "game/map.h"
+#include "plib/os/os_string.h"
 
-#include <direct.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -41,7 +41,6 @@
 
 static void map_display_draw(Rect* rect);
 static void map_scroll_refresh_game(Rect* rect);
-static void map_scroll_refresh_mapper(Rect* rect);
 static int map_allocate_global_vars(int count);
 static void map_free_global_vars();
 static int map_load_global_vars(File* stream);
@@ -260,12 +259,6 @@ void iso_exit()
 // 0x481FB4
 void map_init()
 {
-    char* executable;
-    config_get_string(&game_config, GAME_CONFIG_SYSTEM_KEY, "executable", &executable);
-    if (stricmp(executable, "mapper") == 0) {
-        map_scroll_refresh = map_scroll_refresh_mapper;
-    }
-
     if (message_init(&map_msg_file)) {
         char path[FILENAME_MAX];
         sprintf(path, "%smap.msg", msg_path);
@@ -755,7 +748,7 @@ int map_load(char* fileName)
 {
     int rc;
 
-    strupr(fileName);
+    os_strupr(fileName);
 
     rc = -1;
 
@@ -1306,10 +1299,10 @@ int map_save()
     char* masterPatchesPath;
     if (config_get_string(&game_config, GAME_CONFIG_SYSTEM_KEY, GAME_CONFIG_MASTER_PATCHES_KEY, &masterPatchesPath)) {
         strcat(temp, masterPatchesPath);
-        mkdir(temp);
+        os_fs_mkdir(temp);
 
         strcat(temp, "\\MAPS");
-        mkdir(temp);
+        os_fs_mkdir(temp);
     }
 
     int rc = -1;
@@ -1492,10 +1485,10 @@ void map_setup_paths()
         strcpy(path, "DATA");
     }
 
-    mkdir(path);
+    os_fs_mkdir(path);
 
     strcat(path, "\\MAPS");
-    mkdir(path);
+    os_fs_mkdir(path);
 }
 
 // 0x483ED0
@@ -1512,26 +1505,6 @@ static void map_scroll_refresh_game(Rect* rect)
         return;
     }
 
-    square_render_floor(&clampedDirtyRect, map_elevation);
-    grid_render(&clampedDirtyRect, map_elevation);
-    obj_render_pre_roof(&clampedDirtyRect, map_elevation);
-    square_render_roof(&clampedDirtyRect, map_elevation);
-    obj_render_post_roof(&clampedDirtyRect, map_elevation);
-}
-
-// 0x483F44
-static void map_scroll_refresh_mapper(Rect* rect)
-{
-    Rect clampedDirtyRect;
-    if (rect_inside_bound(rect, &map_display_rect, &clampedDirtyRect) == -1) {
-        return;
-    }
-
-    buf_fill(display_buf + clampedDirtyRect.uly * (scr_size.lrx - scr_size.ulx + 1) + clampedDirtyRect.ulx,
-        clampedDirtyRect.lrx - clampedDirtyRect.ulx + 1,
-        clampedDirtyRect.lry - clampedDirtyRect.uly + 1,
-        scr_size.lrx - scr_size.ulx + 1,
-        0);
     square_render_floor(&clampedDirtyRect, map_elevation);
     grid_render(&clampedDirtyRect, map_elevation);
     obj_render_pre_roof(&clampedDirtyRect, map_elevation);

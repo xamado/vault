@@ -40,6 +40,7 @@
 #include "game/tile.h"
 #include "plib/gnw/gnw.h"
 #include "plib/gnw/svga.h"
+#include "plib/math.h"
 
 #define INVENTORY_WINDOW_X 80
 #define INVENTORY_WINDOW_Y 0

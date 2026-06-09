@@ -1,8 +1,8 @@
 #include "plib/xfile/xfile.h"
+#include "plib/os/os_filesystem.h"
+#include "plib/os/os_string.h"
 
 #include <assert.h>
-#include <direct.h>
-#include <io.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,12 +58,12 @@ XFile* xfopen(const char* filePath, const char* mode)
     // NOTE: Compiled code uses different lengths.
     char drive[_MAX_DRIVE];
     char dir[_MAX_DIR];
-    _splitpath(filePath, drive, dir, NULL, NULL);
+    os_filesystem_split_path(filePath, drive, dir, NULL, NULL);
 
     char path[FILENAME_MAX];
     if (drive[0] != '\0' || dir[0] == '\\' || dir[0] == '/' || dir[0] == '.') {
         // [filePath] is an absolute path. Attempt to open as plain stream.
-        stream->file = fopen(filePath, mode);
+        stream->file = os_fs_fopen(filePath, mode);
         if (stream->file == NULL) {
             free(stream);
             return NULL;
@@ -89,7 +89,7 @@ XFile* xfopen(const char* filePath, const char* mode)
                 sprintf(path, "%s\\%s", curr->path, filePath);
 
                 // Attempt to open plain stream.
-                stream->file = fopen(path, mode);
+                stream->file = os_fs_fopen(path, mode);
                 if (stream->file != NULL) {
                     stream->type = XFILE_TYPE_FILE;
                     break;
@@ -101,7 +101,7 @@ XFile* xfopen(const char* filePath, const char* mode)
         if (stream->file == NULL) {
             // File was not opened during the loop above. Attempt to open file
             // relative to the current working directory.
-            stream->file = fopen(filePath, mode);
+            stream->file = os_fs_fopen(filePath, mode);
             if (stream->file == NULL) {
                 free(stream);
                 return NULL;
@@ -123,7 +123,9 @@ XFile* xfopen(const char* filePath, const char* mode)
             fclose(stream->file);
 
             stream->type = XFILE_TYPE_GZFILE;
-            stream->gzfile = gzopen(path, mode);
+            char gzpath[FILENAME_MAX];
+            os_fs_normalize_path(gzpath, sizeof(gzpath), path);
+            stream->gzfile = gzopen(gzpath, mode);
         } else {
             // File is not gzipped.
             rewind(stream->file);
@@ -419,7 +421,7 @@ long xfilelength(XFile* stream)
         fileSize = 0;
         break;
     default:
-        fileSize = filelength(fileno(stream->file));
+        fileSize = os_filesystem_file_size(fileno(stream->file));
         break;
     }
 
@@ -468,7 +470,7 @@ bool xaddpath(const char* path)
     XBase* curr = paths;
     XBase* prev = NULL;
     while (curr != NULL) {
-        if (stricmp(path, curr->path) == 0) {
+        if (os_stricmp(path, curr->path) == 0) {
             break;
         }
 
@@ -549,7 +551,7 @@ bool xenumpath(const char* pattern, XListEnumerationHandler* handler, XList* xli
     char dir[_MAX_DIR];
     char fileName[_MAX_FNAME];
     char extension[_MAX_EXT];
-    _splitpath(pattern, drive, dir, fileName, extension);
+    os_filesystem_split_path(pattern, drive, dir, fileName, extension);
     if (drive[0] != '\0' || dir[0] == '\\' || dir[0] == '/' || dir[0] == '.') {
         if (xsys_findfirst(pattern, &directoryFileFindData)) {
             do {
@@ -566,7 +568,7 @@ bool xenumpath(const char* pattern, XListEnumerationHandler* handler, XList* xli
                     context.type = XFILE_ENUMERATION_ENTRY_TYPE_FILE;
                 }
 
-                _makepath(context.name, drive, dir, entryName, NULL);
+                os_filesystem_make_path(context.name, drive, dir, entryName, NULL);
 
                 if (!handler(&context)) {
                     break;
@@ -611,7 +613,7 @@ bool xenumpath(const char* pattern, XListEnumerationHandler* handler, XList* xli
                         context.type = XFILE_ENUMERATION_ENTRY_TYPE_FILE;
                     }
 
-                    _makepath(context.name, drive, dir, entryName, NULL);
+                    os_filesystem_make_path(context.name, drive, dir, entryName, NULL);
 
                     if (!handler(&context)) {
                         break;
@@ -623,7 +625,7 @@ bool xenumpath(const char* pattern, XListEnumerationHandler* handler, XList* xli
         xbase = xbase->next;
     }
 
-    _splitpath(pattern, drive, dir, fileName, extension);
+    os_filesystem_split_path(pattern, drive, dir, fileName, extension);
     if (xsys_findfirst(pattern, &directoryFileFindData)) {
         do {
             bool isDirectory = fileFindIsDirectory(&directoryFileFindData);
@@ -639,7 +641,7 @@ bool xenumpath(const char* pattern, XListEnumerationHandler* handler, XList* xli
                 context.type = XFILE_ENUMERATION_ENTRY_TYPE_FILE;
             }
 
-            _makepath(context.name, drive, dir, entryName, NULL);
+            os_filesystem_make_path(context.name, drive, dir, entryName, NULL);
 
             if (!handler(&context)) {
                 break;
@@ -684,7 +686,7 @@ int xmkdir(const char* filePath)
 
     char drive[_MAX_DRIVE];
     char dir[_MAX_DIR];
-    _splitpath(filePath, drive, dir, NULL, NULL);
+    os_filesystem_split_path(filePath, drive, dir, NULL, NULL);
 
     char path[FILENAME_MAX];
     if (drive[0] != '\0' || dir[0] == '\\' || dir[0] == '/' || dir[0] == '.') {
@@ -720,7 +722,7 @@ int xmkdir(const char* filePath)
             *pch = '\0';
 
             if (chdir(path) != 0) {
-                if (mkdir(path) != 0) {
+                if (os_fs_mkdir(path) != 0) {
                     chdir(workingDirectory);
                     return -1;
                 }
@@ -734,7 +736,7 @@ int xmkdir(const char* filePath)
     }
 
     // Last path component.
-    mkdir(path);
+    os_fs_mkdir(path);
 
     chdir(workingDirectory);
 

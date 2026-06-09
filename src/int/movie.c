@@ -30,9 +30,9 @@ typedef struct MovieSubtitleListNode {
 
 static void* movieMalloc(size_t size);
 static void movieFree(void* ptr);
-static bool movieRead(int fileHandle, void* buf, int count);
-static void movie_MVE_ShowFrame(LPDIRECTDRAWSURFACE a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9);
-static void movieShowFrame(LPDIRECTDRAWSURFACE a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9);
+static bool movieRead(intptr_t fileHandle, void* buf, int count);
+static void movie_MVE_ShowFrame(unsigned char* a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9);
+static void movieShowFrame(unsigned char* a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9);
 static int movieScaleSubRect(int win, unsigned char* data, int width, int height, int pitch);
 static int movieScaleWindowAlpha(int win, unsigned char* data, int width, int height, int pitch);
 static int movieScaleSubRectAlpha(int win, unsigned char* data, int width, int height, int pitch);
@@ -180,7 +180,7 @@ static int movieW;
 static MovieFrameGrabProc* movieFrameGrabFunc;
 
 // 0x638E9C
-static LPDIRECTDRAWSURFACE MVE_lastBuffer;
+static unsigned char* MVE_lastBuffer;
 
 // 0x638EA0
 static int subtitleH;
@@ -247,88 +247,86 @@ static void movieFree(void* ptr)
 }
 
 // 0x48662C
-static bool movieRead(int fileHandle, void* buf, int count)
+static bool movieRead(intptr_t fileHandle, void* buf, int count)
 {
     return db_fread(buf, 1, count, (File*)fileHandle) == count;
 }
 
 // 0x486654
-static void movie_MVE_ShowFrame(LPDIRECTDRAWSURFACE surface, int srcWidth, int srcHeight, int srcX, int srcY, int destWidth, int destHeight, int a8, int a9)
+static void movie_MVE_ShowFrame(unsigned char* surface, int srcWidth, int srcHeight, int srcX, int srcY, int destWidth, int destHeight, int a8, int a9)
 {
     int v14;
     int v15;
 
-    DDSURFACEDESC ddsd;
-    memset(&ddsd, 0, sizeof(DDSURFACEDESC));
-    ddsd.dwSize = sizeof(DDSURFACEDESC);
-
-    RECT srcRect;
-    srcRect.left = srcX;
-    srcRect.top = srcY;
-    srcRect.right = srcWidth + srcX;
-    srcRect.bottom = srcHeight + srcY;
+    Rect srcRect;
+    srcRect.ulx = srcX;
+    srcRect.uly = srcY;
+    srcRect.lrx = srcWidth + srcX;
+    srcRect.lry = srcHeight + srcY;
 
     v14 = winRect.lrx - winRect.ulx;
     v15 = winRect.lrx - winRect.ulx + 1;
 
-    RECT destRect;
+    Rect destRect;
 
     if (movieScaleFlag) {
         if ((movieFlags & MOVIE_EXTENDED_FLAG_0x08) != 0) {
-            destRect.top = (winRect.lry - winRect.uly + 1 - destHeight) / 2;
-            destRect.left = (v15 - 4 * srcWidth / 3) / 2;
+            destRect.uly = (winRect.lry - winRect.uly + 1 - destHeight) / 2;
+            destRect.ulx = (v15 - 4 * srcWidth / 3) / 2;
         } else {
-            destRect.top = movieY + winRect.uly;
-            destRect.left = winRect.ulx + movieX;
+            destRect.uly = movieY + winRect.uly;
+            destRect.ulx = winRect.ulx + movieX;
         }
 
-        destRect.right = 4 * srcWidth / 3 + destRect.left;
-        destRect.bottom = destHeight + destRect.top;
+        destRect.lrx = 4 * srcWidth / 3 + destRect.ulx;
+        destRect.lry = destHeight + destRect.uly;
     } else {
         if ((movieFlags & MOVIE_EXTENDED_FLAG_0x08) != 0) {
-            destRect.top = (winRect.lry - winRect.uly + 1 - destHeight) / 2;
-            destRect.left = (v15 - destWidth) / 2;
+            destRect.uly = (winRect.lry - winRect.uly + 1 - destHeight) / 2;
+            destRect.ulx = (v15 - destWidth) / 2;
         } else {
-            destRect.top = movieY + winRect.uly;
-            destRect.left = winRect.ulx + movieX;
+            destRect.uly = movieY + winRect.uly;
+            destRect.ulx = winRect.ulx + movieX;
         }
-        destRect.right = destWidth + destRect.left;
-        destRect.bottom = destHeight + destRect.top;
+        destRect.lrx = destWidth + destRect.ulx;
+        destRect.lry = destHeight + destRect.uly;
     }
 
     lastMovieSX = srcX;
     lastMovieSY = srcY;
-    lastMovieX = destRect.left;
-    lastMovieY = destRect.top;
+    lastMovieX = destRect.ulx;
+    lastMovieY = destRect.uly;
     lastMovieBH = srcHeight;
-    lastMovieW = destRect.right - destRect.left;
+    lastMovieW = destRect.lrx - destRect.ulx;
     MVE_lastBuffer = surface;
     lastMovieBW = srcWidth;
-    lastMovieH = destRect.bottom - destRect.top;
+    lastMovieH = destRect.lry - destRect.uly;
 
-    HRESULT hr;
-    do {
-        if (movieCaptureFrameFunc != NULL) {
-            if (IDirectDrawSurface_Lock(surface, NULL, &ddsd, 1, NULL) == DD_OK) {
-                unsigned char* data = (unsigned char*)ddsd.lpSurface + ddsd.lPitch * srcY + srcX;
-                movieCaptureFrameFunc(data,
-                    srcWidth,
-                    srcHeight,
-                    ddsd.lPitch,
-                    destRect.left,
-                    destRect.top,
-                    destRect.right - destRect.left,
-                    destRect.bottom - destRect.top);
-                IDirectDrawSurface_Unlock(surface, ddsd.lpSurface);
-            }
-        }
+    if (movieCaptureFrameFunc != NULL) {
+        unsigned char* data = surface + _mveBW * srcY + srcX;
+        movieCaptureFrameFunc(data,
+            srcWidth,
+            srcHeight,
+            _mveBW,
+            destRect.ulx,
+            destRect.uly,
+            destRect.lrx - destRect.ulx,
+            destRect.lry - destRect.uly);
+    }
 
-        hr = IDirectDrawSurface_Blt(GNW95_DDPrimarySurface, &destRect, surface, &srcRect, 0, NULL);
-    } while (hr != DD_OK && hr != DDERR_SURFACELOST && hr == DDERR_WASSTILLDRAWING);
+    if (movieScaleFlag) {
+        lastMovieX = 0;
+        lastMovieY = 0;
+        lastMovieW = 640;
+        lastMovieH = 480;
+        GNW95_ShowMovieRect(surface, _mveBW, srcX, srcY, srcWidth, srcHeight);
+    } else {
+        GNW95_ShowRect(surface, _mveBW, 0, srcX, srcY, srcWidth, srcHeight, destRect.ulx, destRect.uly);
+    }
 }
 
 // 0x486900
-static void movieShowFrame(LPDIRECTDRAWSURFACE a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9)
+static void movieShowFrame(unsigned char* a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9)
 {
     if (GNWWin == -1) {
         return;
@@ -344,25 +342,17 @@ static void movieShowFrame(LPDIRECTDRAWSURFACE a1, int a2, int a3, int a4, int a
     lastMovieSX = a4;
     lastMovieSY = a5;
 
-    DDSURFACEDESC ddsd;
-    ddsd.dwSize = sizeof(DDSURFACEDESC);
-
-    if (IDirectDrawSurface_Lock(a1, NULL, &ddsd, 1, NULL) != DD_OK) {
-        return;
-    }
-
-    unsigned char* data = (unsigned char*)ddsd.lpSurface + ddsd.lPitch * a5 + a4;
+    unsigned char* data = a1 + _mveBW * a5 + a4;
 
     if (movieCaptureFrameFunc != NULL) {
-        // FIXME: Looks wrong as it ignores lPitch (as seen in movie_MVE_ShowFrame).
         movieCaptureFrameFunc(data, a2, a3, a2, movieRect.ulx, movieRect.uly, a6, a7);
     }
 
     if (movieFrameGrabFunc != NULL) {
-        movieFrameGrabFunc(data, a2, a3, ddsd.lPitch);
+        movieFrameGrabFunc(data, a2, a3, _mveBW);
     } else {
         MovieBlitFunc* func = showFrameFuncs[movieAlphaFlag][movieScaleFlag][movieSubRectFlag];
-        if (func(GNWWin, data, a2, a3, ddsd.lPitch) != 0) {
+        if (func(GNWWin, data, a2, a3, _mveBW) != 0) {
             if (moviePreDrawFunc != NULL) {
                 moviePreDrawFunc(GNWWin, &movieRect);
             }
@@ -370,8 +360,6 @@ static void movieShowFrame(LPDIRECTDRAWSURFACE a1, int a2, int a3, int a4, int a
             win_draw_rect(GNWWin, &movieRect);
         }
     }
-
-    IDirectDrawSurface_Unlock(a1, ddsd.lpSurface);
 }
 
 // NOTE: Unused.
@@ -506,9 +494,7 @@ static int noop()
 void initMovie()
 {
     movieLibSetMemoryProcs(movieMalloc, movieFree);
-    movieLibSetDirectSound(soundDSObject);
     soundEnabled = (soundDSObject != NULL);
-    movieLibSetDirectDraw(GNW95_DDObject);
     movieLibSetPaletteEntriesProc(movieSetPalette);
     _MVE_sfSVGA(640, 480, 480, 0, 0, 0, 0, 0, 0);
     movieLibSetReadProc(movieRead);
@@ -536,16 +522,8 @@ static void cleanupMovie(int a1)
     }
 
     if (MVE_lastBuffer != NULL) {
-        DDSURFACEDESC ddsd;
-        ddsd.dwSize = sizeof(DDSURFACEDESC);
-        if (IDirectDrawSurface_Lock(MVE_lastBuffer, 0, &ddsd, 1, NULL) == DD_OK) {
-            lastMovieBuffer = (unsigned char*)mymalloc(lastMovieBH * lastMovieBW, __FILE__, __LINE__); // "..\\int\\MOVIE.C", 802
-            buf_to_buf((unsigned char*)ddsd.lpSurface + ddsd.lPitch * lastMovieSX + lastMovieSY, lastMovieBW, lastMovieBH, ddsd.lPitch, lastMovieBuffer, lastMovieBW);
-            IDirectDrawSurface_Unlock(MVE_lastBuffer, ddsd.lpSurface);
-        } else {
-            debug_printf("Couldn't lock movie surface\n");
-        }
-
+        lastMovieBuffer = (unsigned char*)mymalloc(lastMovieBH * lastMovieBW, __FILE__, __LINE__);
+        buf_to_buf(MVE_lastBuffer + _mveBW * lastMovieSX + lastMovieSY, lastMovieBW, lastMovieBH, _mveBW, lastMovieBuffer, lastMovieBW);
         MVE_lastBuffer = NULL;
     }
 
@@ -882,7 +860,7 @@ static int movieStart(int win, char* filePath, int (*a3)())
         v15 = 0;
     }
 
-    _MVE_rmPrepMovie((int)handle, v15, v16, v17);
+    _MVE_rmPrepMovie((intptr_t)handle, v15, v16, v17);
 
     if (movieScaleFlag) {
         debug_printf("scaled\n");

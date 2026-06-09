@@ -3,12 +3,12 @@
 #include <math.h>
 #include <string.h>
 
-#include "plib/gnw/input.h"
+#include "plib/math.h"
 #include "plib/gnw/svga.h"
 
-static int colorOpen(const char* filePath, int flags);
-static int colorRead(int fd, void* buffer, size_t size);
-static int colorClose(int fd);
+static intptr_t colorOpen(const char* filePath, int flags);
+static int colorRead(intptr_t fd, void* buffer, size_t size);
+static int colorClose(intptr_t fd);
 static void* defaultMalloc(size_t size);
 static void* defaultRealloc(void* ptr, size_t size);
 static void defaultFree(void* ptr);
@@ -18,7 +18,7 @@ static void setMixTableColor(int a1);
 static void setMixTable();
 static void buildBlendTable(unsigned char* ptr, unsigned char ch);
 static void rebuildColorBlendTables();
-static void maxfill();
+static void maxfill(unsigned long* buffer, int side);
 
 // 0x50F930
 static char _aColor_cNoError[] = "color.c: No errors\n";
@@ -103,7 +103,7 @@ static ColorOpenFunc* openFunc;
 // NOTE: Inlined.
 //
 // 0x4C7200
-static int colorOpen(const char* filePath, int flags)
+static intptr_t colorOpen(const char* filePath, int flags)
 {
     if (openFunc != NULL) {
         return openFunc(filePath, flags);
@@ -115,7 +115,7 @@ static int colorOpen(const char* filePath, int flags)
 // NOTE: Inlined.
 //
 // 0x4C7218
-static int colorRead(int fd, void* buffer, size_t size)
+static int colorRead(intptr_t fd, void* buffer, size_t size)
 {
     if (readFunc != NULL) {
         return readFunc(fd, buffer, size);
@@ -127,7 +127,7 @@ static int colorRead(int fd, void* buffer, size_t size)
 // NOTE: Inlined.
 //
 // 0x4C7230
-static int colorClose(int fd)
+static int colorClose(intptr_t fd)
 {
     if (closeFunc != NULL) {
         return closeFunc(fd);
@@ -447,7 +447,7 @@ bool loadColorTable(const char* path)
     }
 
     // NOTE: Uninline.
-    int fd = colorOpen(path, 0x200);
+    intptr_t fd = colorOpen(path, 0x200);
     if (fd == -1) {
         errorStr = _aColor_cColorTa;
         return false;

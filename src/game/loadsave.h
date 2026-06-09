@@ -3,8 +3,6 @@
 
 #include <stdbool.h>
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 
 #include "game/art.h"
 #include "plib/db/db.h"

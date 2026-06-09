@@ -1,4 +1,5 @@
 #include "game/tile.h"
+#include "plib/os/os_string.h"
 
 #include <assert.h>
 #include <string.h>
@@ -48,7 +49,6 @@ typedef struct STRUCT_51DB48 {
     int field_8;
 } STRUCT_51DB48;
 
-static void refresh_mapper(Rect* rect, int elevation);
 static void refresh_game(Rect* rect, int elevation);
 static bool tile_on_edge(int tile);
 static void roof_fill_on(int x, int y, int elevation);
@@ -415,12 +415,6 @@ int tile_init(TileData** a1, int squareGridWidth, int squareGridHeight, int hexG
     tile_set_center(hexGridWidth * (hexGridHeight / 2) + hexGridWidth / 2, TILE_SET_CENTER_FLAG_IGNORE_SCROLL_RESTRICTIONS);
     tile_set_border(windowWidth, windowHeight, hexGridWidth, hexGridHeight);
 
-    char* executable;
-    config_get_string(&game_config, GAME_CONFIG_SYSTEM_KEY, GAME_CONFIG_EXECUTABLE_KEY, &executable);
-    if (stricmp(executable, "mapper") == 0) {
-        tile_refresh = refresh_mapper;
-    }
-
     return 0;
 }
 
@@ -521,18 +515,18 @@ int tile_set_center(int tile, int flags)
         }
     }
 
-    int tile_x = grid_width - 1 - tile % grid_width;
-    int tile_y = tile / grid_width;
+    int new_tile_x = grid_width - 1 - tile % grid_width;
+    int new_tile_y = tile / grid_width;
 
     if (borderInitialized) {
-        if (tile_x <= tile_border.ulx || tile_x >= tile_border.lrx || tile_y <= tile_border.uly || tile_y >= tile_border.lry) {
+        if (new_tile_x <= tile_border.ulx || new_tile_x >= tile_border.lrx || new_tile_y <= tile_border.uly || new_tile_y >= tile_border.lry) {
             return -1;
         }
     }
 
-    tile_y = tile_y;
+    tile_y = new_tile_y;
     tile_offx = (buf_width - 32) / 2;
-    tile_x = tile_x;
+    tile_x = new_tile_x;
     tile_offy = (buf_length - 16) / 2;
 
     if (tile_x & 1) {
@@ -558,29 +552,6 @@ int tile_set_center(int tile, int flags)
     }
 
     return 0;
-}
-
-// 0x4B1554
-static void refresh_mapper(Rect* rect, int elevation)
-{
-    Rect rectToUpdate;
-
-    if (rect_inside_bound(rect, &buf_rect, &rectToUpdate) == -1) {
-        return;
-    }
-
-    buf_fill(buf + buf_full * rectToUpdate.uly + rectToUpdate.ulx,
-        rectToUpdate.lrx - rectToUpdate.ulx + 1,
-        rectToUpdate.lry - rectToUpdate.uly + 1,
-        buf_full,
-        0);
-
-    square_render_floor(&rectToUpdate, elevation);
-    grid_render(&rectToUpdate, elevation);
-    obj_render_pre_roof(&rectToUpdate, elevation);
-    square_render_roof(&rectToUpdate, elevation);
-    obj_render_post_roof(&rectToUpdate, elevation);
-    blit(&rectToUpdate);
 }
 
 // 0x4B15E8

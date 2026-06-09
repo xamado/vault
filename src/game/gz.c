@@ -1,14 +1,35 @@
-// NOTE: For unknown reason functions in this module use __stdcall instead
-// of regular __usercall.
-
 #include "game/gz.h"
 
 #include <stdbool.h>
 #include <stdio.h>
 #include <zlib.h>
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#include "plib/db/db.h"
+#include "plib/os/os_filesystem.h"
+
+static int gz_plain_copy(const char* src, const char* dst)
+{
+    char srcPathNorm[1024];
+    os_fs_normalize_path(srcPathNorm, sizeof(srcPathNorm), src);
+    FILE* in = fopen(srcPathNorm, "rb");
+    if (in == NULL) return -1;
+
+    char newPathNorm[1024];
+    os_fs_normalize_path(newPathNorm, sizeof(newPathNorm), dst);
+    FILE* out = fopen(newPathNorm, "wb");
+    if (out == NULL) { db_fclose(in); return -1; }
+
+    char buf[4096];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
+        if (fwrite(buf, 1, n, out) != n) {
+            fclose(in); fclose(out); return -1;
+        }
+    }
+    fclose(in);
+    fclose(out);
+    return 0;
+}
 
 // NOTE: Not present in debug symbols in `mapper2.exe`, but can be seen in OS X
 // binary.
@@ -16,7 +37,10 @@
 // 0x452740
 int gzRealUncompressCopyReal_file(const char* existingFilePath, const char* newFilePath)
 {
-    FILE* stream = fopen(existingFilePath, "rb");
+    char existingPathNorm[1024];
+    os_fs_normalize_path(existingPathNorm, sizeof(existingPathNorm), existingFilePath);
+
+    FILE* stream = fopen(existingPathNorm, "rb");
     if (stream == NULL) {
         return -1;
     }
@@ -24,11 +48,16 @@ int gzRealUncompressCopyReal_file(const char* existingFilePath, const char* newF
     int magic[2];
     magic[0] = fgetc(stream);
     magic[1] = fgetc(stream);
-    fclose(stream);
+    rewind(stream);
+
+    char newPathNorm[1024];
+    os_fs_normalize_path(newPathNorm, sizeof(newPathNorm), newFilePath);
 
     if (magic[0] == 0x1F && magic[1] == 0x8B) {
-        gzFile inStream = gzopen(existingFilePath, "rb");
-        FILE* outStream = fopen(newFilePath, "wb");
+        fclose(stream);
+        
+        gzFile inStream = gzopen(existingPathNorm, "rb");
+        FILE* outStream = fopen(newPathNorm, "wb");
 
         if (inStream != NULL && outStream != NULL) {
             for (;;) {
@@ -54,16 +83,19 @@ int gzRealUncompressCopyReal_file(const char* existingFilePath, const char* newF
             return -1;
         }
     } else {
-        CopyFileA(existingFilePath, newFilePath, FALSE);
+        gz_plain_copy(existingFilePath, newFilePath);
     }
 
     return 0;
 }
 
-// 0x452804
+// 0x47BD14
 int gzcompress_file(const char* existingFilePath, const char* newFilePath)
 {
-    FILE* inStream = fopen(existingFilePath, "rb");
+    char existingPathNorm[1024];
+    os_fs_normalize_path(existingPathNorm, sizeof(existingPathNorm), existingFilePath);
+
+    FILE* inStream = fopen(existingPathNorm, "rb");
     if (inStream == NULL) {
         return -1;
     }
@@ -73,13 +105,16 @@ int gzcompress_file(const char* existingFilePath, const char* newFilePath)
     magic[1] = fgetc(inStream);
     rewind(inStream);
 
+    char newPathNorm[1024];
+    os_fs_normalize_path(newPathNorm, sizeof(newPathNorm), newFilePath);
+
     if (magic[0] == 0x1F && magic[1] == 0x8B) {
         // Source file is already gzipped, there is no need to do anything
         // besides copying.
         fclose(inStream);
-        CopyFileA(existingFilePath, newFilePath, FALSE);
+        gz_plain_copy(existingFilePath, newFilePath);
     } else {
-        gzFile outStream = gzopen(newFilePath, "wb");
+        gzFile outStream = gzopen(newPathNorm, "wb");
         if (outStream == NULL) {
             fclose(inStream);
             return -1;
@@ -104,10 +139,16 @@ int gzcompress_file(const char* existingFilePath, const char* newFilePath)
 
 // TODO: Check, implementation looks odd.
 //
-// 0x4528B8
+// 0x47BBA4
 int gzdecompress_file(const char* existingFilePath, const char* newFilePath)
 {
-    FILE* stream = fopen(existingFilePath, "rb");
+    char existingPathNorm[1024];
+    os_fs_normalize_path(existingPathNorm, sizeof(existingPathNorm), existingFilePath);
+
+    char newPathNorm[1024];
+    os_fs_normalize_path(newPathNorm, sizeof(newPathNorm), newFilePath);
+
+    FILE* stream = fopen(existingPathNorm, "rb");
     if (stream == NULL) {
         return -1;
     }
@@ -117,14 +158,14 @@ int gzdecompress_file(const char* existingFilePath, const char* newFilePath)
     magic[1] = fgetc(stream);
     fclose(stream);
 
-    // TODO: Is it broken?
-    if (magic[0] != 0x1F || magic[1] != 0x8B) {
-        gzFile gzstream = gzopen(existingFilePath, "rb");
+    // Fixed inverted logic: if it IS a gzip file, decompress it.
+    if (magic[0] == 0x1F && magic[1] == 0x8B) {
+        gzFile gzstream = gzopen(existingPathNorm, "rb");
         if (gzstream == NULL) {
             return -1;
         }
 
-        stream = fopen(newFilePath, "wb");
+        stream = fopen(newPathNorm, "wb");
         if (stream == NULL) {
             gzclose(gzstream);
             return -1;
@@ -142,7 +183,7 @@ int gzdecompress_file(const char* existingFilePath, const char* newFilePath)
         gzclose(gzstream);
         fclose(stream);
     } else {
-        CopyFileA(existingFilePath, newFilePath, FALSE);
+        gz_plain_copy(existingFilePath, newFilePath);
     }
 
     return 0;

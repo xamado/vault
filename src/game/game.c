@@ -1,6 +1,6 @@
 #include "game/game.h"
+#include "plib/os/os_string.h"
 
-#include <io.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -103,9 +103,6 @@ static bool game_ui_disabled = false;
 // 0x5186B8
 static int game_state_cur = GAME_STATE_0;
 
-// 0x5186BC
-static bool game_in_mapper = false;
-
 // 0x5186C0
 int* game_global_vars = NULL;
 
@@ -134,7 +131,7 @@ int master_db_handle;
 int critter_db_handle;
 
 // 0x442580
-int game_init(const char* windowTitle, bool isMapper, int font, int a4, int argc, char** argv)
+int game_init(const char* windowTitle, int font, int a4, int argc, char** argv)
 {
     char path[MAX_PATH];
 
@@ -142,9 +139,7 @@ int game_init(const char* windowTitle, bool isMapper, int font, int a4, int argc
         return -1;
     }
 
-    gconfig_init(isMapper, argc, argv);
-
-    game_in_mapper = isMapper;
+    gconfig_init(argc, argv);
 
     if (game_init_databases() == -1) {
         gconfig_exit(false);
@@ -158,20 +153,18 @@ int game_init(const char* windowTitle, bool isMapper, int font, int a4, int argc
 
     char* language;
     if (config_get_string(&game_config, GAME_CONFIG_SYSTEM_KEY, GAME_CONFIG_LANGUAGE_KEY, &language)) {
-        if (stricmp(language, FRENCH) == 0) {
+        if (os_stricmp(language, FRENCH) == 0) {
             kb_set_layout(KEYBOARD_LAYOUT_FRENCH);
-        } else if (stricmp(language, GERMAN) == 0) {
+        } else if (os_stricmp(language, GERMAN) == 0) {
             kb_set_layout(KEYBOARD_LAYOUT_GERMAN);
-        } else if (stricmp(language, ITALIAN) == 0) {
+        } else if (os_stricmp(language, ITALIAN) == 0) {
             kb_set_layout(KEYBOARD_LAYOUT_ITALIAN);
-        } else if (stricmp(language, SPANISH) == 0) {
+        } else if (os_stricmp(language, SPANISH) == 0) {
             kb_set_layout(KEYBOARD_LAYOUT_SPANISH);
         }
     }
 
-    if (!game_in_mapper) {
-        game_splash_screen();
-    }
+    game_splash_screen();
 
     trap_init();
 
@@ -667,11 +660,7 @@ int game_handle_input(int eventCode, bool isInCombatMode)
             map_set_elevation(obj_dude->elevation);
         }
 
-        if (game_in_mapper) {
-            tile_set_center(obj_dude->tile, TILE_SET_CENTER_REFRESH_WINDOW);
-        } else {
-            tile_scroll_to(obj_dude->tile, 2);
-        }
+        tile_scroll_to(obj_dude->tile, 2);
 
         break;
     case KEY_1:
@@ -1270,7 +1259,7 @@ static void game_splash_screen()
 
     char path[64];
     char* language;
-    if (config_get_string(&game_config, GAME_CONFIG_SYSTEM_KEY, GAME_CONFIG_LANGUAGE_KEY, &language) && stricmp(language, ENGLISH) != 0) {
+    if (config_get_string(&game_config, GAME_CONFIG_SYSTEM_KEY, GAME_CONFIG_LANGUAGE_KEY, &language) && os_stricmp(language, ENGLISH) != 0) {
         sprintf(path, "art\\%s\\splash\\", language);
     } else {
         sprintf(path, "art\\splash\\");

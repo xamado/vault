@@ -1,4 +1,5 @@
 #include "game/editor.h"
+#include "plib/os/os_string.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -851,8 +852,7 @@ int editor_design(bool isCreationMode)
                     rc = -1;
                     continue;
                 }
-
-                if (stricmp(critter_name(obj_dude), "None") == 0) {
+                if (os_stricmp(critter_name(obj_dude), "None") == 0) {
                     gsound_play_sfx_file("iisxxxx1");
 
                     // Warning: You haven't changed your player
@@ -2093,7 +2093,7 @@ static int kills_list_comp(const void* a1, const void* a2)
 {
     const KillInfo* v1 = (const KillInfo*)a1;
     const KillInfo* v2 = (const KillInfo*)a2;
-    return stricmp(v1->name, v2->name);
+    return os_stricmp(v1->name, v2->name);
 }
 
 // 0x4344A4
@@ -2667,7 +2667,7 @@ static void ListDrvdStats()
     sprintf(t, "%s", messageListItemText);
     text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
 
-    itoa(critterGetStat(obj_dude, STAT_ARMOR_CLASS), t, 10);
+    sprintf(t, "%d", critterGetStat(obj_dude, STAT_ARMOR_CLASS));
     text_to_buf(win_buf + 640 * y + 288, t, 640, 640, color);
 
     // Action Points
@@ -2683,7 +2683,7 @@ static void ListDrvdStats()
     sprintf(t, "%s", messageListItemText);
     text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
 
-    itoa(critterGetStat(obj_dude, STAT_MAXIMUM_ACTION_POINTS), t, 10);
+    sprintf(t, "%d", critterGetStat(obj_dude, STAT_MAXIMUM_ACTION_POINTS));
     text_to_buf(win_buf + 640 * y + 288, t, 640, 640, color);
 
     // Carry Weight
@@ -2699,7 +2699,7 @@ static void ListDrvdStats()
     sprintf(t, "%s", messageListItemText);
     text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
 
-    itoa(critterGetStat(obj_dude, STAT_CARRY_WEIGHT), t, 10);
+    sprintf(t, "%d", critterGetStat(obj_dude, STAT_CARRY_WEIGHT));
     text_to_buf(win_buf + 640 * y + 288, t, 640, 640, critterIsOverloaded(obj_dude) ? colorTable[31744] : color);
 
     // Melee Damage
@@ -2715,7 +2715,7 @@ static void ListDrvdStats()
     sprintf(t, "%s", messageListItemText);
     text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
 
-    itoa(critterGetStat(obj_dude, STAT_MELEE_DAMAGE), t, 10);
+    sprintf(t, "%d", critterGetStat(obj_dude, STAT_MELEE_DAMAGE));
     text_to_buf(win_buf + 640 * y + 288, t, 640, 640, color);
 
     // Damage Resistance
@@ -2779,7 +2779,7 @@ static void ListDrvdStats()
     sprintf(t, "%s", messageListItemText);
     text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
 
-    itoa(critterGetStat(obj_dude, STAT_SEQUENCE), t, 10);
+    sprintf(t, "%d", critterGetStat(obj_dude, STAT_SEQUENCE));
     text_to_buf(win_buf + 640 * y + 288, t, 640, 640, color);
 
     // Healing Rate
@@ -2795,7 +2795,7 @@ static void ListDrvdStats()
     sprintf(t, "%s", messageListItemText);
     text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
 
-    itoa(critterGetStat(obj_dude, STAT_HEALING_RATE), t, 10);
+    sprintf(t, "%d", critterGetStat(obj_dude, STAT_HEALING_RATE));
     text_to_buf(win_buf + 640 * y + 288, t, 640, 640, color);
 
     // Critical Chance
@@ -3828,7 +3828,7 @@ static int OptionWindow()
                             // already exists
                             sprintf(string4,
                                 "%s %s",
-                                strupr(string1),
+                                os_strupr(string1),
                                 getmsg(&editor_message_file, &mesg, 609));
 
                             strcpy(string5, getmsg(&editor_message_file, &mesg, 610));
@@ -3849,7 +3849,7 @@ static int OptionWindow()
                             if (Save_as_ASCII(string4) == 0) {
                                 sprintf(string4,
                                     "%s%s",
-                                    strupr(string1),
+                                    os_strupr(string1),
                                     getmsg(&editor_message_file, &mesg, 607));
                                 dialog_out(string4, NULL, 0, 169, 126, colorTable[992], NULL, colorTable[992], 0);
                             } else {
@@ -3858,7 +3858,7 @@ static int OptionWindow()
                                 sprintf(string4,
                                     "%s%s%s",
                                     getmsg(&editor_message_file, &mesg, 611),
-                                    strupr(string1),
+                                    os_strupr(string1),
                                     "!");
                                 dialog_out(string4, NULL, 0, 169, 126, colorTable[32328], NULL, colorTable[992], 0x01);
                             }
@@ -3967,7 +3967,7 @@ static int OptionWindow()
                         bool shouldSave;
                         if (db_access(string4)) {
                             sprintf(string4, "%s %s",
-                                strupr(string1),
+                                os_strupr(string1),
                                 getmsg(&editor_message_file, &mesg, 609));
                             strcpy(string5, getmsg(&editor_message_file, &mesg, 610));
 
@@ -3990,13 +3990,13 @@ static int OptionWindow()
                             if (pc_save_data(string4) != 0) {
                                 gsound_play_sfx_file("iisxxxx1");
                                 sprintf(string4, "%s%s!",
-                                    strupr(string1),
+                                    os_strupr(string1),
                                     getmsg(&editor_message_file, &mesg, 611));
                                 dialog_out(string4, NULL, 0, 169, 126, colorTable[32328], NULL, colorTable[32328], DIALOG_BOX_LARGE);
                                 rc = 0;
                             } else {
                                 sprintf(string4, "%s%s",
-                                    strupr(string1),
+                                    os_strupr(string1),
                                     getmsg(&editor_message_file, &mesg, 607));
                                 dialog_out(string4, NULL, 0, 169, 126, colorTable[992], NULL, colorTable[992], DIALOG_BOX_LARGE);
                                 rc = 1;
@@ -4063,7 +4063,7 @@ static int OptionWindow()
         if (db_access(title)) {
             sprintf(title,
                 "%s %s",
-                strupr(fileName),
+                os_strupr(fileName),
                 getmsg(&editor_message_file, &mesg, 609));
 
             char line2[512];
@@ -4088,7 +4088,7 @@ static int OptionWindow()
                 sprintf(title,
                     "%s%s%s",
                     getmsg(&editor_message_file, &mesg, 611),
-                    strupr(fileName),
+                    os_strupr(fileName),
                     "!");
                 dialog_out(title, NULL, 0, 169, 126, colorTable[32328], NULL, colorTable[32328], 1);
             }
@@ -4378,10 +4378,11 @@ static int Save_as_ASCII(const char* fileName)
 
             if (reputation < general_reps_count) {
                 GenericReputationEntry* reputationDescription = &(general_reps[reputation]);
+                sprintf(title2, "%d", game_global_vars[GVAR_PLAYER_REPUTATION]);
                 sprintf(title1,
                     "  %s: %s (%s)",
                     getmsg(&editor_message_file, &mesg, 125),
-                    itoa(game_global_vars[GVAR_PLAYER_REPUTATION], title2, 10),
+                    title2,
                     getmsg(&editor_message_file, &mesg, reputationDescription->name));
                 db_fputs(title1, stream);
                 db_fputs("\n", stream);
@@ -4747,7 +4748,7 @@ char* itostndn(int value, char* dest)
             int v18 = value / v16[index];
             if (v18 > 0 || v3) {
                 char temp[64]; // TODO: Size is probably wrong.
-                itoa(v18, temp, 10);
+                sprintf(temp, "%d", v18);
                 strcat(dest, temp);
 
                 v3 = true;
@@ -5376,7 +5377,7 @@ static void list_karma()
                 GenericReputationEntry* reputationDescription = &(general_reps[reputation]);
 
                 char reputationValue[32];
-                itoa(game_global_vars[GVAR_PLAYER_REPUTATION], reputationValue, 10);
+                sprintf(reputationValue, "%d", game_global_vars[GVAR_PLAYER_REPUTATION]);
 
                 sprintf(formattedText,
                     "%s: %s (%s)",
@@ -6790,7 +6791,7 @@ static bool folder_print_kill(const char* name, int kills)
                 color = colorTable[992];
             }
 
-            itoa(kills, killsString, 10);
+            sprintf(killsString, "%d", kills);
             int v6 = text_width(killsString);
 
             // TODO: Check.

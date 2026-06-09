@@ -11,10 +11,8 @@
 #define GAME_CONFIG_SYSTEM_KEY "system"
 #define GAME_CONFIG_PREFERENCES_KEY "preferences"
 #define GAME_CONFIG_SOUND_KEY "sound"
-#define GAME_CONFIG_MAPPER_KEY "mapper"
 #define GAME_CONFIG_DEBUG_KEY "debug"
 
-#define GAME_CONFIG_EXECUTABLE_KEY "executable"
 #define GAME_CONFIG_MASTER_DAT_KEY "master_dat"
 #define GAME_CONFIG_MASTER_PATCHES_KEY "master_patches"
 #define GAME_CONFIG_CRITTER_DAT_KEY "critter_dat"
@@ -69,19 +67,6 @@
 #define GAME_CONFIG_SHOW_SCRIPT_MESSAGES_KEY "show_script_messages"
 #define GAME_CONFIG_SHOW_LOAD_INFO_KEY "show_load_info"
 #define GAME_CONFIG_OUTPUT_MAP_DATA_INFO_KEY "output_map_data_info"
-#define GAME_CONFIG_EXECUTABLE_KEY "executable"
-#define GAME_CONFIG_OVERRIDE_LIBRARIAN_KEY "override_librarian"
-#define GAME_CONFIG_LIBRARIAN_KEY "librarian"
-#define GAME_CONFIG_USE_ART_NOT_PROTOS_KEY "use_art_not_protos"
-#define GAME_CONFIG_REBUILD_PROTOS_KEY "rebuild_protos"
-#define GAME_CONFIG_FIX_MAP_OBJECTS_KEY "fix_map_objects"
-#define GAME_CONFIG_FIX_MAP_INVENTORY_KEY "fix_map_inventory"
-#define GAME_CONFIG_IGNORE_REBUILD_ERRORS_KEY "ignore_rebuild_errors"
-#define GAME_CONFIG_SHOW_PID_NUMBERS_KEY "show_pid_numbers"
-#define GAME_CONFIG_SAVE_TEXT_MAPS_KEY "save_text_maps"
-#define GAME_CONFIG_RUN_MAPPER_AS_GAME_KEY "run_mapper_as_game"
-#define GAME_CONFIG_DEFAULT_F8_AS_GAME_KEY "default_f8_as_game"
-#define GAME_CONFIG_SORT_SCRIPT_LIST_KEY "sort_script_list"
 #define GAME_CONFIG_PLAYER_SPEEDUP_KEY "player_speedup"
 
 #define ENGLISH "english"
@@ -117,7 +102,7 @@ typedef enum TargetHighlight {
 
 extern Config game_config;
 
-bool gconfig_init(bool isMapper, int argc, char** argv);
+bool gconfig_init(int argc, char** argv);
 bool gconfig_save();
 bool gconfig_exit(bool shouldSave);
 

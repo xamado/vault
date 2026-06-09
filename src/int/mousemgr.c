@@ -1,4 +1,5 @@
 #include "int/mousemgr.h"
+#include "plib/os/os_string.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -189,7 +190,7 @@ static int cacheInsert(void** data, int type, unsigned char* palette, const char
             foundIndex = index;
         }
 
-        if (stricmp(fileName, cacheEntry->fileName) == 0) {
+        if (os_stricmp(fileName, cacheEntry->fileName) == 0) {
             freeCacheEntry(cacheEntry);
             foundIndex = index;
             break;
@@ -246,7 +247,7 @@ static MouseManagerCacheEntry* cacheFind(const char* fileName, unsigned char** p
 {
     for (int index = 0; index < MOUSE_MGR_CACHE_CAPACITY; index++) {
         MouseManagerCacheEntry* cacheEntry = &(Cache[index]);
-        if (strnicmp(cacheEntry->fileName, fileName, 31) == 0 || strnicmp(cacheEntry->field_32C, fileName, 31) == 0) {
+        if (os_strnicmp(cacheEntry->fileName, fileName, 31) == 0 || os_strnicmp(cacheEntry->field_32C, fileName, 31) == 0) {
             *palettePtr = cacheEntry->palette;
             *typePtr = cacheEntry->type;
 
@@ -414,7 +415,7 @@ int mouseSetFrame(char* fileName, int a2)
 
     char string[80];
     db_fgets(string, sizeof(string), stream);
-    if (strnicmp(string, "anim", 4) != 0) {
+    if (os_strnicmp(string, "anim", 4) != 0) {
         db_fclose(stream);
         mouseSetMousePointer(fileName);
         return true;
@@ -602,7 +603,7 @@ bool mouseSetMousePointer(char* fileName)
     }
 
     char* dot = strrchr(fileName, '.');
-    if (dot != NULL && stricmp(dot + 1, "mou") == 0) {
+    if (dot != NULL && os_stricmp(dot + 1, "mou") == 0) {
         return mouseSetMouseShape(fileName, 0, 0);
     }
 
@@ -621,7 +622,7 @@ bool mouseSetMousePointer(char* fileName)
     }
 
     bool rc;
-    if (strnicmp(string, "anim", 4) == 0) {
+    if (os_strnicmp(string, "anim", 4) == 0) {
         db_fclose(stream);
         rc = mouseSetFrame(fileName, 0);
     } else {

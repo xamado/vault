@@ -2,6 +2,7 @@
 #define FALLOUT_PLIB_COLOR_COLOR_H_
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #include "memory_defs.h"
@@ -15,9 +16,9 @@ typedef unsigned char ColorIndex;
 typedef const char*(ColorNameMangleFunc)(const char*);
 typedef void(fade_bk_func)();
 
-typedef int(ColorOpenFunc)(const char* path, int mode);
-typedef int(ColorReadFunc)(int fd, void* buffer, size_t size);
-typedef int(ColorCloseFunc)(int fd);
+typedef intptr_t(ColorOpenFunc)(const char* path, int mode);
+typedef int(ColorReadFunc)(intptr_t fd, void* buffer, size_t size);
+typedef int(ColorCloseFunc)(intptr_t fd);
 
 typedef struct ColorPaletteStackEntry {
     unsigned char mappedColors[256];

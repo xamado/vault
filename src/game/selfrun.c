@@ -1,6 +1,5 @@
 #include "game/selfrun.h"
 
-#include <direct.h>
 #include <stdlib.h>
 
 #include "plib/gnw/input.h"
@@ -227,7 +226,7 @@ static int selfrun_save_data(const char* path, SelfrunData* selfrunData)
     char selfrunDirectoryPath[MAX_PATH];
     sprintf(selfrunDirectoryPath, "%s\\%s", masterPatches, "selfrun\\");
 
-    mkdir(selfrunDirectoryPath);
+    os_fs_mkdir(selfrunDirectoryPath);
 
     File* stream = db_fopen(path, "wb");
     if (stream == NULL) {

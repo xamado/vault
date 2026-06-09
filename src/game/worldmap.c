@@ -1,24 +1,19 @@
 #include "game/worldmap.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "game/anim.h"
 #include "game/art.h"
-#include "plib/color/color.h"
+#include "game/bmpdlog.h"
 #include "game/combat.h"
 #include "game/combatai.h"
 #include "game/config.h"
-#include "plib/gnw/input.h"
 #include "game/critter.h"
 #include "game/cycle.h"
-#include "plib/db/db.h"
-#include "game/bmpdlog.h"
-#include "plib/gnw/button.h"
-#include "plib/gnw/debug.h"
 #include "game/display.h"
-#include "plib/gnw/grbuf.h"
 #include "game/game.h"
 #include "game/gconfig.h"
 #include "game/gmouse.h"
@@ -27,10 +22,9 @@
 #include "game/intface.h"
 #include "game/item.h"
 #include "game/map_defs.h"
-#include "plib/gnw/memory.h"
 #include "game/message.h"
-#include "game/object_types.h"
 #include "game/object.h"
+#include "game/object_types.h"
 #include "game/party.h"
 #include "game/perk.h"
 #include "game/protinst.h"
@@ -40,9 +34,17 @@
 #include "game/skill.h"
 #include "game/stat.h"
 #include "game/strparse.h"
-#include "plib/gnw/text.h"
 #include "game/tile.h"
+#include "plib/color/color.h"
+#include "plib/db/db.h"
+#include "plib/gnw/button.h"
+#include "plib/gnw/debug.h"
 #include "plib/gnw/gnw.h"
+#include "plib/gnw/grbuf.h"
+#include "plib/gnw/input.h"
+#include "plib/gnw/memory.h"
+#include "plib/gnw/text.h"
+#include "plib/os/os_string.h"
 
 #define CITY_NAME_SIZE (40)
 #define TILE_WALK_MASK_NAME_SIZE (40)
@@ -1539,7 +1541,7 @@ static int wmParseEncounterTableIndex(EncounterEntry* entry, char* string)
 static int wmParseEncounterSubEncStr(EncounterEntry* encounterEntry, char** stringPtr)
 {
     char* string = *stringPtr;
-    if (strnicmp(string, "enc:", 4) != 0) {
+    if (os_strnicmp(string, "enc:", 4) != 0) {
         return -1;
     }
 
@@ -1644,7 +1646,7 @@ static int wmParseFindSubEncTypeMatch(char* str, int* valuePtr)
 {
     *valuePtr = 0;
 
-    if (stricmp(str, "player") == 0) {
+    if (os_stricmp(str, "player") == 0) {
         *valuePtr = -1;
         return 0;
     }
@@ -1664,7 +1666,7 @@ static int wmParseFindSubEncTypeMatch(char* str, int* valuePtr)
 static int wmFindEncBaseTypeMatch(char* str, int* valuePtr)
 {
     for (int index = 0; index < _wmMaxEncBaseTypes; index++) {
-        if (stricmp(wmEncBaseTypeList[index].name, str) == 0) {
+        if (os_stricmp(wmEncBaseTypeList[index].name, str) == 0) {
             *valuePtr = index;
             return 0;
         }
@@ -1933,7 +1935,7 @@ static int wmParseTerrainTypes(Config* config, char* string)
         wmTerrainTypeSlotInit(terrain);
     }
 
-    strlwr(string);
+    os_strlwr(string);
 
     pch = string;
     for (int index = 0; index < wmMaxTerrainTypes; index++) {
@@ -2027,7 +2029,7 @@ static int wmParseSubTileInfo(TileInfo* tile, int row, int column, char* string)
 static int wmParseFindEncounterTypeMatch(char* string, int* valuePtr)
 {
     for (int index = 0; index < wmMaxEncounterInfoTables; index++) {
-        if (stricmp(string, wmEncounterTableList[index].lookupName) == 0) {
+        if (os_stricmp(string, wmEncounterTableList[index].lookupName) == 0) {
             *valuePtr = index;
             return 0;
         }
@@ -2045,7 +2047,7 @@ static int wmParseFindTerrainTypeMatch(char* string, int* valuePtr)
 {
     for (int index = 0; index < wmMaxTerrainTypes; index++) {
         Terrain* terrain = &(wmTerrainTypeList[index]);
-        if (stricmp(string, terrain->lookupName) == 0) {
+        if (os_stricmp(string, terrain->lookupName) == 0) {
             *valuePtr = index;
             return 0;
         }
@@ -2073,7 +2075,7 @@ static int wmParseEncounterItemType(char** stringPtr, ENC_BASE_TYPE_38_48* a2, i
         return -1;
     }
 
-    strlwr(string);
+    os_strlwr(string);
 
     if (*string == ',') {
         string++;
@@ -2216,7 +2218,7 @@ static int wmParseSubConditional(char** stringPtr, const char* a2, int* typePtr,
         return -1;
     }
 
-    strlwr(string);
+    os_strlwr(string);
 
     if (*string == ',') {
         string++;
@@ -2616,7 +2618,7 @@ static int wmParseFindMapIdxMatch(char* string, int* valuePtr)
 {
     for (int index = 0; index < wmMaxMapNum; index++) {
         MapInfo* map = &(wmMapInfoList[index]);
-        if (stricmp(string, map->lookupName) == 0) {
+        if (os_stricmp(string, map->lookupName) == 0) {
             *valuePtr = index;
             return 0;
         }
@@ -2704,7 +2706,7 @@ static int wmMapInit()
                 exit(1);
             }
 
-            strlwr(str);
+            os_strlwr(str);
             strncpy(map->mapFileName, str, 40);
 
             if (config_get_string(&config, section, "music", &str)) {
@@ -2851,7 +2853,7 @@ int wmMapIdxToName(int mapIdx, char* dest)
 // 0x4BF9BC
 int wmMapMatchNameToIdx(char* name)
 {
-    strlwr(name);
+    os_strlwr(name);
 
     char* pch = name;
     while (*pch != '\0' && *pch != '.') {
@@ -6593,7 +6595,7 @@ static int wmTabsCompareNames(const void* a1, const void* a2)
     CityInfo* city1 = &(wmAreaInfoList[v1]);
     CityInfo* city2 = &(wmAreaInfoList[v2]);
 
-    return stricmp(city1->name, city2->name);
+    return os_stricmp(city1->name, city2->name);
 }
 
 // NOTE: Inlined.

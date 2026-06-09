@@ -1,11 +1,8 @@
 #include "game/proto.h"
 
-#include <direct.h>
 #include <stdio.h>
 #include <string.h>
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 
 #include "game/art.h"
 #include "game/editor.h"
@@ -1051,13 +1048,13 @@ int proto_init()
     sprintf(path, "%s\\proto", master_patches);
     len = strlen(path);
 
-    mkdir(path);
+    os_fs_mkdir(path);
 
     strcpy(path + len, "\\critters");
-    mkdir(path);
+    os_fs_mkdir(path);
 
     strcpy(path + len, "\\items");
-    mkdir(path);
+    os_fs_mkdir(path);
 
     // TODO: Get rid of cast.
     proto_critter_init((Proto*)&pc_proto, 0x1000000);

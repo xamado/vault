@@ -1,27 +1,28 @@
 #include "game/amutex.h"
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#include "plib/os/os_mutex.h"
+#include <stddef.h>
 
-// 0x530010
-static HANDLE autorun_mutex;
+static os_mutex* autorun_mutex = NULL;
 
-// 0x4139C0
 bool autorun_mutex_create()
 {
-    autorun_mutex = CreateMutexA(NULL, FALSE, "InterplayGenericAutorunMutex");
-    if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        CloseHandle(autorun_mutex);
+    autorun_mutex = os_mutex_create("InterplayGenericAutorunMutex");
+    if (autorun_mutex == NULL) {
         return false;
     }
-
+    if (!os_mutex_try_lock(autorun_mutex)) {
+        os_mutex_destroy(autorun_mutex);
+        autorun_mutex = NULL;
+        return false;
+    }
     return true;
 }
 
-// 0x413A00
 void autorun_mutex_destroy()
 {
     if (autorun_mutex != NULL) {
-        CloseHandle(autorun_mutex);
+        os_mutex_destroy(autorun_mutex);
+        autorun_mutex = NULL;
     }
 }

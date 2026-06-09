@@ -1,16 +1,13 @@
 #include "int/audiof.h"
 
 #include <assert.h>
-#include <io.h>
 #include <stdio.h>
 #include <string.h>
-
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 
 #include "plib/gnw/debug.h"
 #include "int/memdbg.h"
 #include "int/sound.h"
+#include "plib/os/os_filesystem.h"
 
 static_assert(sizeof(AudioFile) == 28, "wrong size");
 
@@ -107,7 +104,7 @@ int audiofOpen(const char* fname, int flags, ...)
         audioFile->soundDecoder = soundDecoderInit(decodeRead, audioFile->fileHandle, &(audioFile->field_14), &(audioFile->field_10), &(audioFile->fileSize));
         audioFile->fileSize *= 2;
     } else {
-        audioFile->fileSize = filelength(fileno(stream));
+        audioFile->fileSize = os_filesystem_file_size(fileno(stream));
     }
 
     audioFile->position = 0;

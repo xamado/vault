@@ -1,4 +1,5 @@
 #include "game/sfxlist.h"
+#include "plib/os/os_string.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -174,7 +175,7 @@ void sfxl_exit()
 // 0x4A9C28
 int sfxl_name_to_tag(char* name, int* tagPtr)
 {
-    if (strnicmp(sfxl_effect_path, name, sfxl_effect_path_len) != 0) {
+    if (os_strnicmp(sfxl_effect_path, name, sfxl_effect_path_len) != 0) {
         return SFXL_ERR;
     }
 
@@ -447,7 +448,7 @@ static int sfxl_compare_by_name(const void* a1, const void* a2)
     SoundEffectsListEntry* v1 = (SoundEffectsListEntry*)a1;
     SoundEffectsListEntry* v2 = (SoundEffectsListEntry*)a2;
 
-    return stricmp(v1->name, v2->name);
+    return os_stricmp(v1->name, v2->name);
 }
 
 // 0x4AA234

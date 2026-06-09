@@ -2,13 +2,22 @@
 // dependencies and uses __cdecl calling convention, which probably means it
 // was implemented as a separate library and linked statically.
 
+#include <stdint.h>
 #include "movie_lib.h"
+#include "int/sound.h"
+
+#ifndef _rotl
+#define _rotl(x, y) (((x) << (y)) | ((x) >> (32 - (y))))
+#endif
+
+#define OS_AUDIO_OK 0
+#define DSBLOCK_FROMWRITECURSOR 2
+#define DSERR_BUFFERLOST 1
 
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-
-#include <timeapi.h>
+#include "plib/os/os_time.h"
 
 // 0x51EBD8
 int dword_51EBD8 = 0;
@@ -55,7 +64,7 @@ unsigned short word_51EBE0[256] = {
 };
 
 // 0x51EDE0
-LPDIRECTDRAW gMovieLibDirectDraw = NULL;
+
 
 // 0x51EDE4
 int _sync_active = 0;
@@ -67,10 +76,9 @@ int _sync_late = 0;
 int _sync_FrameDropped = 0;
 
 // 0x51EDF0
-LPDIRECTSOUND gMovieLibDirectSound = NULL;
 
 // 0x51EDF4
-LPDIRECTSOUNDBUFFER gMovieLibDirectSoundBuffer = NULL;
+OSAudioBuffer* gMovieAudioStream = NULL;
 
 // 0x51EDF8
 int gMovieLibVolume = 0;
@@ -79,13 +87,13 @@ int gMovieLibVolume = 0;
 int gMovieLibPan = 0;
 
 // 0x51EE00
-LPDIRECTDRAWSURFACE gMovieDirectDrawSurface1 = NULL;
+unsigned char* gMovieDirectDrawSurface1 = NULL;
 
 // 0x51EE04
-LPDIRECTDRAWSURFACE gMovieDirectDrawSurface2 = NULL;
+unsigned char* gMovieDirectDrawSurface2 = NULL;
 
 // 0x51EE08
-void (*_sf_ShowFrame)(LPDIRECTDRAWSURFACE, int, int, int, int, int, int, int, int) = _do_nothing_2;
+void (*_sf_ShowFrame)(unsigned char*, int, int, int, int, int, int, int, int) = _do_nothing_2;
 
 // 0x51EE0C
 int dword_51EE0C = 1;
@@ -271,7 +279,6 @@ unsigned int _$$R0063[256] = {
 int dword_6B3660;
 
 // 0x6B3668
-DSBCAPS stru_6B3668;
 
 // 0x6B367C
 int _sf_ScreenWidth;
@@ -296,6 +303,7 @@ int dword_6B36A0;
 
 // 0x6B36A4
 int dword_6B36A4;
+int gMovieBufferBytes;
 
 // 0x6B36A8
 int _rm_FrameCount;
@@ -325,7 +333,7 @@ int _rm_dy;
 int _gSoundTimeBase;
 
 // 0x6B39CC
-int _io_handle;
+intptr_t _io_handle;
 
 // 0x6B39D0
 int _rm_len;
@@ -476,18 +484,14 @@ void _MVE_MemFree(STRUCT_6B3690* a1)
 }
 
 // 0x4F48F0
-void movieLibSetDirectSound(LPDIRECTSOUND ds)
-{
-    gMovieLibDirectSound = ds;
-}
 
 // 0x4F4900
 void movieLibSetVolume(int volume)
 {
     gMovieLibVolume = volume;
 
-    if (gMovieLibDirectSoundBuffer != NULL) {
-        IDirectSoundBuffer_SetVolume(gMovieLibDirectSoundBuffer, volume);
+    if (gMovieAudioStream != NULL) {
+        os_audio_buffer_set_volume(gMovieAudioStream, volume);
     }
 }
 
@@ -496,8 +500,8 @@ void movieLibSetPan(int pan)
 {
     gMovieLibPan = pan;
 
-    if (gMovieLibDirectSoundBuffer != NULL) {
-        IDirectSoundBuffer_SetPan(gMovieLibDirectSoundBuffer, pan);
+    if (gMovieAudioStream != NULL) {
+        OS_AUDIO_OK;
     }
 }
 
@@ -526,13 +530,13 @@ void _MVE_sfSVGA(int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8,
 }
 
 // 0x4F49F0
-void _MVE_sfCallbacks(void (*fn)(LPDIRECTDRAWSURFACE, int, int, int, int, int, int, int, int))
+void _MVE_sfCallbacks(void (*fn)(unsigned char*, int, int, int, int, int, int, int, int))
 {
     _sf_ShowFrame = fn;
 }
 
 // 0x4F4A00
-void _do_nothing_2(LPDIRECTDRAWSURFACE a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9)
+void _do_nothing_2(unsigned char* a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9)
 {
 }
 
@@ -546,12 +550,6 @@ void movieLibSetPaletteEntriesProc(void (*fn)(unsigned char*, int, int))
 int _sub_4F4B5()
 {
     return 0;
-}
-
-// 0x4F4B80
-void movieLibSetDirectDraw(LPDIRECTDRAW dd)
-{
-    gMovieLibDirectDraw = dd;
 }
 
 // 0x4F4B90
@@ -578,13 +576,11 @@ void _MVE_rmFrameCounts(int* a1, int* a2)
 }
 
 // 0x4F4BF0
-int _MVE_rmPrepMovie(int fileHandle, int a2, int a3, char a4)
+int _MVE_rmPrepMovie(intptr_t fileHandle, int a2, int a3, char a4)
 {
     _sub_4F4DD();
 
-    if (gMovieLibDirectDraw == NULL) {
-        return -11;
-    }
+
 
     _rm_dx = a2;
     _rm_dy = a3;
@@ -616,7 +612,7 @@ int _MVE_rmPrepMovie(int fileHandle, int a2, int a3, char a4)
 }
 
 // 0x4F4C90
-int _ioReset(int stream)
+int _ioReset(intptr_t stream)
 {
     Mve* mve;
 
@@ -735,9 +731,9 @@ int _syncWait()
 
     result = 0;
     if (_sync_active) {
-        if (((_sync_time + 1000 * timeGetTime()) & 0x80000000) != 0) {
+        if (((_sync_time + 1000 * os_get_ticks()) & 0x80000000) != 0) {
             result = 1;
-            while (((_sync_time + 1000 * timeGetTime()) & 0x80000000) != 0)
+            while (((_sync_time + 1000 * os_get_ticks()) & 0x80000000) != 0)
                 ;
         }
         _sync_time += _sync_wait_quanta;
@@ -749,8 +745,8 @@ int _syncWait()
 // 0x4F4EA0
 void _MVE_sndPause()
 {
-    if (gMovieLibDirectSoundBuffer != NULL) {
-        IDirectSoundBuffer_Stop(gMovieLibDirectSoundBuffer);
+    if (gMovieAudioStream != NULL) {
+        os_audio_buffer_stop(gMovieAudioStream);
     }
 }
 
@@ -1061,55 +1057,43 @@ int _syncInit(int a1, int a2)
 void _syncReset(int a1)
 {
     _sync_active = 1;
-    _sync_time = -1000 * timeGetTime() + a1;
+    _sync_time = -1000 * os_get_ticks() + a1;
 }
 
 // 0x4F5570
 int _MVE_sndConfigure(int a1, int a2, int a3, int a4, int a5, int a6)
 {
-    DSBUFFERDESC dsbd;
-    WAVEFORMATEX wfxFormat;
-
-    if (gMovieLibDirectSound == NULL) {
-        return 1;
-    }
-
     _MVE_sndReset();
 
     _snd_comp = a3;
     dword_6B36A0 = a5;
     _snd_buf = a6;
 
-    dsbd.dwSize = sizeof(DSBUFFERDESC);
-    dsbd.dwFlags = DSBCAPS_CTRLFREQUENCY | DSBCAPS_CTRLPAN | DSBCAPS_CTRLVOLUME;
-    dsbd.dwBufferBytes = (a2 + (a2 >> 1)) & 0xFFFFFFFC;
-    dsbd.dwReserved = 0;
-    dsbd.lpwfxFormat = &wfxFormat;
-
-    wfxFormat.wFormatTag = 1;
-    wfxFormat.nSamplesPerSec = a4;
-    wfxFormat.nChannels = 2 - (a3 < 1);
-    wfxFormat.nBlockAlign = wfxFormat.nChannels * (2 - (a5 < 1));
-    wfxFormat.cbSize = 0;
-    wfxFormat.nAvgBytesPerSec = wfxFormat.nSamplesPerSec * wfxFormat.nBlockAlign;
-    wfxFormat.wBitsPerSample = a5 < 1 ? 8 : 16;
+    int bufferBytes = (a2 + (a2 >> 1)) & 0xFFFFFFFC;
+    int channels = 2 - (a3 < 1);
+    int bitsPerSample = a5 < 1 ? 8 : 16;
+    int sampleRate = a4;
 
     dword_6B3AE4 = 0;
     dword_6B3660 = 0;
 
-    if (IDirectSound_CreateSoundBuffer(gMovieLibDirectSound, &dsbd, &gMovieLibDirectSoundBuffer, NULL) != DS_OK) {
+    
+    OSAudioBufferDesc desc;
+    desc.bufferBytes = bufferBytes;
+    desc.format.channels = channels;
+    desc.format.bitsPerSample = bitsPerSample;
+    desc.format.sampleRate = sampleRate;
+    if (os_audio_create_buffer(soundDSObject, &desc, &gMovieAudioStream) != OS_AUDIO_OK) {
+
         return 0;
     }
 
-    IDirectSoundBuffer_SetVolume(gMovieLibDirectSoundBuffer, gMovieLibVolume);
-    IDirectSoundBuffer_SetPan(gMovieLibDirectSoundBuffer, gMovieLibPan);
+    os_audio_buffer_set_volume(gMovieAudioStream, gMovieLibVolume);
+    
 
     dword_6B36A4 = 0;
 
-    stru_6B3668.dwSize = sizeof(DSBCAPS);
-    if (IDirectSoundBuffer_GetCaps(gMovieLibDirectSoundBuffer, &stru_6B3668) != DS_OK) {
-        return 0;
-    }
+    gMovieBufferBytes = bufferBytes;
 
     return 1;
 }
@@ -1118,7 +1102,7 @@ int _MVE_sndConfigure(int a1, int a2, int a3, int a4, int a5, int a6)
 void _MVE_syncSync()
 {
     if (_sync_active) {
-        while (((_sync_time + 1000 * timeGetTime()) & 0x80000000) != 0) {
+        while (((_sync_time + 1000 * os_get_ticks()) & 0x80000000) != 0) {
         }
     }
 }
@@ -1126,20 +1110,20 @@ void _MVE_syncSync()
 // 0x4F56F0
 void _MVE_sndReset()
 {
-    if (gMovieLibDirectSoundBuffer != NULL) {
-        IDirectSoundBuffer_Stop(gMovieLibDirectSoundBuffer);
-        IDirectSoundBuffer_Release(gMovieLibDirectSoundBuffer);
-        gMovieLibDirectSoundBuffer = NULL;
+    if (gMovieAudioStream != NULL) {
+        os_audio_buffer_stop(gMovieAudioStream);
+        os_audio_destroy_buffer(gMovieAudioStream);
+        gMovieAudioStream = NULL;
     }
 }
 
 // 0x4F5720
 void _MVE_sndSync()
 {
-    DWORD dwCurrentPlayCursor;
-    DWORD dwCurrentWriteCursor;
+    uint32_t dwCurrentPlayCursor;
+    uint32_t dwCurrentWriteCursor;
     bool v10;
-    DWORD dwStatus;
+    uint32_t dwStatus;
     int v1;
     bool v2;
     int v3;
@@ -1156,27 +1140,31 @@ void _MVE_sndSync()
     _sync_late = _syncWaitLevel(_sync_wait_quanta >> 2) > -_sync_wait_quanta >> 1 && !_sync_FrameDropped;
     _sync_FrameDropped = 0;
 
-    if (gMovieLibDirectSound == NULL) {
-        return;
-    }
-
-    if (gMovieLibDirectSoundBuffer == NULL) {
+    
+    if (gMovieAudioStream == NULL) {
         return;
     }
 
     while (1) {
-        if (IDirectSoundBuffer_GetStatus(gMovieLibDirectSoundBuffer, &dwStatus) != DS_OK) {
+        
+        bool is_playing, is_looping;
+        os_audio_buffer_get_status(gMovieAudioStream, &is_playing, &is_looping);
+        dwStatus = (is_playing ? 1 : 0) | (is_looping ? 2 : 0);
+        if (false) {
+
             return;
         }
 
-        if (IDirectSoundBuffer_GetCurrentPosition(gMovieLibDirectSoundBuffer, &dwCurrentPlayCursor, &dwCurrentWriteCursor) != DS_OK) {
+        
+        if (os_audio_buffer_get_current_position(gMovieAudioStream, &dwCurrentPlayCursor, &dwCurrentWriteCursor) != OS_AUDIO_OK) {
+
             return;
         }
 
         dwCurrentWriteCursor = dword_6B36A4;
 
-        v1 = (stru_6B3668.dwBufferBytes + dword_6B39E0[dword_6B3660] - _gSoundTimeBase)
-            % stru_6B3668.dwBufferBytes;
+        v1 = (gMovieBufferBytes + dword_6B39E0[dword_6B3660] - _gSoundTimeBase)
+            % gMovieBufferBytes;
 
         if (dwCurrentPlayCursor <= dword_6B36A4) {
             if (v1 < dwCurrentPlayCursor || v1 >= dword_6B36A4) {
@@ -1192,15 +1180,15 @@ void _MVE_sndSync()
             }
         }
 
-        if (!v2 || !(dwStatus & DSBSTATUS_PLAYING)) {
+        if (!v2 || !(dwStatus & 1)) {
             if (v0) {
                 _syncReset(_sync_wait_quanta + (_sync_wait_quanta >> 2));
             }
 
             v3 = dword_6B39E0[dword_6B3660];
 
-            if (!(dwStatus & DSBSTATUS_PLAYING)) {
-                v4 = (stru_6B3668.dwBufferBytes + v3) % stru_6B3668.dwBufferBytes;
+            if (!(dwStatus & 1)) {
+                v4 = (gMovieBufferBytes + v3) % gMovieBufferBytes;
 
                 if (dwCurrentWriteCursor >= dwCurrentPlayCursor) {
                     if (v4 >= dwCurrentPlayCursor && v4 < dwCurrentWriteCursor) {
@@ -1215,11 +1203,11 @@ void _MVE_sndSync()
                 }
 
                 if (v5) {
-                    if (IDirectSoundBuffer_SetCurrentPosition(gMovieLibDirectSoundBuffer, v4) != DS_OK) {
+                    if (os_audio_buffer_set_current_position(gMovieAudioStream, v4) != OS_AUDIO_OK) {
                         return;
                     }
 
-                    if (IDirectSoundBuffer_Play(gMovieLibDirectSoundBuffer, 0, 0, 1) != DS_OK) {
+                    if (os_audio_buffer_play(gMovieAudioStream, OS_AUDIO_PLAY_LOOPING) != OS_AUDIO_OK) {
                         return;
                     }
                 }
@@ -1227,19 +1215,19 @@ void _MVE_sndSync()
                 break;
             }
 
-            v6 = (stru_6B3668.dwBufferBytes + _gSoundTimeBase + v3) % stru_6B3668.dwBufferBytes;
+            v6 = (gMovieBufferBytes + _gSoundTimeBase + v3) % gMovieBufferBytes;
             v7 = dwCurrentWriteCursor - dwCurrentPlayCursor;
 
             if (((dwCurrentWriteCursor - dwCurrentPlayCursor) & 0x80000000) != 0) {
-                v7 += stru_6B3668.dwBufferBytes;
+                v7 += gMovieBufferBytes;
             }
 
-            v8 = stru_6B3668.dwBufferBytes - v7 - 1;
-            if (stru_6B3668.dwBufferBytes / 2 < v8) {
-                v8 = stru_6B3668.dwBufferBytes >> 1;
+            v8 = gMovieBufferBytes - v7 - 1;
+            if (gMovieBufferBytes / 2 < v8) {
+                v8 = gMovieBufferBytes >> 1;
             }
 
-            v9 = (stru_6B3668.dwBufferBytes + dwCurrentPlayCursor - v8) % stru_6B3668.dwBufferBytes;
+            v9 = (gMovieBufferBytes + dwCurrentPlayCursor - v8) % gMovieBufferBytes;
 
             dwCurrentPlayCursor = v9;
 
@@ -1258,7 +1246,7 @@ void _MVE_sndSync()
             }
 
             if (!v10) {
-                IDirectSoundBuffer_Stop(gMovieLibDirectSoundBuffer);
+                os_audio_buffer_stop(gMovieAudioStream);
             }
 
             break;
@@ -1287,7 +1275,7 @@ int _syncWaitLevel(int a1)
 
     v2 = _sync_time + a1;
     do {
-        result = v2 + 1000 * timeGetTime();
+        result = v2 + 1000 * os_get_ticks();
     } while (result < 0);
 
     _sync_time += _sync_wait_quanta;
@@ -1301,16 +1289,16 @@ void _CallsSndBuff_Loc(unsigned char* a1, int a2)
     int v2;
     int v3;
     int v5;
-    DWORD dwCurrentPlayCursor;
-    DWORD dwCurrentWriteCursor;
-    LPVOID lpvAudioPtr1;
-    DWORD dwAudioBytes1;
-    LPVOID lpvAudioPtr2;
-    DWORD dwAudioBytes2;
+    uint32_t dwCurrentPlayCursor;
+    uint32_t dwCurrentWriteCursor;
+    void* lpvAudioPtr1;
+    uint32_t dwAudioBytes1;
+    void* lpvAudioPtr2;
+    uint32_t dwAudioBytes2;
 
     _gSoundTimeBase = a2;
 
-    if (gMovieLibDirectSoundBuffer == NULL) {
+    if (gMovieAudioStream == NULL) {
         return;
     }
 
@@ -1323,13 +1311,15 @@ void _CallsSndBuff_Loc(unsigned char* a1, int a2)
         return;
     }
 
-    if (IDirectSoundBuffer_GetCurrentPosition(gMovieLibDirectSoundBuffer, &dwCurrentPlayCursor, &dwCurrentWriteCursor) != DS_OK) {
+    
+        if (os_audio_buffer_get_current_position(gMovieAudioStream, &dwCurrentPlayCursor, &dwCurrentWriteCursor) != OS_AUDIO_OK) {
+
         return;
     }
 
     dwCurrentWriteCursor = dword_6B36A4;
 
-    if (IDirectSoundBuffer_Lock(gMovieLibDirectSoundBuffer, dword_6B36A4, a2, &lpvAudioPtr1, &dwAudioBytes1, &lpvAudioPtr2, &dwAudioBytes2, 0) != DS_OK) {
+    if (os_audio_buffer_lock(gMovieAudioStream, dword_6B36A4, a2, &lpvAudioPtr1, &dwAudioBytes1, &lpvAudioPtr2, &dwAudioBytes2) != OS_AUDIO_OK) {
         return;
     }
 
@@ -1346,11 +1336,11 @@ void _CallsSndBuff_Loc(unsigned char* a1, int a2)
         dword_6B36A4 = dwAudioBytes2;
     }
 
-    if (dword_6B36A4 == stru_6B3668.dwBufferBytes) {
+    if (dword_6B36A4 == gMovieBufferBytes) {
         dword_6B36A4 = 0;
     }
 
-    IDirectSoundBuffer_Unlock(gMovieLibDirectSoundBuffer, lpvAudioPtr1, dwAudioBytes1, lpvAudioPtr2, dwAudioBytes2);
+    os_audio_buffer_unlock(gMovieAudioStream, lpvAudioPtr1, dwAudioBytes1, lpvAudioPtr2, dwAudioBytes2);
 
     dword_6B39E0[dword_6B3AE4] = dwCurrentWriteCursor;
 
@@ -1434,18 +1424,15 @@ void _MVE_sndResume()
 // 0x4F5CB0
 int _nfConfig(int a1, int a2, int a3, int a4)
 {
-    DDSURFACEDESC ddsd;
-
     if (gMovieDirectDrawSurface1 != NULL) {
-        IDirectDrawSurface_Release(gMovieDirectDrawSurface1);
+        gMovieLibFreeProc(gMovieDirectDrawSurface1);
         gMovieDirectDrawSurface1 = NULL;
     }
 
     if (gMovieDirectDrawSurface2 != NULL) {
-        IDirectDrawSurface_Release(gMovieDirectDrawSurface2);
+        gMovieLibFreeProc(gMovieDirectDrawSurface2);
         gMovieDirectDrawSurface2 = NULL;
     }
-
     byte_6B400D = a1;
     byte_6B400C = a2;
     byte_6B4016 = a3;
@@ -1456,33 +1443,16 @@ int _nfConfig(int a1, int a2, int a3, int a4)
         _mveBH >>= 1;
     }
 
-    memset(&ddsd, 0, sizeof(DDSURFACEDESC));
-
-    ddsd.dwSize = sizeof(DDSURFACEDESC);
-    ddsd.dwFlags = (DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT);
-    ddsd.dwWidth = _mveBW;
-    ddsd.dwHeight = _mveBH;
-    ddsd.ddsCaps.dwCaps = (DDSCAPS_SYSTEMMEMORY | DDSCAPS_OFFSCREENPLAIN);
-    ddsd.ddpfPixelFormat.dwSize = sizeof(DDPIXELFORMAT);
-
+    int bufferSize = _mveBW * _mveBH;
     if (a4) {
-        ddsd.ddpfPixelFormat.dwFlags = 64;
-        ddsd.ddpfPixelFormat.dwRGBBitCount = 16;
-        ddsd.ddpfPixelFormat.dwRBitMask = 0x7C00;
-        ddsd.ddpfPixelFormat.dwGBitMask = 0x3E0;
-        ddsd.ddpfPixelFormat.dwBBitMask = 0x1F;
-    } else {
-        ddsd.ddpfPixelFormat.dwFlags = 96;
-        ddsd.ddpfPixelFormat.dwRGBBitCount = 8;
+        bufferSize *= 2;
     }
 
-    if (IDirectDraw_CreateSurface(gMovieLibDirectDraw, &ddsd, &gMovieDirectDrawSurface1, NULL) != DD_OK) {
-        return 0;
-    }
+    gMovieDirectDrawSurface1 = (unsigned char*)gMovieLibMallocProc(bufferSize);
+    if (!gMovieDirectDrawSurface1) return 0;
 
-    if (IDirectDraw_CreateSurface(gMovieLibDirectDraw, &ddsd, &gMovieDirectDrawSurface2, NULL) != DD_OK) {
-        return 0;
-    }
+    gMovieDirectDrawSurface2 = (unsigned char*)gMovieLibMallocProc(bufferSize);
+    if (!gMovieDirectDrawSurface2) return 0;
 
     dword_6B4027 = a4;
     dword_6B402B = a3 * _mveBW - 8;
@@ -1503,38 +1473,23 @@ int _nfConfig(int a1, int a2, int a3, int a4)
 // 0x4F5E60
 bool movieLockSurfaces()
 {
-    DDSURFACEDESC ddsd;
-
-    ddsd.dwSize = sizeof(DDSURFACEDESC);
-
     if (gMovieDirectDrawSurface1 != NULL && gMovieDirectDrawSurface2 != NULL) {
-        if (IDirectDrawSurface_Lock(gMovieDirectDrawSurface1, NULL, &ddsd, 0, NULL) != DD_OK) {
-            return false;
-        }
-
-        gMovieDirectDrawSurfaceBuffer1 = (unsigned char*)ddsd.lpSurface;
-
-        if (IDirectDrawSurface_Lock(gMovieDirectDrawSurface2, NULL, &ddsd, 0, NULL) != DD_OK) {
-            return false;
-        }
-
-        gMovieDirectDrawSurfaceBuffer2 = (unsigned char*)ddsd.lpSurface;
+        gMovieDirectDrawSurfaceBuffer1 = gMovieDirectDrawSurface1;
+        gMovieDirectDrawSurfaceBuffer2 = gMovieDirectDrawSurface2;
     }
-
     return true;
 }
 
 // 0x4F5EF0
 void movieUnlockSurfaces()
 {
-    IDirectDrawSurface_Unlock(gMovieDirectDrawSurface1, NULL);
-    IDirectDrawSurface_Unlock(gMovieDirectDrawSurface2, NULL);
+
 }
 
 // 0x4F5F20
 void movieSwapSurfaces()
 {
-    LPDIRECTDRAWSURFACE tmp = gMovieDirectDrawSurface2;
+    unsigned char* tmp = gMovieDirectDrawSurface2;
     gMovieDirectDrawSurface2 = gMovieDirectDrawSurface1;
     gMovieDirectDrawSurface1 = tmp;
 }
@@ -1683,12 +1638,12 @@ void _MVE_sndRelease()
 void _nfRelease()
 {
     if (gMovieDirectDrawSurface1 != NULL) {
-        IDirectDrawSurface_Release(gMovieDirectDrawSurface1);
+        gMovieLibFreeProc(gMovieDirectDrawSurface1);
         gMovieDirectDrawSurface1 = NULL;
     }
 
     if (gMovieDirectDrawSurface2 != NULL) {
-        IDirectDrawSurface_Release(gMovieDirectDrawSurface2);
+        gMovieLibFreeProc(gMovieDirectDrawSurface2);
         gMovieDirectDrawSurface2 = NULL;
     }
 }

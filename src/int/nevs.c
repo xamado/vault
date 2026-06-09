@@ -1,4 +1,5 @@
 #include "int/nevs.h"
+#include "plib/os/os_string.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -118,7 +119,7 @@ static Nevs* nevs_find(const char* name)
 
     for (index = 0; index < NEVS_COUNT; index++) {
         entry = &(nevs[index]);
-        if (entry->used && stricmp(entry->name, name) == 0) {
+        if (entry->used && os_stricmp(entry->name, name) == 0) {
             return entry;
         }
     }

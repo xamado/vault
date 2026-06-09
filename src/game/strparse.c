@@ -1,4 +1,5 @@
 #include "game/strparse.h"
+#include "plib/os/os_string.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -19,7 +20,7 @@ int strParseValue(char** stringPtr, int* valuePtr)
 
     str = *stringPtr;
 
-    strlwr(str);
+    os_strlwr(str);
 
     v1 = strspn(str, " ");
     str += v1;
@@ -63,7 +64,7 @@ int strParseStrFromList(char** stringPtr, int* valuePtr, const char** stringList
 
     str = *stringPtr;
 
-    strlwr(str);
+    os_strlwr(str);
 
     v1 = strspn(str, " ");
     str += v1;
@@ -84,7 +85,7 @@ int strParseStrFromList(char** stringPtr, int* valuePtr, const char** stringList
     }
 
     for (i = 0; i < stringListLength; i++) {
-        if (stricmp(str, stringList[i]) == 0) {
+        if (os_stricmp(str, stringList[i]) == 0) {
             break;
         }
     }
@@ -119,7 +120,7 @@ int strParseStrFromFunc(char** stringPtr, int* valuePtr, StringParserCallback* c
 
     str = *stringPtr;
 
-    strlwr(str);
+    os_strlwr(str);
 
     v1 = strspn(str, " ");
     str += v1;
@@ -174,7 +175,7 @@ int strParseStrSepVal(char** stringPtr, const char* key, int* valuePtr, const ch
         return -1;
     }
 
-    strlwr(str);
+    os_strlwr(str);
 
     if (*str == ',') {
         str++;
@@ -225,7 +226,7 @@ int strParseStrAndSepVal(char** stringPtr, char* key, int* valuePtr, const char*
         return -1;
     }
 
-    strlwr(str);
+    os_strlwr(str);
 
     if (*str == ',') {
         str++;

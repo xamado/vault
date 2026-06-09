@@ -1,13 +1,10 @@
 #ifndef FALLOUT_PLIB_XFILE_DFILE_H_
 #define FALLOUT_PLIB_XFILE_DFILE_H_
 
-#include <stdbool.h>
 #include <stdio.h>
-
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
 #include <zlib.h>
+
+#include "plib/os/os_filesystem.h"
 
 // The size of decompression buffer for reading compressed [DFile]s.
 #define DFILE_DECOMPRESSION_BUFFER_SIZE (0x400)

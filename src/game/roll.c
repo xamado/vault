@@ -3,13 +3,8 @@
 #include <limits.h>
 #include <stdlib.h>
 
-// clang-format off
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <timeapi.h>
-// clang-format on
-
 #include "plib/gnw/debug.h"
+#include "plib/os/os_time.h"
 #include "game/scripts.h"
 
 static int ran1(int max);
@@ -207,7 +202,7 @@ static void seed_generator(int seed)
 // 0x4A3258
 static unsigned int timer_read()
 {
-    return timeGetTime();
+    return os_get_ticks();
 }
 
 // 0x4A3264

@@ -16,8 +16,8 @@
 #include "game/graphlib.h"
 #include "game/item.h"
 #include "game/map.h"
-#include "plib/gnw/memory.h"
 #include "game/object.h"
+#include "plib/gnw/memory.h"
 #include "plib/gnw/text.h"
 #include "plib/gnw/button.h"
 #include "plib/gnw/gnw.h"
@@ -276,7 +276,7 @@ void automap_exit()
     if (config_get_string(&game_config, GAME_CONFIG_SYSTEM_KEY, GAME_CONFIG_MASTER_PATCHES_KEY, &masterPatchesPath)) {
         char path[MAX_PATH];
         sprintf(path, "%s\\%s\\%s", masterPatchesPath, "MAPS", AUTOMAP_DB);
-        remove(path);
+        os_fs_remove(path);
     }
 }
 
@@ -819,7 +819,7 @@ int automap_pip_save()
         // NOTE: Not sure about the size.
         char automapDbPath[512];
         sprintf(automapDbPath, "%s\\%s\\%s", masterPatchesPath, "MAPS", AUTOMAP_DB);
-        if (remove(automapDbPath) != 0) {
+        if (os_fs_remove(automapDbPath) != 0) {
             debug_printf("\nAUTOMAP: Error removing database!\n");
             return -1;
         }
@@ -827,7 +827,7 @@ int automap_pip_save()
         // NOTE: Not sure about the size.
         char automapTmpPath[512];
         sprintf(automapTmpPath, "%s\\%s\\%s", masterPatchesPath, "MAPS", AUTOMAP_TMP);
-        if (rename(automapTmpPath, automapDbPath) != 0) {
+        if (os_fs_rename(automapTmpPath, automapDbPath) != 0) {
             debug_printf("\nAUTOMAP: Error renaming database!\n");
             return -1;
         }
