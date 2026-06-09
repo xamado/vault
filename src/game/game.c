@@ -147,7 +147,12 @@ int game_init(const char* windowTitle, int font, int a4, int argc, char** argv)
 
     annoy_user();
     win_set_minimized_title(windowTitle);
-    initWindow(1, a4);
+
+    int screen_width = 640;
+    int screen_height = 480;
+    config_get_value(&game_config, GAME_CONFIG_SYSTEM_KEY, GAME_CONFIG_SCREEN_WIDTH_KEY, &screen_width);
+    config_get_value(&game_config, GAME_CONFIG_SYSTEM_KEY, GAME_CONFIG_SCREEN_HEIGHT_KEY, &screen_height);
+    initWindow(screen_width, screen_height, a4);
     palette_init();
 
     char* language;
@@ -1228,8 +1233,10 @@ static int game_init_databases()
 // 0x444384
 static void game_splash_screen()
 {
-    int splash;
-    config_get_value(&game_config, GAME_CONFIG_SYSTEM_KEY, GAME_CONFIG_SPLASH_KEY, &splash);
+    // Rotate through the available splash images on each call. Used to live
+    // in fallout2.cfg under [system]/splash so it persisted across runs; here
+    // it just resets per launch, which is fine for an attract image.
+    static int splash = 0;
 
     char path[64];
     char* language;
@@ -1278,13 +1285,15 @@ static void game_splash_screen()
     db_fread(data, 1, SPLASH_WIDTH * SPLASH_HEIGHT, stream);
     db_fclose(stream);
 
-    int splashWindowX = 0;
-    int splashWindowY = 0;
-    scr_blit(data, SPLASH_WIDTH, SPLASH_HEIGHT, 0, 0, SPLASH_WIDTH, SPLASH_HEIGHT, splashWindowX, splashWindowY);
+    // Scale the 640x480 splash to whatever resolution the window is running at.
+    GNW95_ShowMovieRect(data, SPLASH_WIDTH, 0, 0, SPLASH_WIDTH, SPLASH_HEIGHT);
     palette_fade_to(palette);
 
     mem_free(data);
     mem_free(palette);
 
-    config_set_value(&game_config, GAME_CONFIG_SYSTEM_KEY, GAME_CONFIG_SPLASH_KEY, splash + 1);
+    splash++;
+    if (splash >= SPLASH_COUNT) {
+        splash = 0;
+    }
 }

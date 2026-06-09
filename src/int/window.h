@@ -86,7 +86,7 @@ int windowDisplayTransBuf(unsigned char* src, int srcWidth, int srcHeight, int d
 int windowDisplayBufScaled(unsigned char* src, int srcWidth, int srcHeight, int destX, int destY, int destWidth, int destHeight);
 int windowGetXres();
 int windowGetYres();
-void initWindow(int resolution, int a2);
+void initWindow(int width, int height, int a2);
 void windowSetWindowFuncs(ManagedWindowCreateCallback* createCallback, ManagedWindowSelectFunc* selectCallback, WindowDeleteCallback* deleteCallback, DisplayInWindowCallback* displayCallback);
 void windowClose();
 bool windowDeleteButton(const char* buttonName);

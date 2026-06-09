@@ -104,8 +104,6 @@ int win_init(VideoSystemInitProc* videoSystemInitProc, VideoSystemExitProc* vide
         return WINDOW_MANAGER_ERR_INITIALIZING_TEXT_FONTS;
     }
 
-    reset_mode();
-
     video_set = videoSystemInitProc;
     video_reset = GNW95_reset_mode;
 

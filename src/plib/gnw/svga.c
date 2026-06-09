@@ -35,75 +35,6 @@ ZeroMemFunc* zero_mem = NULL;
 // Backing store for the runtime palette (256 entries * 3 bytes).
 static unsigned char current_palette[256 * 3];
 
-// 0x4CAD08
-int init_mode_320_200()
-{
-    return GNW95_init_mode(320, 200, 8);
-}
-
-// 0x4CAD40
-int init_mode_320_400()
-{
-    return GNW95_init_mode(320, 400, 8);
-}
-
-// 0x4CAD5C
-int init_mode_640_480_16()
-{
-    return -1;
-}
-
-// 0x4CAD64
-int init_mode_640_480()
-{
-    return GNW95_init_mode(640, 480, 8);
-}
-
-// 0x4CAD94
-int init_mode_640_400()
-{
-    return GNW95_init_mode(640, 400, 8);
-}
-
-// 0x4CADA8
-int init_mode_800_600()
-{
-    return GNW95_init_mode(800, 600, 8);
-}
-
-// 0x4CADBC
-int init_mode_1024_768()
-{
-    return GNW95_init_mode(1024, 768, 8);
-}
-
-// 0x4CADD0
-int init_mode_1280_1024()
-{
-    return GNW95_init_mode(1280, 1024, 8);
-}
-
-// 0x4CADE4
-int init_vesa_mode(int mode, int width, int height, int half)
-{
-    if (half != 0) {
-        return -1;
-    }
-
-    return GNW95_init_mode(width, height, 8);
-}
-
-// 0x4CADF3
-int get_start_mode()
-{
-    return -1;
-}
-
-// 0x4CADF8
-void reset_mode()
-{
-}
-
 // 0x4CADFC
 void zero_vid_mem()
 {
@@ -339,4 +270,12 @@ void GNW95_zero_vid_mem()
         os_window_unlock();
         os_window_present();
     }
+}
+
+Size screen_get_size(void)
+{
+    Size size;
+    size.width = scr_size.lrx - scr_size.ulx + 1;
+    size.height = scr_size.lry - scr_size.uly + 1;
+    return size;
 }

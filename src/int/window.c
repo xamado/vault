@@ -105,40 +105,18 @@ static int winTOS = -1;
 // 051DCB8
 static int currentWindow = -1;
 
-// 0x51DCBC
-static VideoSystemInitProc* gfx_init[12] = {
-    init_mode_320_200,
-    init_mode_640_480,
-    init_mode_640_480_16,
-    init_mode_320_400,
-    init_mode_640_480_16,
-    init_mode_640_400,
-    init_mode_640_480_16,
-    init_mode_800_600,
-    init_mode_640_480_16,
-    init_mode_1024_768,
-    init_mode_640_480_16,
-    init_mode_1280_1024,
-};
-
-// 0x51DD1C
-static Size sizes[12] = {
-    { 320, 200 },
-    { 640, 480 },
-    { 640, 240 },
-    { 320, 400 },
-    { 640, 200 },
-    { 640, 400 },
-    { 800, 300 },
-    { 800, 600 },
-    { 1024, 384 },
-    { 1024, 768 },
-    { 1280, 512 },
-    { 1280, 1024 },
-};
-
 // 0x51DD7C
 static int numInputFunc = 0;
+
+// File-scope plumbing for the resolution chosen at initWindow() time.
+// The win_init() API takes a parameter-less VideoSystemInitProc*, so we route
+// the desired width/height through statics and a tiny adapter.
+static int requested_screen_width = 640;
+static int requested_screen_height = 480;
+static int requested_screen_init(void)
+{
+    return GNW95_init_mode(requested_screen_width, requested_screen_height, 8);
+}
 
 // 0x51DD80
 int _lastWin = -1;
@@ -1619,7 +1597,7 @@ static void windowRemoveProgramReferences(Program* program)
 }
 
 // 0x4B9190
-void initWindow(int resolution, int a2)
+void initWindow(int width, int height, int a2)
 {
     char err[MAX_PATH];
     int rc;
@@ -1634,15 +1612,17 @@ void initWindow(int resolution, int a2)
     currentHighlightColorG = 0;
     currentTextFlags = 0x2010000;
 
-    yres = sizes[resolution].height; // screen height
+    yres = height;
     currentHighlightColorB = 0;
-    xres = sizes[resolution].width; // screen width
+    xres = width;
 
     for (int i = 0; i < MANAGED_WINDOW_COUNT; i++) {
         windows[i].window = -1;
     }
 
-    rc = win_init(gfx_init[resolution], GNW95_reset_mode, a2);
+    requested_screen_width = width;
+    requested_screen_height = height;
+    rc = win_init(requested_screen_init, GNW95_reset_mode, a2);
     if (rc != WINDOW_MANAGER_OK) {
         switch (rc) {
         case WINDOW_MANAGER_ERR_INITIALIZING_VIDEO_MODE:
