@@ -68,7 +68,6 @@
 #define SPLASH_COUNT 10
 
 static void game_display_counter(double value);
-static int game_screendump(int width, int height, unsigned char* buffer, unsigned char* palette);
 static void game_unload_info();
 static void game_help();
 static int game_init_databases();
@@ -172,7 +171,6 @@ int game_init(const char* windowTitle, int font, int a4, int argc, char** argv)
     text_add_manager(&alias_mgr);
     text_font(font);
 
-    register_screendump(KEY_F12, game_screendump);
     register_pause(-1, NULL);
 
     tile_disable_refresh();
@@ -1040,30 +1038,6 @@ static void game_display_counter(double value)
 
     sprintf(stringBuffer, "%f", value);
     display_print(stringBuffer);
-}
-
-// 0x443EF0
-static int game_screendump(int width, int height, unsigned char* buffer, unsigned char* palette)
-{
-    MessageListItem messageListItem;
-
-    if (default_screendump(width, height, buffer, palette) != 0) {
-        // Error saving screenshot.
-        messageListItem.num = 8;
-        if (message_search(&misc_message_file, &messageListItem)) {
-            display_print(messageListItem.text);
-        }
-
-        return -1;
-    }
-
-    // Saved screenshot.
-    messageListItem.num = 3;
-    if (message_search(&misc_message_file, &messageListItem)) {
-        display_print(messageListItem.text);
-    }
-
-    return 0;
 }
 
 // NOTE: Inlined.

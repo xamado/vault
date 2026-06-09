@@ -438,9 +438,7 @@ int pipboy(int intent)
             break;
         }
 
-        if (keyCode == KEY_F12) {
-            dump_screen();
-        } else if (keyCode >= 500 && keyCode <= 504) {
+        if (keyCode >= 500 && keyCode <= 504) {
             crnt_func = keyCode - 500;
             PipFnctn[crnt_func](1024);
         } else if (keyCode >= 505 && keyCode <= 527) {

@@ -1122,10 +1122,6 @@ int editor_design(bool isCreationMode)
                     TraitSelect(keyCode - 555);
                     win_draw(edit_win);
                 } else {
-                    if (keyCode == 390) {
-                        dump_screen();
-                    }
-
                     win_draw(edit_win);
                 }
             }

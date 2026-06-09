@@ -443,9 +443,6 @@ void automap(bool isInGame, bool isUsingScanner)
         case KEY_F10:
             game_quit_with_confirm();
             break;
-        case KEY_F12:
-            dump_screen();
-            break;
         }
 
         if (game_user_wants_to_quit != 0) {

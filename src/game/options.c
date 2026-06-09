@@ -448,9 +448,6 @@ int do_optionsFunc(int initialKeyCode)
             do_prefscreen();
         } else {
             switch (keyCode) {
-            case KEY_F12:
-                dump_screen();
-                break;
             case KEY_UPPERCASE_E:
             case KEY_LOWERCASE_E:
             case KEY_CTRL_Q:
@@ -858,9 +855,6 @@ static int do_prefscreen()
         case KEY_MINUS:
         case KEY_UNDERSCORE:
             DecGamma();
-            break;
-        case KEY_F12:
-            dump_screen();
             break;
         case 527:
             SetDefaults(true);

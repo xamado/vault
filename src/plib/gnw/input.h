@@ -13,7 +13,6 @@ typedef void(IdleFunc)();
 typedef void(FocusFunc)(int);
 typedef void(BackgroundProcess)();
 typedef int(PauseWinFunc)();
-typedef int(ScreenDumpFunc)(int width, int height, unsigned char* buffer, unsigned char* palette);
 
 int GNW_input_init(int use_msec_timer);
 void GNW_input_exit();
@@ -27,9 +26,6 @@ void remove_bk_process(BackgroundProcess* f);
 void enable_bk();
 void disable_bk();
 void register_pause(int new_pause_key, PauseWinFunc* new_pause_win_func);
-void dump_screen();
-int default_screendump(int width, int height, unsigned char* data, unsigned char* palette);
-void register_screendump(int new_screendump_key, ScreenDumpFunc* new_screendump_func);
 TOCKS get_time();
 void pause_for_tocks(unsigned int ms);
 void block_for_tocks(unsigned int ms);

@@ -155,7 +155,6 @@ typedef funcdata* FuncPtr;
 static int get_input_buffer();
 static void pause_game();
 static int default_pause_window();
-static void buf_blit(unsigned char* src, int src_pitch, int a3, int x, int y, int width, int height, int dest_x, int dest_y);
 static void GNW95_build_key_map();
 static int GNW95_hook_keyboard(int hook);
 static void GNW95_process_key(KeyboardEventData* data);
@@ -199,23 +198,14 @@ static int input_my;
 // 0x6AC75C
 static bool game_paused;
 
-// 0x6AC760
-static int screendump_key;
-
 // 0x6AC764
 static int using_msec_timer;
 
 // 0x6AC768
 static int pause_key;
 
-// 0x6AC76C
-static ScreenDumpFunc* screendump_func;
-
 // 0x6AC770
 static int input_get;
-
-// 0x6AC774
-static unsigned char* screendump_buf;
 
 // 0x6AC778
 static PauseWinFunc* pause_win_func;
@@ -264,9 +254,7 @@ int GNW_input_init(int use_msec_timer)
     game_paused = false;
     pause_key = KEY_ALT_P;
     pause_win_func = default_pause_window;
-    screendump_func = default_screendump;
     bk_list = NULL;
-    screendump_key = KEY_ALT_C;
 
     return 0;
 }
@@ -345,11 +333,6 @@ void GNW_add_input_buffer(int a1)
 
     if (a1 == pause_key) {
         pause_game();
-        return;
-    }
-
-    if (a1 == screendump_key) {
-        dump_screen();
         return;
     }
 
@@ -553,174 +536,6 @@ void register_pause(int new_pause_key, PauseWinFunc* new_pause_win_func)
     }
 
     pause_win_func = new_pause_win_func;
-}
-
-// 0x4C8F4C
-void dump_screen()
-{
-    int width = scr_size.lrx - scr_size.ulx + 1;
-    int height = scr_size.lry - scr_size.uly + 1;
-    screendump_buf = (unsigned char*)mem_malloc(width * height);
-    if (screendump_buf == NULL) {
-        return;
-    }
-
-    ScreenBlitFunc* v0 = scr_blit;
-    scr_blit = buf_blit;
-
-    ScreenBlitFunc* v2 = mouse_blit;
-    mouse_blit = buf_blit;
-
-    ScreenTransBlitFunc* v1 = mouse_blit_trans;
-    mouse_blit_trans = NULL;
-
-    win_refresh_all(&scr_size);
-
-    mouse_blit_trans = v1;
-    mouse_blit = v2;
-    scr_blit = v0;
-
-    unsigned char* palette = getSystemPalette();
-    screendump_func(width, height, screendump_buf, palette);
-    mem_free(screendump_buf);
-}
-
-// 0x4C8FF0
-static void buf_blit(unsigned char* src, int srcPitch, int a3, int srcX, int srcY, int width, int height, int destX, int destY)
-{
-    int destWidth = scr_size.lrx - scr_size.ulx + 1;
-    buf_to_buf(src + srcPitch * srcY + srcX, width, height, srcPitch, screendump_buf + destWidth * destY + destX, destWidth);
-}
-
-// 0x4C9048
-int default_screendump(int width, int height, unsigned char* data, unsigned char* palette)
-{
-    char fileName[16];
-    FILE* stream;
-    int index;
-    unsigned int intValue;
-    unsigned short shortValue;
-
-    for (index = 0; index < 100000; index++) {
-        sprintf(fileName, "scr%.5d.bmp", index);
-
-        stream = fopen(fileName, "rb");
-        if (stream == NULL) {
-            break;
-        }
-
-        fclose(stream);
-    }
-
-    if (index == 100000) {
-        return -1;
-    }
-
-    stream = fopen(fileName, "wb");
-    if (stream == NULL) {
-        return -1;
-    }
-
-    // bfType
-    shortValue = 0x4D42;
-    fwrite(&shortValue, sizeof(shortValue), 1, stream);
-
-    // bfSize
-    // 14 - sizeof(BITMAPFILEHEADER)
-    // 40 - sizeof(BITMAPINFOHEADER)
-    // 1024 - sizeof(RGBQUAD) * 256
-    intValue = width * height + 14 + 40 + 1024;
-    fwrite(&intValue, sizeof(intValue), 1, stream);
-
-    // bfReserved1
-    shortValue = 0;
-    fwrite(&shortValue, sizeof(shortValue), 1, stream);
-
-    // bfReserved2
-    shortValue = 0;
-    fwrite(&shortValue, sizeof(shortValue), 1, stream);
-
-    // bfOffBits
-    intValue = 14 + 40 + 1024;
-    fwrite(&intValue, sizeof(intValue), 1, stream);
-
-    // biSize
-    intValue = 40;
-    fwrite(&intValue, sizeof(intValue), 1, stream);
-
-    // biWidth
-    intValue = width;
-    fwrite(&intValue, sizeof(intValue), 1, stream);
-
-    // biHeight
-    intValue = height;
-    fwrite(&intValue, sizeof(intValue), 1, stream);
-
-    // biPlanes
-    shortValue = 1;
-    fwrite(&shortValue, sizeof(shortValue), 1, stream);
-
-    // biBitCount
-    shortValue = 8;
-    fwrite(&shortValue, sizeof(shortValue), 1, stream);
-
-    // biCompression
-    intValue = 0;
-    fwrite(&intValue, sizeof(intValue), 1, stream);
-
-    // biSizeImage
-    intValue = 0;
-    fwrite(&intValue, sizeof(intValue), 1, stream);
-
-    // biXPelsPerMeter
-    intValue = 0;
-    fwrite(&intValue, sizeof(intValue), 1, stream);
-
-    // biYPelsPerMeter
-    intValue = 0;
-    fwrite(&intValue, sizeof(intValue), 1, stream);
-
-    // biClrUsed
-    intValue = 0;
-    fwrite(&intValue, sizeof(intValue), 1, stream);
-
-    // biClrImportant
-    intValue = 0;
-    fwrite(&intValue, sizeof(intValue), 1, stream);
-
-    for (int index = 0; index < 256; index++) {
-        unsigned char rgbReserved = 0;
-        unsigned char rgbRed = palette[index * 3] << 2;
-        unsigned char rgbGreen = palette[index * 3 + 1] << 2;
-        unsigned char rgbBlue = palette[index * 3 + 2] << 2;
-
-        fwrite(&rgbBlue, sizeof(rgbBlue), 1, stream);
-        fwrite(&rgbGreen, sizeof(rgbGreen), 1, stream);
-        fwrite(&rgbRed, sizeof(rgbRed), 1, stream);
-        fwrite(&rgbReserved, sizeof(rgbReserved), 1, stream);
-    }
-
-    for (int y = height - 1; y >= 0; y--) {
-        unsigned char* dataPtr = data + y * width;
-        fwrite(dataPtr, 1, width, stream);
-    }
-
-    fflush(stream);
-    fclose(stream);
-
-    return 0;
-}
-
-// 0x4C9358
-void register_screendump(int new_screendump_key, ScreenDumpFunc* new_screendump_func)
-{
-    screendump_key = new_screendump_key;
-
-    if (new_screendump_func == NULL) {
-        new_screendump_func = default_screendump;
-    }
-
-    screendump_func = new_screendump_func;
 }
 
 // 0x4C9370
