@@ -250,8 +250,6 @@ add_executable(${EXECUTABLE_NAME}
     "src/plib/xfile/xsys_find.c"
     "src/plib/xfile/xsys_find.h"
     "src/memory_defs.h"
-    "src/mmx.c"
-    "src/mmx.h"
     "src/movie_lib.c"
     "src/movie_lib.h"
     "src/sound_decoder.c"

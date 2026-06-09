@@ -7,13 +7,11 @@
 #include "plib/gnw/svga_types.h"
 
 extern UpdatePaletteFunc* update_palette_func;
-extern bool mmxEnabled;
 
 extern Rect scr_size;
 extern ScreenBlitFunc* scr_blit;
 extern ZeroMemFunc* zero_mem;
 
-void mmxEnable(bool enable);
 int init_mode_320_200();
 int init_mode_320_400();
 int init_mode_640_480_16();

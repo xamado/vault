@@ -4,7 +4,6 @@
 
 #include "plib/color/color.h"
 #include "plib/gnw/input.h"
-#include "mmx.h"
 
 // 0x4D2FC0
 void draw_line(unsigned char* buf, int pitch, int x1, int y1, int x2, int y2, int color)
@@ -224,13 +223,30 @@ void trans_cscale(unsigned char* src, int srcWidth, int srcHeight, int srcPitch,
 // 0x4D36D4
 void buf_to_buf(unsigned char* src, int width, int height, int srcPitch, unsigned char* dest, int destPitch)
 {
-    mmxBlit(dest, destPitch, src, srcPitch, width, height);
+    for (int y = 0; y < height; y++) {
+        memcpy(dest, src, width);
+        dest += destPitch;
+        src += srcPitch;
+    }
 }
 
 // 0x4D3704
 void trans_buf_to_buf(unsigned char* src, int width, int height, int srcPitch, unsigned char* dest, int destPitch)
 {
-    mmxBlitTrans(dest, destPitch, src, srcPitch, width, height);
+    int destSkip = destPitch - width;
+    int srcSkip = srcPitch - width;
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            unsigned char c = *src++;
+            if (c != 0) {
+                *dest = c;
+            }
+            dest++;
+        }
+        src += srcSkip;
+        dest += destSkip;
+    }
 }
 
 // 0x4D387C

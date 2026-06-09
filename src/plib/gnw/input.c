@@ -7,7 +7,6 @@
 #include "plib/gnw/button.h"
 #include "plib/gnw/grbuf.h"
 #include "plib/gnw/memory.h"
-#include "mmx.h"
 #include "plib/gnw/text.h"
 #include "plib/gnw/vcr.h"
 #include "plib/gnw/gnw.h"

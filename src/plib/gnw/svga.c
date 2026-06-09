@@ -2,7 +2,6 @@
 
 #include <string.h>
 
-#include "mmx.h"
 #include "plib/gnw/gnw.h"
 #include "plib/gnw/grbuf.h"
 #include "plib/gnw/mouse.h"
@@ -18,9 +17,6 @@
 
 // 0x51E2C4
 UpdatePaletteFunc* update_palette_func = NULL;
-
-// 0x51E2C8
-bool mmxEnabled = true;
 
 // 0x6AC7F0
 // (GNW95_Pal16 removed — 16bpp path no longer needed under SDL.)
@@ -38,25 +34,6 @@ ZeroMemFunc* zero_mem = NULL;
 
 // Backing store for the runtime palette (256 entries * 3 bytes).
 static unsigned char current_palette[256 * 3];
-
-// 0x4CACD0
-void mmxEnable(bool enable)
-{
-    // 0x51E2CC
-    static bool inited = false;
-
-    // 0x6ACA20
-    static bool mmx;
-
-    if (!inited) {
-        mmx = mmxIsSupported();
-        inited = true;
-    }
-
-    if (mmx) {
-        mmxEnabled = enable;
-    }
-}
 
 // 0x4CAD08
 int init_mode_320_200()
@@ -149,8 +126,6 @@ int GNW95_init_mode(int width, int height, int bpp)
     scr_size.uly = 0;
     scr_size.lrx = width - 1;
     scr_size.lry = height - 1;
-
-    mmxEnable(true);
 
     mouse_blit_trans = NULL;
     scr_blit = GNW95_ShowRect;
