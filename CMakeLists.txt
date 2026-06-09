@@ -282,3 +282,6 @@ target_include_directories(${EXECUTABLE_NAME} PRIVATE ${FPATTERN_INCLUDE_DIR})
 add_subdirectory("third_party/zlib")
 target_link_libraries(${EXECUTABLE_NAME} ${ZLIB_LIBRARIES})
 target_include_directories(${EXECUTABLE_NAME} PRIVATE ${ZLIB_INCLUDE_DIRS})
+
+add_executable(png2frm "src/tools/png2frm.c")
+target_link_libraries(png2frm m)
