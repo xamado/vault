@@ -143,7 +143,7 @@ int RealMain(int argc, char** argv)
                 break;
             case MAIN_MENU_LOAD_GAME:
                 if (1) {
-                    int win = win_add(0, 0, 640, 480, colorTable[0], WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+                    int win = win_add(0, 0, 640, 480, colorTable[0], WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
                     main_menu_hide(true);
                     main_menu_destroy();
                     gsound_background_stop();
@@ -271,7 +271,7 @@ static int main_load_new(char* mapFileName)
     obj_turn_on(obj_dude, NULL);
     mouse_hide();
 
-    int win = win_add(0, 0, 640, 480, colorTable[0], WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+    int win = win_add(0, 0, 640, 480, colorTable[0], WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
     win_draw(win);
 
     loadColorTable("color.pal");
@@ -506,7 +506,7 @@ static void main_death_scene()
         DEATH_WINDOW_WIDTH,
         DEATH_WINDOW_HEIGHT,
         0,
-        WINDOW_FLAG_0x04);
+        WINDOW_FLAG_ALWAYS_ON_TOP);
     if (win != -1) {
         do {
             unsigned char* windowBuffer = win_get_buf(win);

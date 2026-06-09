@@ -1311,7 +1311,7 @@ static int gdReviewInit(int* win)
         GAME_DIALOG_REVIEW_WINDOW_WIDTH,
         GAME_DIALOG_REVIEW_WINDOW_HEIGHT,
         256,
-        WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+        WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (*win == -1) {
         return -1;
     }
@@ -1729,7 +1729,7 @@ static int gdProcessInit()
         GAME_DIALOG_REPLY_WINDOW_WIDTH,
         GAME_DIALOG_REPLY_WINDOW_HEIGHT,
         256,
-        WINDOW_FLAG_0x04);
+        WINDOW_FLAG_ALWAYS_ON_TOP);
     if (gReplyWin == -1) {
         goto err;
     }
@@ -1754,7 +1754,7 @@ static int gdProcessInit()
 
     optionsWindowX = GAME_DIALOG_OPTIONS_WINDOW_X;
     optionsWindowY = GAME_DIALOG_OPTIONS_WINDOW_Y;
-    gOptionWin = win_add(optionsWindowX, optionsWindowY, GAME_DIALOG_OPTIONS_WINDOW_WIDTH, GAME_DIALOG_OPTIONS_WINDOW_HEIGHT, 256, WINDOW_FLAG_0x04);
+    gOptionWin = win_add(optionsWindowX, optionsWindowY, GAME_DIALOG_OPTIONS_WINDOW_WIDTH, GAME_DIALOG_OPTIONS_WINDOW_HEIGHT, 256, WINDOW_FLAG_ALWAYS_ON_TOP);
     if (gOptionWin == -1) {
         goto err_2;
     }
@@ -4072,7 +4072,7 @@ static int gdCustomSelect(int a1)
 
     int selectWindowX = (640 - backgroundFrmWidth) / 2;
     int selectWindowY = (480 - backgroundFrmHeight) / 2;
-    int win = win_add(selectWindowX, selectWindowY, backgroundFrmWidth, backgroundFrmHeight, 256, WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+    int win = win_add(selectWindowX, selectWindowY, backgroundFrmWidth, backgroundFrmHeight, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (win == -1) {
         art_ptr_unlock(backgroundFrmHandle);
         return -1;

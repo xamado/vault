@@ -99,7 +99,7 @@ int win_list_select_at(const char* title, char** items, int itemsLength, SelectF
     int listViewCapacity = 10;
     for (int heightMultiplier = 13; heightMultiplier > 8; heightMultiplier--) {
         windowHeight = heightMultiplier * text_height() + 22;
-        win = win_add(x, y, windowWidth, windowHeight, 256, WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+        win = win_add(x, y, windowWidth, windowHeight, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
         if (win != -1) {
             break;
         }
@@ -545,7 +545,7 @@ int win_get_str(char* dest, int length, const char* title, int x, int y)
 
     int windowHeight = 5 * text_height() + 16;
 
-    int win = win_add(x, y, windowWidth, windowHeight, 256, WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+    int win = win_add(x, y, windowWidth, windowHeight, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (win == -1) {
         return -1;
     }
@@ -621,7 +621,7 @@ int win_msg(const char* string, int x, int y, int flags)
 
     windowWidth += 16;
 
-    int win = win_add(x, y, windowWidth, windowHeight, 256, WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+    int win = win_add(x, y, windowWidth, windowHeight, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (win == -1) {
         return -1;
     }
@@ -687,7 +687,7 @@ static int create_pull_down(char** stringList, int stringListLength, int x, int 
         return -1;
     }
 
-    int win = win_add(x, y, windowWidth, windowHeight, a6, WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+    int win = win_add(x, y, windowWidth, windowHeight, a6, WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (win == -1) {
         return -1;
     }
@@ -711,7 +711,7 @@ int win_debug(char* string)
     int lineHeight = text_height();
 
     if (wd == -1) {
-        wd = win_add(80, 80, 300, 192, 256, WINDOW_FLAG_0x04);
+        wd = win_add(80, 80, 300, 192, 256, WINDOW_FLAG_ALWAYS_ON_TOP);
         if (wd == -1) {
             return -1;
         }

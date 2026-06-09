@@ -226,7 +226,7 @@ static int skilldex_start()
         ginfo[SKILLDEX_FRM_BACKGROUND].width,
         ginfo[SKILLDEX_FRM_BACKGROUND].height,
         256,
-        WINDOW_FLAG_0x10 | WINDOW_FLAG_0x02);
+        WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
     if (skldxwin == -1) {
         for (int index = 0; index < SKILLDEX_SKILL_BUTTON_BUFFER_COUNT; index++) {
             mem_free(skldxbtn[index]);

@@ -1070,7 +1070,7 @@ static void game_help()
 
     int helpWindowX = 0;
     int helpWindowY = 0;
-    int win = win_add(helpWindowX, helpWindowY, HELP_SCREEN_WIDTH, HELP_SCREEN_HEIGHT, 0, WINDOW_HIDDEN | WINDOW_FLAG_0x04);
+    int win = win_add(helpWindowX, helpWindowY, HELP_SCREEN_WIDTH, HELP_SCREEN_HEIGHT, 0, WINDOW_HIDDEN | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (win != -1) {
         unsigned char* windowBuffer = win_get_buf(win);
         if (windowBuffer != NULL) {

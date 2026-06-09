@@ -844,7 +844,7 @@ int LoadGame(int mode)
             LS_WINDOW_WIDTH,
             LS_WINDOW_HEIGHT,
             256,
-            WINDOW_FLAG_0x10 | WINDOW_FLAG_0x02);
+            WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
         if (window != -1) {
             unsigned char* windowBuffer = win_get_buf(window);
             buf_fill(windowBuffer, LS_WINDOW_WIDTH, LS_WINDOW_HEIGHT, LS_WINDOW_WIDTH, colorTable[0]);
@@ -1294,7 +1294,7 @@ static int LSGameStart(int windowType)
         LS_WINDOW_WIDTH,
         LS_WINDOW_HEIGHT,
         256,
-        WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+        WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (lsgwin == -1) {
         // FIXME: Leaking frms.
         mem_free(snapshot);
@@ -2018,7 +2018,7 @@ static int GetComment(int a1)
         ginfo[LOAD_SAVE_FRM_BOX].width,
         ginfo[LOAD_SAVE_FRM_BOX].height,
         256,
-        WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+        WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (window == -1) {
         return -1;
     }

@@ -561,7 +561,7 @@ static int elevator_start(int elevator)
         GInfo[ELEVATOR_FRM_BACKGROUND].width,
         GInfo[ELEVATOR_FRM_BACKGROUND].height,
         256,
-        WINDOW_FLAG_0x10 | WINDOW_FLAG_0x02);
+        WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
     if (elev_win == -1) {
         if (grphbmp[ELEVATOR_FRM_BACKGROUND] != ELEVATOR_BACKGROUND_NULL) {
             art_ptr_unlock(grph_key[ELEVATOR_FRM_BACKGROUND]);

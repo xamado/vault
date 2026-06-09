@@ -496,7 +496,7 @@ static int default_pause_window()
         windowWidth,
         windowHeight,
         256,
-        WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+        WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (win == -1) {
         return -1;
     }

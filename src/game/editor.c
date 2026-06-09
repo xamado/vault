@@ -1292,7 +1292,7 @@ static int CharEditStart()
         EDITOR_WINDOW_WIDTH,
         EDITOR_WINDOW_HEIGHT,
         256,
-        WINDOW_FLAG_0x10 | WINDOW_FLAG_0x02);
+        WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
     if (edit_win == -1) {
         for (i = 0; i < EDITOR_GRAPHIC_COUNT; i++) {
             if (copyflag[i]) {
@@ -3099,7 +3099,7 @@ static int NameWindow()
 
     int nameWindowX = 17;
     int nameWindowY = 0;
-    int win = win_add(nameWindowX, nameWindowY, windowWidth, windowHeight, 256, WINDOW_FLAG_0x10 | WINDOW_FLAG_0x02);
+    int win = win_add(nameWindowX, nameWindowY, windowWidth, windowHeight, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
     if (win == -1) {
         return -1;
     }
@@ -3231,7 +3231,7 @@ static int AgeWindow()
 
     int ageWindowX = GInfo[EDITOR_GRAPHIC_NAME_ON].width + 9;
     int ageWindowY = 0;
-    win = win_add(ageWindowX, ageWindowY, windowWidth, windowHeight, 256, WINDOW_FLAG_0x10 | WINDOW_FLAG_0x02);
+    win = win_add(ageWindowX, ageWindowY, windowWidth, windowHeight, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
     if (win == -1) {
         return -1;
     }
@@ -3463,7 +3463,7 @@ static void SexWindow()
         + GInfo[EDITOR_GRAPHIC_NAME_ON].width
         + GInfo[EDITOR_GRAPHIC_AGE_ON].width;
     int genderWindowY = 0;
-    int win = win_add(genderWindowX, genderWindowY, windowWidth, windowHeight, 256, WINDOW_FLAG_0x10 | WINDOW_FLAG_0x02);
+    int win = win_add(genderWindowX, genderWindowY, windowWidth, windowHeight, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
 
     if (win == -1) {
         return;
@@ -3696,7 +3696,7 @@ static int OptionWindow()
     if (glblmode) {
         int optionsWindowX = 238;
         int optionsWindowY = 90;
-        int win = win_add(optionsWindowX, optionsWindowY, GInfo[41].width, GInfo[41].height, 256, WINDOW_FLAG_0x10 | WINDOW_FLAG_0x02);
+        int win = win_add(optionsWindowX, optionsWindowY, GInfo[41].width, GInfo[41].height, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
         if (win == -1) {
             return -1;
         }
@@ -5645,7 +5645,7 @@ static int perks_dialog()
 
     int perkWindowX = PERK_WINDOW_X;
     int perkWindowY = PERK_WINDOW_Y;
-    pwin = win_add(perkWindowX, perkWindowY, PERK_WINDOW_WIDTH, PERK_WINDOW_HEIGHT, 256, WINDOW_FLAG_0x10 | WINDOW_FLAG_0x02);
+    pwin = win_add(perkWindowX, perkWindowY, PERK_WINDOW_WIDTH, PERK_WINDOW_HEIGHT, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
     if (pwin == -1) {
         art_ptr_unlock(backgroundFrmHandle);
         debug_printf("\n *** Error running perks dialog window ***\n");

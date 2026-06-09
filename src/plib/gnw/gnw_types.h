@@ -9,13 +9,14 @@
 typedef enum WindowFlags {
     WINDOW_FLAG_0x01 = 0x01,
     WINDOW_FLAG_0x02 = 0x02,
-    WINDOW_FLAG_0x04 = 0x04,
+    WINDOW_FLAG_ALWAYS_ON_TOP = 0x04,
     WINDOW_HIDDEN = 0x08,
-    WINDOW_FLAG_0x10 = 0x10,
+    WINDOW_FLAG_MODAL = 0x10,
     WINDOW_FLAG_0x20 = 0x20,
     WINDOW_FLAG_0x40 = 0x40,
     WINDOW_FLAG_0x80 = 0x80,
     WINDOW_FLAG_0x0100 = 0x0100,
+    WINDOW_FLAG_32BIT = 0x1000,
 } WindowFlags;
 
 typedef enum ButtonFlags {
@@ -27,7 +28,7 @@ typedef enum ButtonFlags {
     BUTTON_FLAG_TRANSPARENT = 0x20,
     BUTTON_FLAG_0x40 = 0x40,
     BUTTON_FLAG_0x010000 = 0x010000,
-    BUTTON_FLAG_0x020000 = 0x020000,
+    BUTTON_FLAG_TOGGLE = 0x020000,
     BUTTON_FLAG_0x040000 = 0x040000,
     BUTTON_FLAG_RIGHT_MOUSE_BUTTON_CONFIGURED = 0x080000,
 } ButtonFlags;
@@ -90,9 +91,9 @@ typedef struct Button {
     unsigned char* mouseUpImage;
     unsigned char* mouseDownImage;
     unsigned char* mouseHoverImage;
-    unsigned char* field_3C;
-    unsigned char* field_40;
-    unsigned char* field_44;
+    unsigned char* disabledMouseUpImage;
+    unsigned char* disabledMouseDownImage;
+    unsigned char* disabledMouseHoverImage;
     unsigned char* currentImage;
     unsigned char* mask;
     ButtonCallback* mouseEnterProc;

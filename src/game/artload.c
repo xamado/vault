@@ -28,14 +28,14 @@ static int art_readSubFrameData(unsigned char* data, File* stream, int count)
 // 0x419E1C
 static int art_readFrameData(Art* art, File* stream)
 {
-    if (db_freadInt(stream, &(art->field_0)) == -1) return -1;
+    if (db_freadInt(stream, &(art->version)) == -1) return -1;
     if (db_freadShort(stream, &(art->framesPerSecond)) == -1) return -1;
     if (db_freadShort(stream, &(art->actionFrame)) == -1) return -1;
     if (db_freadShort(stream, &(art->frameCount)) == -1) return -1;
     if (db_freadShortCount(stream, art->xOffsets, ROTATION_COUNT) == -1) return -1;
     if (db_freadShortCount(stream, art->yOffsets, ROTATION_COUNT) == -1) return -1;
     if (db_freadIntCount(stream, art->dataOffsets, ROTATION_COUNT) == -1) return -1;
-    if (db_freadInt(stream, &(art->field_3A)) == -1) return -1;
+    if (db_freadInt(stream, &(art->totalSize)) == -1) return -1;
 
     return 0;
 }
@@ -142,14 +142,14 @@ int art_writeSubFrameData(unsigned char* data, File* stream, int count)
 // 0x41A138
 int art_writeFrameData(Art* art, File* stream)
 {
-    if (db_fwriteInt(stream, art->field_0) == -1) return -1;
+    if (db_fwriteInt(stream, art->version) == -1) return -1;
     if (db_fwriteShort(stream, art->framesPerSecond) == -1) return -1;
     if (db_fwriteShort(stream, art->actionFrame) == -1) return -1;
     if (db_fwriteShort(stream, art->frameCount) == -1) return -1;
     if (db_fwriteShortCount(stream, art->xOffsets, ROTATION_COUNT) == -1) return -1;
     if (db_fwriteShortCount(stream, art->yOffsets, ROTATION_COUNT) == -1) return -1;
     if (db_fwriteIntCount(stream, art->dataOffsets, ROTATION_COUNT) == -1) return -1;
-    if (db_fwriteInt(stream, art->field_3A) == -1) return -1;
+    if (db_fwriteInt(stream, art->totalSize) == -1) return -1;
 
     return 0;
 }

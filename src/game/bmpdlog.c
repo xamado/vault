@@ -178,7 +178,7 @@ int dialog_out(const char* title, const char** body, int bodyLength, int x, int 
         return -1;
     }
 
-    int win = win_add(x, y, backgroundWidth, backgroundHeight, 256, WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+    int win = win_add(x, y, backgroundWidth, backgroundHeight, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (win == -1) {
         art_ptr_unlock(backgroundHandle);
         text_font(savedFont);
@@ -526,7 +526,7 @@ int file_dialog(char* title, char** fileList, char* dest, int fileListLength, in
     int backgroundWidth = frmSizes[FILE_DIALOG_FRM_BACKGROUND].width;
     int backgroundHeight = frmSizes[FILE_DIALOG_FRM_BACKGROUND].height;
 
-    int win = win_add(x, y, backgroundWidth, backgroundHeight, 256, WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+    int win = win_add(x, y, backgroundWidth, backgroundHeight, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (win == -1) {
         for (int index = 0; index < FILE_DIALOG_FRM_COUNT; index++) {
             art_ptr_unlock(frmHandles[index]);
@@ -903,7 +903,7 @@ int save_file_dialog(char* title, char** fileList, char* dest, int fileListLengt
     int backgroundWidth = frmSizes[FILE_DIALOG_FRM_BACKGROUND].width;
     int backgroundHeight = frmSizes[FILE_DIALOG_FRM_BACKGROUND].height;
 
-    int win = win_add(x, y, backgroundWidth, backgroundHeight, 256, WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+    int win = win_add(x, y, backgroundWidth, backgroundHeight, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (win == -1) {
         for (int index = 0; index < FILE_DIALOG_FRM_COUNT; index++) {
             art_ptr_unlock(frmHandles[index]);

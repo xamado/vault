@@ -336,7 +336,7 @@ void automap(bool isInGame, bool isUsingScanner)
 
     int automapWindowX = AUTOMAP_WINDOW_X;
     int automapWindowY = AUTOMAP_WINDOW_Y;
-    int window = win_add(automapWindowX, automapWindowY, AUTOMAP_WINDOW_WIDTH, AUTOMAP_WINDOW_HEIGHT, color, WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+    int window = win_add(automapWindowX, automapWindowY, AUTOMAP_WINDOW_WIDTH, AUTOMAP_WINDOW_HEIGHT, color, WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
 
     int scannerBtn = win_register_button(window, 111, 454, 15, 16, -1, -1, -1, KEY_LOWERCASE_S, frmData[AUTOMAP_FRM_BUTTON_UP], frmData[AUTOMAP_FRM_BUTTON_DOWN], NULL, BUTTON_FLAG_TRANSPARENT);
     if (scannerBtn != -1) {

@@ -65,14 +65,14 @@ typedef enum Background {
 
 #pragma pack(2)
 typedef struct Art {
-    int field_0;
+    int version;
     short framesPerSecond;
     short actionFrame;
     short frameCount;
     short xOffsets[6];
     short yOffsets[6];
     int dataOffsets[6];
-    int field_3A;
+    int totalSize;
 } Art;
 #pragma pack()
 
@@ -156,6 +156,7 @@ int art_frame_fps(Art* art);
 int art_frame_action_frame(Art* art);
 int art_frame_max_frame(Art* art);
 int art_frame_width(Art* art, int frame, int direction);
+int art_frame_height(Art* art, int frame, int direction);
 int art_frame_length(Art* art, int frame, int direction);
 int art_frame_width_length(Art* art, int frame, int direction, int* out_width, int* out_height);
 int art_frame_hot(Art* art, int frame, int direction, int* a4, int* a5);
@@ -171,5 +172,9 @@ int art_data_size(int a1, int* out_size);
 int art_data_load(int a1, int* a2, unsigned char* data);
 void art_data_free(void* ptr);
 int art_id(int objectType, int frmId, int animType, int a4, int rotation);
+
+static inline bool art_is_32bit(Art* art) {
+    return art->version == 5;
+}
 
 #endif /* FALLOUT_GAME_ART_H_ */

@@ -524,7 +524,7 @@ static int OptnStart()
         ginfo[0].width,
         ginfo[0].height,
         256,
-        WINDOW_FLAG_0x10 | WINDOW_FLAG_0x02);
+        WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
 
     if (optnwin == -1) {
         for (int index = 0; index < OPTIONS_WINDOW_BUTTONS_COUNT; index++) {
@@ -681,7 +681,7 @@ int PauseWindow(bool a1)
         frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width,
         frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].height,
         256,
-        WINDOW_FLAG_0x10 | WINDOW_FLAG_0x02);
+        WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
     if (window == -1) {
         for (int index = 0; index < PAUSE_WINDOW_FRM_COUNT; index++) {
             art_ptr_unlock(frmHandles[index]);
@@ -910,7 +910,7 @@ static int PrefStart()
         PREFERENCES_WINDOW_WIDTH,
         PREFERENCES_WINDOW_HEIGHT,
         256,
-        WINDOW_FLAG_0x10 | WINDOW_FLAG_0x02);
+        WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
     if (prfwin == -1) {
         for (i = 0; i < PREFERENCES_WINDOW_FRM_COUNT; i++) {
             art_ptr_unlock(grphkey2[i]);

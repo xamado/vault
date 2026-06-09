@@ -721,6 +721,18 @@ int art_frame_width(Art* art, int frame, int direction)
     return frm->width;
 }
 
+int art_frame_height(Art* art, int frame, int direction)
+{
+    ArtFrame* frm;
+
+    frm = frame_ptr(art, frame, direction);
+    if (frm == NULL) {
+        return -1;
+    }
+
+    return frm->height;
+}
+
 // 0x4197B8
 int art_frame_length(Art* art, int frame, int direction)
 {
@@ -1006,7 +1018,7 @@ int art_data_load(int fid, int* sizePtr, unsigned char* data)
 
         if (loaded) {
             // TODO: Why it adds 74?
-            *sizePtr = ((Art*)data)->field_3A + 74;
+            *sizePtr = ((Art*)data)->totalSize + 74;
             result = 0;
         }
     }

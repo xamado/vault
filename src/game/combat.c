@@ -5380,7 +5380,7 @@ static int get_called_shot_location(Object* critter, int* hitLocation, int hitMo
         CALLED_SHOT_WINDOW_WIDTH,
         CALLED_SHOT_WINDOW_HEIGHT,
         colorTable[0],
-        WINDOW_FLAG_0x10);
+        WINDOW_FLAG_MODAL);
     if (call_win == -1) {
         return -1;
     }

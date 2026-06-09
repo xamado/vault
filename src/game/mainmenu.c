@@ -112,7 +112,7 @@ int main_menu_create()
         MAIN_MENU_WINDOW_WIDTH,
         MAIN_MENU_WINDOW_HEIGHT,
         0,
-        WINDOW_HIDDEN | WINDOW_FLAG_0x04);
+        WINDOW_HIDDEN | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (main_window == -1) {
         // NOTE: Uninline.
         return main_menu_fatal_error();

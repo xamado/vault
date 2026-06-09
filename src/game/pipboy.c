@@ -524,7 +524,7 @@ static int StartPipboy(int intent)
 
     int pipboyWindowX = 0;
     int pipboyWindowY = 0;
-    pip_win = win_add(pipboyWindowX, pipboyWindowY, PIPBOY_WINDOW_WIDTH, PIPBOY_WINDOW_HEIGHT, colorTable[0], WINDOW_FLAG_0x10);
+    pip_win = win_add(pipboyWindowX, pipboyWindowY, PIPBOY_WINDOW_WIDTH, PIPBOY_WINDOW_HEIGHT, colorTable[0], WINDOW_FLAG_MODAL);
     if (pip_win == -1) {
         debug_printf("\n** Error opening pipboy window! **\n");
         for (int index = 0; index < PIPBOY_FRM_COUNT; index++) {

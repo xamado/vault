@@ -4499,7 +4499,7 @@ static int wmInterfaceInit()
 
     int worldmapWindowX = 0;
     int worldmapWindowY = 0;
-    wmBkWin = win_add(worldmapWindowX, worldmapWindowY, WM_WINDOW_WIDTH, WM_WINDOW_HEIGHT, colorTable[0], WINDOW_FLAG_0x04);
+    wmBkWin = win_add(worldmapWindowX, worldmapWindowY, WM_WINDOW_WIDTH, WM_WINDOW_HEIGHT, colorTable[0], WINDOW_FLAG_ALWAYS_ON_TOP);
     if (wmBkWin == -1) {
         return -1;
     }

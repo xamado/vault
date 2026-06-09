@@ -337,10 +337,10 @@ int win_add(int x, int y, int width, int height, int a4, int flags)
     win_move(index, x, y);
     w->flags = flags;
 
-    if ((flags & WINDOW_FLAG_0x04) == 0) {
+    if ((flags & WINDOW_FLAG_ALWAYS_ON_TOP) == 0) {
         v23 = num_windows - 2;
         while (v23 > 0) {
-            if (!(window[v23]->flags & WINDOW_FLAG_0x04)) {
+            if (!(window[v23]->flags & WINDOW_FLAG_ALWAYS_ON_TOP)) {
                 break;
             }
             v23--;
@@ -670,7 +670,7 @@ void win_show(int win)
     v5 = num_windows - 1;
     if (v3 < v5 && !(w->flags & WINDOW_FLAG_0x02)) {
         v7 = v3;
-        while (v3 < v5 && ((w->flags & WINDOW_FLAG_0x04) || !(window[v7 + 1]->flags & WINDOW_FLAG_0x04))) {
+        while (v3 < v5 && ((w->flags & WINDOW_FLAG_ALWAYS_ON_TOP) || !(window[v7 + 1]->flags & WINDOW_FLAG_ALWAYS_ON_TOP))) {
             v6 = window[v7 + 1];
             window[v7] = v6;
             v7++;
@@ -1161,7 +1161,7 @@ int win_check_all_buttons()
             break;
         }
 
-        if ((window[index]->flags & WINDOW_FLAG_0x10) != 0) {
+        if ((window[index]->flags & WINDOW_FLAG_MODAL) != 0) {
             break;
         }
     }

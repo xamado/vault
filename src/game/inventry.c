@@ -573,7 +573,7 @@ bool setup_inventory(int inventoryWindowType)
             windowDescription->width,
             windowDescription->height,
             257,
-            WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+            WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
         i_wid_max_x = windowDescription->width + inventoryWindowX;
         i_wid_max_y = windowDescription->height + inventoryWindowY;
 
@@ -4916,7 +4916,7 @@ static int setup_move_timer_win(int inventoryWindowType, Object* item)
 
     int quantityWindowX = windowDescription->x;
     int quantityWindowY = windowDescription->y;
-    mt_wid = win_add(quantityWindowX, quantityWindowY, windowDescription->width, windowDescription->height, 257, WINDOW_FLAG_0x10 | WINDOW_FLAG_0x04);
+    mt_wid = win_add(quantityWindowX, quantityWindowY, windowDescription->width, windowDescription->height, 257, WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
     unsigned char* windowBuffer = win_get_buf(mt_wid);
 
     CacheEntry* backgroundHandle;

@@ -174,7 +174,7 @@ int gmovie_play(int movie, int flags)
         GAME_MOVIE_WINDOW_WIDTH,
         GAME_MOVIE_WINDOW_HEIGHT,
         0,
-        WINDOW_FLAG_0x10);
+        WINDOW_FLAG_MODAL);
     if (win == -1) {
         gmMovieIsPlaying = false;
         return -1;

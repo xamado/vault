@@ -540,7 +540,7 @@ static int endgame_init()
         ENDGAME_ENDING_WINDOW_WIDTH,
         ENDGAME_ENDING_WINDOW_HEIGHT,
         colorTable[0],
-        WINDOW_FLAG_0x04);
+        WINDOW_FLAG_ALWAYS_ON_TOP);
     if (endgame_window == -1) {
         return -1;
     }
