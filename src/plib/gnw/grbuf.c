@@ -170,7 +170,7 @@ void cscale(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsig
                 for (int destX = v8; destX < v7; destX += 1) {
                     *v9++ = *c;
                 }
-                v9 += destPitch;
+                v9 += destPitch - (v7 - v8);
             }
 
             v3 += widthRatio;
@@ -207,7 +207,7 @@ void trans_cscale(unsigned char* src, int srcWidth, int srcHeight, int srcPitch,
                     for (int destX = v8; destX < v7; destX += 1) {
                         *v9++ = *c;
                     }
-                    v9 += destPitch;
+                    v9 += destPitch - (v7 - v8);
                 }
             }
 
