@@ -45,6 +45,7 @@ extern void* GNW_texture;
 int win_init(VideoSystemInitProc* videoSystemInitProc, VideoSystemExitProc* videoSystemExitProc, int a3);
 void win_exit(void);
 int win_add(int x, int y, int width, int height, int a4, int flags);
+int win_add_32(int x, int y, int width, int height, int clearColor, int flags);
 void win_delete(int win);
 void win_buffering(bool a1);
 void win_border(int win);
@@ -53,6 +54,7 @@ void win_text(int win, char** fileNameList, int fileNameListLength, int maxWidth
 void win_line(int win, int left, int top, int right, int bottom, int color);
 void win_box(int win, int left, int top, int right, int bottom, int color);
 void win_fill(int win, int x, int y, int width, int height, int a6);
+void win_fill_32(int win, int x, int y, int width, int height, int color);
 void win_show(int win);
 void win_hide(int win);
 void win_move(int win_index, int x, int y);

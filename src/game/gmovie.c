@@ -189,14 +189,14 @@ int gmovie_play(int movie, int flags)
     win_draw(win);
 
     bool subtitlesEnabled = false;
-    int v1 = 4;
+    int v1 = MOVIE_FLAG_DIRECT_CENTERED | MOVIE_FLAG_SCALE;
     configGetBool(&game_config, GAME_CONFIG_PREFERENCES_KEY, GAME_CONFIG_SUBTITLES_KEY, &subtitlesEnabled);
     if (subtitlesEnabled) {
         char* subtitlesFilePath = gmovie_subtitle_func(movieFilePath);
 
         int subtitlesFileSize;
         if (db_dir_entry(subtitlesFilePath, &subtitlesFileSize) == 0) {
-            v1 = 12;
+            v1 = MOVIE_FLAG_SUBTITLES | MOVIE_FLAG_DIRECT_CENTERED | MOVIE_FLAG_SCALE;
         } else {
             subtitlesEnabled = false;
         }

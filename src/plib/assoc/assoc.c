@@ -159,10 +159,16 @@ static int assoc_find(assoc_array* a, const char* name, int* position)
             break;
         }
 
+        // if (cmp > 0) {
+        //     l = l + 1;
+        // } else {
+        //     r = r - 1;
+        // }
+
         if (cmp > 0) {
-            l = l + 1;
+            l = mid + 1;
         } else {
-            r = r - 1;
+            r = mid - 1;
         }
     }
 

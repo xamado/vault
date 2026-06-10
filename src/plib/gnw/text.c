@@ -290,21 +290,29 @@ void GNW_text_to_buf(unsigned char* buf, const char* str, int swidth, int fullw,
 {
     if ((color & FONT_SHADOW) != 0) {
         color &= ~FONT_SHADOW;
-        text_to_buf(buf + fullw + 1, str, swidth, fullw, colorTable[0]);
+        text_to_buf(buf + (fullw + 1) * 4, str, swidth, fullw, colorTable[0]);
     }
+
+    unsigned char* globalPal = getColorPalette();
+    int palIndex = color & 0xFF;
+    // RGBA32 on Little-Endian means A is highest byte, R is lowest: 0xAABBGGRR
+    unsigned int fgColor = (0xFF << 24) | 
+                           ((globalPal[palIndex * 3 + 2] << 2) << 16) | // B
+                           ((globalPal[palIndex * 3 + 1] << 2) << 8) |  // G
+                           (globalPal[palIndex * 3] << 2);              // R
 
     int monospacedCharacterWidth;
     if ((color & FONT_MONO) != 0) {
         monospacedCharacterWidth = text_max();
     }
 
-    unsigned char* ptr = buf;
+    unsigned int* ptr = (unsigned int*)buf;
     while (*str != '\0') {
         char ch = *str++;
         if (ch < curr_font->num) {
             FontInfo* glyph = &(curr_font->info[ch & 0xFF]);
 
-            unsigned char* end;
+            unsigned int* end;
             if ((color & FONT_MONO) != 0) {
                 end = ptr + monospacedCharacterWidth;
                 ptr += (monospacedCharacterWidth - curr_font->spacing - glyph->width) / 2;
@@ -312,7 +320,7 @@ void GNW_text_to_buf(unsigned char* buf, const char* str, int swidth, int fullw,
                 end = ptr + glyph->width + curr_font->spacing;
             }
 
-            if (end - buf > swidth) {
+            if ((unsigned char*)end - buf > swidth * 4) {
                 break;
             }
 
@@ -326,7 +334,7 @@ void GNW_text_to_buf(unsigned char* buf, const char* str, int swidth, int fullw,
                     }
 
                     if ((*glyphData & bits) != 0) {
-                        *ptr = color & 0xFF;
+                        *ptr = fgColor;
                     }
 
                     bits >>= 1;
@@ -341,11 +349,10 @@ void GNW_text_to_buf(unsigned char* buf, const char* str, int swidth, int fullw,
     }
 
     if ((color & FONT_UNDERLINE) != 0) {
-        // TODO: Probably additional -1 present, check.
-        int length = ptr - buf;
-        unsigned char* underlinePtr = buf + fullw * (curr_font->height - 1);
+        int length = ptr - (unsigned int*)buf;
+        unsigned int* underlinePtr = (unsigned int*)buf + fullw * (curr_font->height - 1);
         for (int pix = 0; pix < length; pix++) {
-            *underlinePtr++ = color & 0xFF;
+            *underlinePtr++ = fgColor;
         }
     }
 }

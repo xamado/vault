@@ -6,6 +6,7 @@
 #include "plib/gnw/gnw_types.h"
 
 int win_register_button(int win, int x, int y, int width, int height, int mouseEnterEventCode, int mouseExitEventCode, int mouseDownEventCode, int mouseUpEventCode, unsigned char* up, unsigned char* dn, unsigned char* hover, int flags);
+int win_register_button_scaled(int win, int x, int y, int width, int height, int mouseEnterEventCode, int mouseExitEventCode, int mouseDownEventCode, int mouseUpEventCode, int srcWidth, int srcHeight, unsigned char* up, unsigned char* dn, unsigned char* hover, int flags);
 int win_register_text_button(int win, int x, int y, int mouseEnterEventCode, int mouseExitEventCode, int mouseDownEventCode, int mouseUpEventCode, const char* title, int flags);
 int win_register_button_disable(int btn, unsigned char* up, unsigned char* down, unsigned char* hover);
 int win_register_button_image(int btn, unsigned char* up, unsigned char* down, unsigned char* hover, int a5);

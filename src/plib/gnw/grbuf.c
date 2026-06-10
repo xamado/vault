@@ -1,9 +1,11 @@
 #include "plib/gnw/grbuf.h"
 
 #include <string.h>
+#include <stdint.h>
 
 #include "plib/color/color.h"
 #include "plib/gnw/input.h"
+#include "plib/gnw/svga.h"
 
 // 0x4D2FC0
 void draw_line(unsigned char* buf, int pitch, int x1, int y1, int x2, int y2, int color)
@@ -340,5 +342,373 @@ void buf_outline(unsigned char* buf, int width, int height, int pitch, int color
 
             ptr += pitch;
         }
+    }
+}
+
+void cscale_8_to_32(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsigned char* dest, int destWidth, int destHeight, int destPitch, unsigned char* pal)
+{
+    int heightRatio = (destHeight << 16) / srcHeight;
+    int widthRatio = (destWidth << 16) / srcWidth;
+
+    int v1 = 0;
+    int v2 = heightRatio;
+    for (int srcY = 0; srcY < srcHeight; srcY += 1) {
+        int v3 = widthRatio;
+        int v4 = (heightRatio * srcY) >> 16;
+        int v5 = v2 >> 16;
+        int v6 = 0;
+
+        unsigned char* c = src + v1;
+        for (int srcX = 0; srcX < srcWidth; srcX += 1) {
+            int v7 = v3 >> 16;
+            int v8 = v6 >> 16;
+
+            // Fetch RGB values and shift from 6-bit (0-63) to 8-bit (0-255)
+            unsigned char r = pal[*c * 3] << 2;
+            unsigned char g = pal[*c * 3 + 1] << 2;
+            unsigned char b = pal[*c * 3 + 2] << 2;
+            
+            // Multiply X offset (v8) by 4 bytes per pixel
+            // destPitch is passed in pixels, multiply by 4 for bytes
+            int destPitchBytes = destPitch * 4;
+            unsigned char* v9 = dest + (destPitchBytes * v4) + (v8 * 4);
+            
+            uint32_t outPixel = (0xFF << 24) | (b << 16) | (g << 8) | r;
+            for (int destY = v4; destY < v5; destY += 1) {
+                for (int destX = v8; destX < v7; destX += 1) {
+                    *(uint32_t*)v9 = outPixel;
+                    v9 += 4;
+                }
+                // destPitch is in pixels, so we subtract the bytes written
+                v9 += destPitchBytes - ((v7 - v8) * 4);
+            }
+
+            v3 += widthRatio;
+            c++;
+            v6 += widthRatio;
+        }
+        v1 += srcPitch;
+        v2 += heightRatio;
+    }
+}
+
+void trans_cscale_8_to_32(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsigned char* dest, int destWidth, int destHeight, int destPitch, unsigned char* pal)
+{
+    int heightRatio = (destHeight << 16) / srcHeight;
+    int widthRatio = (destWidth << 16) / srcWidth;
+
+    int v1 = 0;
+    int v2 = heightRatio;
+    for (int srcY = 0; srcY < srcHeight; srcY += 1) {
+        int v3 = widthRatio;
+        int v4 = (heightRatio * srcY) >> 16;
+        int v5 = v2 >> 16;
+        int v6 = 0;
+
+        unsigned char* c = src + v1;
+        for (int srcX = 0; srcX < srcWidth; srcX += 1) {
+            int v7 = v3 >> 16;
+            int v8 = v6 >> 16;
+
+            if (*c != 0) {
+                // Fetch RGB values and shift from 6-bit (0-63) to 8-bit (0-255)
+                unsigned char r = pal[*c * 3] << 2;
+                unsigned char g = pal[*c * 3 + 1] << 2;
+                unsigned char b = pal[*c * 3 + 2] << 2;
+                
+                // destPitch is passed in pixels, multiply by 4 for bytes
+                int destPitchBytes = destPitch * 4;
+                unsigned char* v9 = dest + (destPitchBytes * v4) + (v8 * 4);
+                
+                for (int destY = v4; destY < v5; destY += 1) {
+                    for (int destX = v8; destX < v7; destX += 1) {
+                        // SDL_PIXELFORMAT_RGBA32 memory layout: R, G, B, A
+                        *v9++ = r;
+                        *v9++ = g;
+                        *v9++ = b;
+                        *v9++ = 0xFF;
+                    }
+                    // destPitch is in pixels, so we subtract the bytes written
+                    v9 += destPitchBytes - ((v7 - v8) * 4);
+                }
+            }
+
+            v3 += widthRatio;
+            c++;
+            v6 += widthRatio;
+        }
+        v1 += srcPitch;
+        v2 += heightRatio;
+    }
+}
+
+void cscale_32(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsigned char* dest, int destWidth, int destHeight, int destPitch)
+{
+    int heightRatio = (destHeight << 16) / srcHeight;
+    int widthRatio = (destWidth << 16) / srcWidth;
+
+    int v1 = 0;
+    int v2 = heightRatio;
+    for (int srcY = 0; srcY < srcHeight; srcY += 1) {
+        int v3 = widthRatio;
+        int v4 = (heightRatio * srcY) >> 16;
+        int v5 = v2 >> 16;
+        int v6 = 0;
+
+        unsigned int* c = (unsigned int*)(src + (v1 * 4));
+        for (int srcX = 0; srcX < srcWidth; srcX += 1) {
+            int v7 = v3 >> 16;
+            int v8 = v6 >> 16;
+
+            unsigned int pixel = *c;
+            
+            int destPitchBytes = destPitch * 4;
+            unsigned char* v9 = dest + (destPitchBytes * v4) + (v8 * 4);
+            
+            for (int destY = v4; destY < v5; destY += 1) {
+                for (int destX = v8; destX < v7; destX += 1) {
+                    *(unsigned int*)v9 = pixel;
+                    v9 += 4;
+                }
+                v9 += destPitchBytes - ((v7 - v8) * 4);
+            }
+
+            v3 += widthRatio;
+            c++;
+            v6 += widthRatio;
+        }
+        v1 += srcPitch;
+        v2 += heightRatio;
+    }
+}
+
+void trans_cscale_32(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsigned char* dest, int destWidth, int destHeight, int destPitch)
+{
+    int heightRatio = (destHeight << 16) / srcHeight;
+    int widthRatio = (destWidth << 16) / srcWidth;
+
+    int v1 = 0;
+    int v2 = heightRatio;
+    for (int srcY = 0; srcY < srcHeight; srcY += 1) {
+        int v3 = widthRatio;
+        int v4 = (heightRatio * srcY) >> 16;
+        int v5 = v2 >> 16;
+        int v6 = 0;
+
+        unsigned int* c = (unsigned int*)(src + (v1 * 4));
+        for (int srcX = 0; srcX < srcWidth; srcX += 1) {
+            int v7 = v3 >> 16;
+            int v8 = v6 >> 16;
+
+            unsigned int pixel = *c;
+            
+            // Check Alpha channel (assuming RGBA32 on Little Endian -> 0xAABBGGRR, so Alpha is highest byte)
+            // Wait, we just want to skip fully transparent pixels for now.
+            // Or true alpha blend.
+            unsigned int alpha = (pixel >> 24) & 0xFF;
+
+            if (alpha > 0) {
+                int destPitchBytes = destPitch * 4;
+                unsigned char* v9 = dest + (destPitchBytes * v4) + (v8 * 4);
+                
+                for (int destY = v4; destY < v5; destY += 1) {
+                    for (int destX = v8; destX < v7; destX += 1) {
+                        if (alpha == 255) {
+                            *(unsigned int*)v9 = pixel;
+                        } else {
+                            unsigned int bg = *(unsigned int*)v9;
+                            unsigned int bg_r = bg & 0xFF;
+                            unsigned int bg_g = (bg >> 8) & 0xFF;
+                            unsigned int bg_b = (bg >> 16) & 0xFF;
+                            
+                            unsigned int fg_r = pixel & 0xFF;
+                            unsigned int fg_g = (pixel >> 8) & 0xFF;
+                            unsigned int fg_b = (pixel >> 16) & 0xFF;
+
+                            unsigned int r = ((fg_r * alpha) + (bg_r * (255 - alpha))) / 255;
+                            unsigned int g = ((fg_g * alpha) + (bg_g * (255 - alpha))) / 255;
+                            unsigned int b = ((fg_b * alpha) + (bg_b * (255 - alpha))) / 255;
+
+                            *(unsigned int*)v9 = (0xFF << 24) | (b << 16) | (g << 8) | r;
+                        }
+                        v9 += 4;
+                    }
+                    v9 += destPitchBytes - ((v7 - v8) * 4);
+                }
+            }
+
+            v3 += widthRatio;
+            c++;
+            v6 += widthRatio;
+        }
+        v1 += srcPitch;
+        v2 += heightRatio;
+    }
+}
+
+void buf_to_buf_32(unsigned char* src, int width, int height, int srcPitch, unsigned char* dest, int destPitch)
+{
+    int srcPitchBytes = srcPitch * 4;
+    int destPitchBytes = destPitch * 4;
+    for (int y = 0; y < height; y++) {
+        memcpy(dest, src, width * 4);
+        dest += destPitchBytes;
+        src += srcPitchBytes;
+    }
+}
+
+void trans_buf_to_buf_32(unsigned char* src, int width, int height, int srcPitch, unsigned char* dest, int destPitch)
+{
+    // Pitches are passed in PIXELS. Convert to bytes for pointer math!
+    int srcPitchBytes = srcPitch * 4;
+    int destPitchBytes = destPitch * 4;
+
+    for (int y = 0; y < height; y++) {
+        // Cast the current row pointers to 32-bit
+        unsigned int* src32 = (unsigned int*)src;
+        unsigned int* dest32 = (unsigned int*)dest;
+        
+        for (int x = 0; x < width; x++) {
+            unsigned int c = src32[x];
+            if (c != 0) { 
+                dest32[x] = c;
+            }
+        }
+        
+        // Advance by pitch bytes
+        src += srcPitchBytes;
+        dest += destPitchBytes;
+    }
+}
+
+void buf_fill_32(unsigned char* buf, int width, int height, int pitch, int color) 
+{
+    // Pitch is passed in PIXELS. Convert to bytes for pointer math!
+    int pitchBytes = pitch * 4;
+
+    for (int y = 0; y < height; y++) {
+        unsigned int* row = (unsigned int*)buf;
+        for (int x = 0; x < width; x++) {
+            row[x] = color;
+        }
+        buf += pitchBytes; 
+    }
+}
+
+
+void draw_line_32(unsigned char* buf, int pitch, int x1, int y1, int x2, int y2, int color)
+{
+    // Pitch is in PIXELS. Convert buf to unsigned int*.
+    unsigned int* buf32 = (unsigned int*)buf;
+    int temp;
+    int dx;
+    int dy;
+    unsigned int* p1;
+    unsigned int* p2;
+    unsigned int* p3;
+    unsigned int* p4;
+
+    if (x1 == x2) {
+        if (y1 > y2) {
+            temp = y1;
+            y1 = y2;
+            y2 = temp;
+        }
+
+        p1 = buf32 + pitch * y1 + x1;
+        p2 = buf32 + pitch * y2 + x2;
+        while (p1 <= p2) {
+            *p1 = color;
+            p1 += pitch;
+        }
+    } else {
+        if (x1 > x2) {
+            temp = x1;
+            x1 = x2;
+            x2 = temp;
+
+            temp = y1;
+            y1 = y2;
+            y2 = temp;
+        }
+
+        p1 = buf32 + pitch * y1 + x1;
+        p2 = buf32 + pitch * y2 + x2;
+        if (y1 == y2) {
+            for (int i = 0; i <= (x2 - x1); i++) {
+                p1[i] = color;
+            }
+        } else {
+            // Simplified Bresenham for remaining cases, keeping it robust.
+            int w = x2 - x1;
+            int h = y2 - y1;
+            int dx1 = 1, dy1 = 0, dx2 = 1, dy2 = 0;
+            if (h < 0) dy1 = -1; else if (h > 0) dy1 = 1;
+            if (h < 0) dy2 = -1; else if (h > 0) dy2 = 1;
+            int longest = w;
+            int shortest = h;
+            if (longest < 0) longest = -longest;
+            if (shortest < 0) shortest = -shortest;
+            if (longest <= shortest) {
+                longest = shortest;
+                shortest = w;
+                if (shortest < 0) shortest = -shortest;
+                dy2 = 0;
+                if (w < 0) dx2 = -1; else if (w > 0) dx2 = 1;
+            }
+            int numerator = longest >> 1;
+            for (int i = 0; i <= longest; i++) {
+                buf32[x1 + y1 * pitch] = color;
+                numerator += shortest;
+                if (numerator >= longest) {
+                    numerator -= longest;
+                    x1 += dx1;
+                    y1 += dy1;
+                } else {
+                    x1 += dx2;
+                    y1 += dy2;
+                }
+            }
+        }
+    }
+}
+
+void draw_box_32(unsigned char* buf, int pitch, int left, int top, int right, int bottom, int color)
+{
+    draw_line_32(buf, pitch, left, top, right, top, color);
+    draw_line_32(buf, pitch, left, bottom, right, bottom, color);
+    draw_line_32(buf, pitch, left, top, left, bottom, color);
+    draw_line_32(buf, pitch, right, top, right, bottom, color);
+}
+
+void draw_shaded_box_32(unsigned char* buf, int pitch, int left, int top, int right, int bottom, int ltColor, int rbColor)
+{
+    draw_line_32(buf, pitch, left, top, right, top, ltColor);
+    draw_line_32(buf, pitch, left, bottom, right, bottom, rbColor);
+    draw_line_32(buf, pitch, left, top, left, bottom, ltColor);
+    draw_line_32(buf, pitch, right, top, right, bottom, rbColor);
+}
+
+void lighten_buf_32(unsigned char* buf, int width, int height, int pitch)
+{
+    // Pitch is in pixels
+    unsigned int* buf32 = (unsigned int*)buf;
+    int skip = pitch - width;
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            unsigned int p = *buf32;
+            // Simple multiply by ~1.2 or similar to lighten, capping at 255
+            unsigned int r = p & 0xFF;
+            unsigned int g = (p >> 8) & 0xFF;
+            unsigned int b = (p >> 16) & 0xFF;
+            
+            r = (r * 147) / 100; if (r > 255) r = 255;
+            g = (g * 147) / 100; if (g > 255) g = 255;
+            b = (b * 147) / 100; if (b > 255) b = 255;
+            
+            *buf32++ = (0xFF << 24) | (b << 16) | (g << 8) | r;
+        }
+        buf32 += skip;
     }
 }

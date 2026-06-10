@@ -1,6 +1,7 @@
 #include "plib/gnw/svga.h"
 
 #include <string.h>
+#include <stdint.h>
 
 #include "plib/gnw/gnw.h"
 #include "plib/gnw/grbuf.h"
@@ -167,10 +168,44 @@ void GNW95_ShowRect(unsigned char* src, int srcPitch, int a3, int srcX, int srcY
 
     if (pixels) {
         unsigned char* dest = (unsigned char*)pixels;
+        unsigned char* pal = GNW95_GetPalette();
         for (int y = 0; y < srcHeight; y++) {
-            memcpy(dest + (destY + y) * pitch + destX,
-                   src + (srcY + y) * srcPitch + srcX,
-                   srcWidth);
+            unsigned char* destRow = dest + (destY + y) * pitch + (destX * 4);
+            unsigned char* srcRow = src + (srcY + y) * srcPitch + srcX;
+            for (int x = 0; x < srcWidth; x++) {
+                unsigned char c = srcRow[x];
+                unsigned char r = pal[c * 3] << 2;
+                unsigned char g = pal[c * 3 + 1] << 2;
+                unsigned char b = pal[c * 3 + 2] << 2;
+                
+                uint32_t* outPixel = (uint32_t*)(destRow + x * 4);
+                *outPixel = (0xFF << 24) | (b << 16) | (g << 8) | r;
+            }
+        }
+        os_window_unlock();
+        os_window_present();
+    }
+}
+
+// 0xNEW
+void GNW95_ShowRect32(unsigned char* src, int srcPitch, int a3, int srcX, int srcY, int srcWidth, int srcHeight, int destX, int destY)
+{
+    if (!GNW95_isActive) {
+        return;
+    }
+
+    void* pixels;
+    int pitch;
+    os_window_lock(&pixels, &pitch);
+
+    if (pixels) {
+        unsigned char* dest = (unsigned char*)pixels;
+        for (int y = 0; y < srcHeight; y++) {
+            uint32_t* destRow = (uint32_t*)(dest + (destY + y) * pitch + (destX * 4));
+            uint32_t* srcRow = (uint32_t*)(src + (srcY + y) * srcPitch * 4 + srcX * 4);
+            for (int x = 0; x < srcWidth; x++) {
+                destRow[x] = srcRow[x];
+            }
         }
         os_window_unlock();
         os_window_present();
@@ -205,12 +240,19 @@ void GNW95_MouseShowTransRect16(unsigned char* src, int srcPitch, int a3, int sr
 
     if (pixels) {
         unsigned char* dest = (unsigned char*)pixels;
+        unsigned char* pal = GNW95_GetPalette();
         for (int y = 0; y < srcHeight; y++) {
-            unsigned char* destRow = dest + (destY + y) * pitch + destX;
+            unsigned char* destRow = dest + (destY + y) * pitch + (destX * 4);
             unsigned char* srcRow = src + (srcY + y) * srcPitch + srcX;
             for (int x = 0; x < srcWidth; x++) {
-                if (srcRow[x] != keyColor) {
-                    destRow[x] = srcRow[x];
+                unsigned char c = srcRow[x];
+                if (c != keyColor) {
+                    unsigned char r = pal[c * 3] << 2;
+                    unsigned char g = pal[c * 3 + 1] << 2;
+                    unsigned char b = pal[c * 3 + 2] << 2;
+                    
+                    uint32_t* outPixel = (uint32_t*)(destRow + x * 4);
+                    *outPixel = (0xFF << 24) | (b << 16) | (g << 8) | r;
                 }
             }
         }
@@ -232,19 +274,15 @@ void GNW95_ShowMovieRect(unsigned char* src, int srcPitch, int srcX, int srcY, i
     os_window_lock(&pixels, &destPitch);
 
     if (pixels) {
-        unsigned char* dest = (unsigned char*)pixels;
         int destWidth = scr_size.lrx + 1;
         int destHeight = scr_size.lry + 1;
 
-        for (int y = 0; y < destHeight; y++) {
-            int sy = (y * srcHeight) / destHeight;
-            unsigned char* srcRow = src + (srcY + sy) * srcPitch + srcX;
-            unsigned char* destRow = dest + y * destPitch;
-            for (int x = 0; x < destWidth; x++) {
-                int sx = (x * srcWidth) / destWidth;
-                destRow[x] = srcRow[sx];
-            }
-        }
+        unsigned char* srcStart = src + (srcY * srcPitch) + srcX;
+
+        cscale_8_to_32(
+            srcStart, srcWidth, srcHeight, srcPitch,
+            (unsigned char*)pixels, destWidth, destHeight, destPitch / 4, GNW95_GetPalette()
+        );
 
         os_window_unlock();
         os_window_present();

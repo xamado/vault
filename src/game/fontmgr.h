@@ -13,5 +13,6 @@ int FMtext_size(const char* string);
 int FMtext_max();
 int FMtext_curr();
 void FMtext_to_buf(unsigned char* buf, const char* string, int length, int pitch, int color);
+void FMtext_to_buf_32(unsigned char* buf, const char* string, int length, int pitch, int color);
 
 #endif /* FALLOUT_GAME_FONTMGR_H_ */

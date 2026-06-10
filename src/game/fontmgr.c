@@ -399,3 +399,115 @@ static void Swap2(unsigned short* value)
     swapped = (swapped >> 8) | (swapped << 8);
     *value = swapped;
 }
+
+void FMtext_to_buf_32(unsigned char* buf, const char* string, int length, int pitch, int color)
+{
+    if (!gFMInit) {
+        return;
+    }
+
+    int flags = 0;
+    unsigned int outPixel = color;
+
+    // Check if it's an 8-bit index + flags. FONT_SHADOW is 0x10000.
+    // 32-bit RGBA colors will have the alpha channel (0xFF000000) set.
+    if ((color & 0xFF000000) == 0) {
+        flags = color & 0xFFFF0000;
+        int palIndex = color & 0xFF;
+        unsigned char* pal = getColorPalette();
+        unsigned int r = pal[palIndex * 3] << 2;
+        unsigned int g = pal[palIndex * 3 + 1] << 2;
+        unsigned int b = pal[palIndex * 3 + 2] << 2;
+        outPixel = (0xFF << 24) | (b << 16) | (g << 8) | r;
+    } else {
+        flags = 0;
+    }
+
+    if ((flags & FONT_SHADOW) != 0) {
+        int shadowIndex = colorTable[0] & 0xFF;
+        unsigned char* pal = getColorPalette();
+        unsigned int shadowPixel = (0xFF << 24) | ((pal[shadowIndex * 3 + 2] << 2) << 16) | ((pal[shadowIndex * 3 + 1] << 2) << 8) | (pal[shadowIndex * 3] << 2);
+        
+        // pitch is in pixels, so moving down 1 row and right 1 pixel means + pitch*4 + 4 bytes
+        FMtext_to_buf_32(buf + pitch * 4 + 4, string, length, pitch, shadowPixel);
+    }
+
+    int monospacedCharacterWidth;
+    if ((flags & FONT_MONO) != 0) {
+        monospacedCharacterWidth = FMtext_max();
+    }
+
+    unsigned int* ptr = (unsigned int*)buf;
+    while (*string != '\0') {
+        char ch = *string++;
+
+        int characterWidth;
+        if (ch == ' ') {
+            characterWidth = gCurrentFont->wordSpacing;
+        } else {
+            characterWidth = gCurrentFont->glyphs[ch & 0xFF].width;
+        }
+
+        unsigned int* end;
+        if ((flags & FONT_MONO) != 0) {
+            end = ptr + monospacedCharacterWidth;
+            ptr += (monospacedCharacterWidth - characterWidth - gCurrentFont->letterSpacing) / 2;
+        } else {
+            end = ptr + characterWidth + gCurrentFont->letterSpacing;
+        }
+
+        if ((end - (unsigned int*)buf) > length) {
+            break;
+        }
+
+        InterfaceFontGlyph* glyph = &(gCurrentFont->glyphs[ch & 0xFF]);
+        unsigned char* glyphDataPtr = gCurrentFont->data + glyph->offset;
+
+        ptr += (gCurrentFont->maxHeight - glyph->height) * pitch;
+
+        for (int y = 0; y < glyph->height; y++) {
+            for (int x = 0; x < glyph->width; x++) {
+                unsigned char byte = *glyphDataPtr++;
+                if (byte != 0) {
+                    if (byte >= 7) {
+                        // byte >= 7 means 100% opacity (or brighter).
+                        // If byte > 7, the original engine blended it with white, but 
+                        // for standard text, it shouldn't be common. We cap opacity at 100%.
+                        *ptr = outPixel;
+                    } else {
+                        unsigned int bg = *ptr;
+                        unsigned int bg_r = bg & 0xFF;
+                        unsigned int bg_g = (bg >> 8) & 0xFF;
+                        unsigned int bg_b = (bg >> 16) & 0xFF;
+
+                        unsigned int fg_r = outPixel & 0xFF;
+                        unsigned int fg_g = (outPixel >> 8) & 0xFF;
+                        unsigned int fg_b = (outPixel >> 16) & 0xFF;
+
+                        // byte goes from 1 to 7 for standard anti-aliasing blending
+                        unsigned int alpha = (byte * 255) / 7;
+                        unsigned int inv_alpha = 255 - alpha;
+
+                        unsigned int r = (fg_r * alpha + bg_r * inv_alpha) / 255;
+                        unsigned int g = (fg_g * alpha + bg_g * inv_alpha) / 255;
+                        unsigned int b = (fg_b * alpha + bg_b * inv_alpha) / 255;
+
+                        *ptr = (0xFF << 24) | (b << 16) | (g << 8) | r;
+                    }
+                }
+                ptr++;
+            }
+            ptr += pitch - glyph->width;
+        }
+
+        ptr = end;
+    }
+
+    if ((flags & FONT_UNDERLINE) != 0) {
+        int drawnLen = ptr - (unsigned int*)buf;
+        unsigned int* underlinePtr = (unsigned int*)buf + pitch * (gCurrentFont->maxHeight - 1);
+        for (int index = 0; index < drawnLen; index++) {
+            *underlinePtr++ = outPixel;
+        }
+    }
+}

@@ -463,15 +463,16 @@ int message_load_field(File* file, char* str)
         }
 
         if (ch == '}') {
+            if (len >= 1024) len = 1023; // ensure null terminator fits
             *(str + len) = '\0';
             return 0;
         }
 
         if (ch != '\n') {
-            *(str + len) = ch;
-            len++;
-
-            if (len > 1024) {
+            if (len < 1023) {
+                *(str + len) = ch;
+                len++;
+            } else {
                 debug_printf("\nError reading message file - text exceeds limit.\n");
                 return 4;
             }

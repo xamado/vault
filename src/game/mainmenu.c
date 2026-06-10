@@ -16,6 +16,8 @@
 #include "plib/gnw/gnw.h"
 #include "plib/gnw/text.h"
 #include "game/version.h"
+#include "game/ui.h"
+#include "plib/gnw/svga.h"
 
 #define MAIN_MENU_WINDOW_WIDTH 640
 #define MAIN_MENU_WINDOW_HEIGHT 480
@@ -39,14 +41,11 @@ static int main_window = -1;
 // 0x5194F4
 static unsigned char* main_window_buf = NULL;
 
-// 0x5194F8
-static unsigned char* background_data = NULL;
-
 // 0x5194FC
-static unsigned char* button_up_data = NULL;
+static Art* button_up_data = NULL;
 
 // 0x519500
-static unsigned char* button_down_data = NULL;
+static Art* button_down_data = NULL;
 
 // 0x519504
 bool in_main_menu = false;
@@ -107,12 +106,11 @@ int main_menu_create()
 
     int mainMenuWindowX = 0;
     int mainMenuWindowY = 0;
-    main_window = win_add(mainMenuWindowX,
-        mainMenuWindowY,
-        MAIN_MENU_WINDOW_WIDTH,
-        MAIN_MENU_WINDOW_HEIGHT,
-        0,
-        WINDOW_HIDDEN | WINDOW_FLAG_ALWAYS_ON_TOP);
+
+    const Size screen_size = screen_get_size();
+    const int ui_scale = ui_get_scale();
+
+    main_window = win_add_32(mainMenuWindowX, mainMenuWindowY, screen_size.width, screen_size.height, 0, WINDOW_HIDDEN | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (main_window == -1) {
         // NOTE: Uninline.
         return main_menu_fatal_error();
@@ -120,16 +118,32 @@ int main_menu_create()
 
     main_window_buf = win_get_buf(main_window);
 
-    // mainmenu.frm
-    int backgroundFid = art_id(OBJ_TYPE_INTERFACE, 140, 0, 0, 0);
-    background_data = art_ptr_lock_data(backgroundFid, 0, 0, &background_key);
-    if (background_data == NULL) {
-        // NOTE: Uninline.
-        return main_menu_fatal_error();
-    }
-
-    buf_to_buf(background_data, 640, 480, 640, main_window_buf, 640);
+    // Main menu background
+    CacheEntry* background_key = nullptr;
+    int backgroundFid = art_id(OBJ_TYPE_INTERFACE, 469, 0, 0, 0);
+    Art* bgArt = art_ptr_lock(backgroundFid, &background_key);
+    // buf_to_buf(background_data, 640, 480, 640, main_window_buf, 640);
+    ui_image_fill_32(bgArt, main_window, 0, 0, screen_size.width, screen_size.height);
     art_ptr_unlock(background_key);
+
+    // Logo
+    CacheEntry* logo_key = nullptr;
+    int logoFid = art_id(OBJ_TYPE_INTERFACE, 470, 0, 0, 0);
+    Art* logoArt = art_ptr_lock(logoFid, &logo_key);
+    ui_image_32(logoArt, main_window, 20 * ui_scale, 20 * ui_scale, 300 * ui_scale, 103 * ui_scale);
+    art_ptr_unlock(logo_key);
+
+    // Options panel
+    int panel_x = 40 * ui_scale;
+    int panel_y = 200 * ui_scale;
+    int panel_width = (int) (222 * ui_scale);
+    int panel_height = (int) (281 * ui_scale);
+
+    CacheEntry* panel_key = nullptr;
+    int panelFid = art_id(OBJ_TYPE_INTERFACE, 471, 0, 0, 0);
+    Art* panelArt = art_ptr_lock(panelFid, &panel_key);
+    ui_image_32(panelArt, main_window, panel_x, panel_y, panel_width, panel_height);
+    art_ptr_unlock(panel_key);
 
     int oldFont = text_curr();
     text_font(100);
@@ -137,18 +151,19 @@ int main_menu_create()
     // Copyright.
     msg.num = 20;
     if (message_search(&misc_message_file, &msg)) {
-        win_print(main_window, msg.text, 0, 15, 460, colorTable[21091] | 0x6000000);
+        ui_scaled_text(main_window, msg.text, 15 * ui_scale, screen_size.height - 20 * ui_scale, ui_scale, colorTable[21091]);
     }
 
     // Version.
     char version[VERSION_MAX];
     getverstr(version);
-    len = text_width(version);
-    win_print(main_window, version, 0, 615 - len, 460, colorTable[21091] | 0x6000000);
+    len = text_width(version) * ui_scale;
+    ui_scaled_text(main_window, version, screen_size.width - 25 * ui_scale - len, screen_size.height - 20 * ui_scale, ui_scale, colorTable[21091]);
 
     // menuup.frm
     fid = art_id(OBJ_TYPE_INTERFACE, 299, 0, 0, 0);
-    button_up_data = art_ptr_lock_data(fid, 0, 0, &button_up_key);
+    button_up_data = art_ptr_lock(fid, &button_up_key);
+    // button_up_data = art_ptr_lock_data(fid, 0, 0, &button_up_key);
     if (button_up_data == NULL) {
         // NOTE: Uninline.
         return main_menu_fatal_error();
@@ -156,7 +171,8 @@ int main_menu_create()
 
     // menudown.frm
     fid = art_id(OBJ_TYPE_INTERFACE, 300, 0, 0, 0);
-    button_down_data = art_ptr_lock_data(fid, 0, 0, &button_down_key);
+    // button_down_data = art_ptr_lock_data(fid, 0, 0, &button_down_key);
+    button_down_data = art_ptr_lock(fid, &button_down_key);
     if (button_down_data == NULL) {
         // NOTE: Uninline.
         return main_menu_fatal_error();
@@ -167,13 +183,12 @@ int main_menu_create()
     }
 
     for (int index = 0; index < MAIN_MENU_BUTTON_COUNT; index++) {
-        buttons[index] = win_register_button(main_window, 30, 19 + index * 42 - index, 26, 26, -1, -1, 1111, button_values[index], button_up_data, button_down_data, 0, 32);
+        buttons[index] = ui_register_button(main_window, panel_x + 20 * ui_scale, panel_y + 6 * ui_scale + (index * 48) * ui_scale, 26 * ui_scale, 26 * ui_scale, -1, -1, 1111, button_values[index], button_up_data, button_down_data, 0, 32);
         if (buttons[index] == -1) {
-            // NOTE: Uninline.
             return main_menu_fatal_error();
         }
 
-        win_register_button_mask(buttons[index], button_up_data);
+        // win_register_button_mask(buttons[index], button_up_data);
     }
 
     text_font(104);
@@ -182,7 +197,11 @@ int main_menu_create()
         msg.num = 9 + index;
         if (message_search(&misc_message_file, &msg)) {
             len = text_width(msg.text);
-            text_to_buf(main_window_buf + 640 * (42 * index - index + 20) + 126 - (len / 2), msg.text, 640 - (126 - (len / 2)) - 1, 640, colorTable[21091]);
+            // text_to_buf(main_window_buf + , msg.text, 640 - (126 - (len / 2)) - 1, 640, colorTable[21091]);
+
+            int text_x = panel_x + (126 - (len / 2)) * ui_scale;
+            int text_y = panel_y + (48 * index + 8) * ui_scale;
+            ui_scaled_text(main_window, msg.text, text_x, text_y, ui_scale, colorTable[21091]);
         }
     }
 

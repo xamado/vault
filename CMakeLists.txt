@@ -149,6 +149,8 @@ add_executable(${EXECUTABLE_NAME}
     "src/game/trait_defs.h"
     "src/game/trait.c"
     "src/game/trait.h"
+    "src/game/ui.c"
+    "src/game/ui.h"
     "src/game/trap.c"
     "src/game/trap.h"
     "src/game/version.c"

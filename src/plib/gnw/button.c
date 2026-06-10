@@ -1,9 +1,10 @@
 #include "plib/gnw/button.h"
 
-#include "plib/gnw/input.h"
-#include "plib/gnw/grbuf.h"
+#include "game/art.h"
 #include "plib/color/color.h"
 #include "plib/gnw/gnw.h"
+#include "plib/gnw/grbuf.h"
+#include "plib/gnw/input.h"
 #include "plib/gnw/memory.h"
 #include "plib/gnw/mouse.h"
 #include "plib/gnw/text.h"
@@ -14,13 +15,18 @@ static int last_button_winID = -1;
 // 0x6ADF40
 static RadioGroup btn_grp[RADIO_GROUP_LIST_CAPACITY];
 
-static Button* button_create(int win, int x, int y, int width, int height, int mouseEnterEventCode, int mouseExitEventCode, int mouseDownEventCode, int mouseUpEventCode, int flags, unsigned char* up, unsigned char* dn, unsigned char* hover);
+static Button* button_create(int win, int x, int y, int width, int height, int mouseEnterEventCode, int mouseExitEventCode, int mouseDownEventCode, int mouseUpEventCode, int flags, int srcWidth, int srcHeight, unsigned char* up, unsigned char* dn, unsigned char* hover);
 static bool button_under_mouse(Button* button, Rect* rect);
 static int button_check_group(Button* button);
-static void button_draw(Button* button, Window* window, unsigned char* data, int a4, Rect* a5, int a6);
+static void button_draw(Button* button, Window* window, unsigned char* data, int a4, Rect* clipRect, int a6);
 
-// 0x4D8260
 int win_register_button(int win, int x, int y, int width, int height, int mouseEnterEventCode, int mouseExitEventCode, int mouseDownEventCode, int mouseUpEventCode, unsigned char* up, unsigned char* dn, unsigned char* hover, int flags)
+{
+    return win_register_button_scaled(win, x, y, width, height, mouseEnterEventCode, mouseExitEventCode, mouseDownEventCode, mouseUpEventCode, width, height, up, dn, hover, flags);
+}
+
+// 0x4C4320
+int win_register_button_scaled(int win, int x, int y, int width, int height, int mouseEnterEventCode, int mouseExitEventCode, int mouseDownEventCode, int mouseUpEventCode, int srcWidth, int srcHeight, unsigned char* up, unsigned char* dn, unsigned char* hover, int flags)
 {
     Window* w = GNW_find(win);
 
@@ -36,7 +42,7 @@ int win_register_button(int win, int x, int y, int width, int height, int mouseE
         return -1;
     }
 
-    Button* button = button_create(win, x, y, width, height, mouseEnterEventCode, mouseExitEventCode, mouseDownEventCode, mouseUpEventCode, flags | BUTTON_FLAG_0x010000, up, dn, hover);
+    Button* button = button_create(win, x, y, width, height, mouseEnterEventCode, mouseExitEventCode, mouseDownEventCode, mouseUpEventCode, flags | BUTTON_FLAG_0x010000, srcWidth, srcHeight, up, dn, hover);
     if (button == NULL) {
         return -1;
     }
@@ -129,6 +135,8 @@ int win_register_text_button(int win, int x, int y, int mouseEnterEventCode, int
         mouseDownEventCode,
         mouseUpEventCode,
         flags,
+        buttonWidth,
+        buttonHeight,
         normal,
         pressed,
         NULL);
@@ -294,7 +302,7 @@ int win_register_button_mask(int btn, unsigned char* mask)
 }
 
 // 0x4D8854
-static Button* button_create(int win, int x, int y, int width, int height, int mouseEnterEventCode, int mouseExitEventCode, int mouseDownEventCode, int mouseUpEventCode, int flags, unsigned char* up, unsigned char* dn, unsigned char* hover)
+static Button* button_create(int win, int x, int y, int width, int height, int mouseEnterEventCode, int mouseExitEventCode, int mouseDownEventCode, int mouseUpEventCode, int flags, int srcWidth, int srcHeight, unsigned char* up, unsigned char* dn, unsigned char* hover)
 {
     Window* w = GNW_find(win);
     if (w == NULL) {
@@ -321,6 +329,8 @@ static Button* button_create(int win, int x, int y, int width, int height, int m
 
     button->id = buttonId;
     button->flags = flags;
+    button->srcWidth = srcWidth;
+    button->srcHeight = srcHeight;
     button->rect.ulx = x;
     button->rect.uly = y;
     button->rect.lrx = x + width - 1;
@@ -1102,7 +1112,7 @@ static int button_check_group(Button* button)
 }
 
 // 0x4D9808
-static void button_draw(Button* button, Window* w, unsigned char* data, int a4, Rect* a5, int a6)
+static void button_draw(Button* button, Window* w, unsigned char* data, int a4, Rect* clipRect, int a6)
 {
     unsigned char* previousImage = NULL;
     if (data != NULL) {
@@ -1110,16 +1120,16 @@ static void button_draw(Button* button, Window* w, unsigned char* data, int a4, 
         rectCopy(&v2, &(button->rect));
         rectOffset(&v2, w->rect.ulx, w->rect.uly);
 
-        Rect v3;
-        if (a5 != NULL) {
-            if (rect_inside_bound(&v2, a5, &v2) == -1) {
+        Rect srcRect;
+        if (clipRect != NULL) {
+            if (rect_inside_bound(&v2, clipRect, &v2) == -1) {
                 return;
             }
 
-            rectCopy(&v3, &v2);
-            rectOffset(&v3, -w->rect.ulx, -w->rect.uly);
+            rectCopy(&srcRect, &v2);
+            rectOffset(&srcRect, -w->rect.ulx, -w->rect.uly);
         } else {
-            rectCopy(&v3, &(button->rect));
+            rectCopy(&srcRect, &(button->rect));
         }
 
         if (data == button->mouseUpImage && (button->flags & BUTTON_FLAG_TOGGLE)) {
@@ -1148,23 +1158,58 @@ static void button_draw(Button* button, Window* w, unsigned char* data, int a4, 
 
         if (data) {
             if (a4 == 0) {
-                int width = button->rect.lrx - button->rect.ulx + 1;
+                int fullDestWidth = button->rect.lrx - button->rect.ulx + 1;
+                int fullDestHeight = button->rect.lry - button->rect.uly + 1;
                 if ((button->flags & BUTTON_FLAG_TRANSPARENT) != 0) {
-                    trans_buf_to_buf(
-                        data + (v3.uly - button->rect.uly) * width + v3.ulx - button->rect.ulx,
-                        v3.lrx - v3.ulx + 1,
-                        v3.lry - v3.uly + 1,
-                        width,
-                        w->buffer + w->width * v3.uly + v3.ulx,
-                        w->width);
+                    if ((w->flags & WINDOW_FLAG_32BIT) != 0) {
+                        trans_cscale_8_to_32(
+                            data,
+                            button->srcWidth,
+                            button->srcHeight,
+                            button->srcWidth,
+                            w->buffer + (w->width * button->rect.uly + button->rect.ulx) * 4,
+                            fullDestWidth,
+                            fullDestHeight,
+                            w->width,
+                            getColorPalette()
+                        );
+                    } else {
+                        trans_cscale(
+                            data,
+                            button->srcWidth,
+                            button->srcHeight,
+                            button->srcWidth,
+                            w->buffer + (w->width * button->rect.uly + button->rect.ulx),
+                            fullDestWidth,
+                            fullDestHeight,
+                            w->width
+                        );
+                    }
                 } else {
-                    buf_to_buf(
-                        data + (v3.uly - button->rect.uly) * width + v3.ulx - button->rect.ulx,
-                        v3.lrx - v3.ulx + 1,
-                        v3.lry - v3.uly + 1,
-                        width,
-                        w->buffer + w->width * v3.uly + v3.ulx,
-                        w->width);
+                    if ((w->flags & WINDOW_FLAG_32BIT) != 0) {
+                        cscale_8_to_32(
+                            data,
+                            button->srcWidth,
+                            button->srcHeight,
+                            button->srcWidth,
+                            w->buffer + (w->width * button->rect.uly + button->rect.ulx) * 4,
+                            fullDestWidth,
+                            fullDestHeight,
+                            w->width,
+                            getColorPalette()
+                        );
+                    } else {
+                        cscale(
+                            data,
+                            button->srcWidth,
+                            button->srcHeight,
+                            button->srcWidth,
+                            w->buffer + (w->width * button->rect.uly + button->rect.ulx),
+                            fullDestWidth,
+                            fullDestHeight,
+                            w->width
+                        );
+                    }
                 }
             }
 

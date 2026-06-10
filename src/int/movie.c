@@ -18,7 +18,6 @@
 #include "plib/gnw/svga.h"
 #include "plib/gnw/winmain.h"
 
-
 typedef void(MovieCallback)();
 typedef int(MovieBlitFunc)(int win, unsigned char* data, int width, int height, int pitch);
 
@@ -317,8 +316,8 @@ static void movie_MVE_ShowFrame(unsigned char* surface, int srcWidth, int srcHei
     if (movieScaleFlag) {
         lastMovieX = 0;
         lastMovieY = 0;
-        lastMovieW = 640;
-        lastMovieH = 480;
+        lastMovieW = rectGetWidth(&scr_size);
+        lastMovieH = rectGetHeight(&scr_size);
         GNW95_ShowMovieRect(surface, _mveBW, srcX, srcY, srcWidth, srcHeight);
     } else {
         GNW95_ShowRect(surface, _mveBW, 0, srcX, srcY, srcWidth, srcHeight, destRect.ulx, destRect.uly);
@@ -592,18 +591,18 @@ void movieStop()
 // 0x487164
 int movieSetFlags(int flags)
 {
-    if ((flags & MOVIE_FLAG_0x04) != 0) {
+    if ((flags & MOVIE_FLAG_DIRECT_CENTERED) != 0) {
         movieFlags |= MOVIE_EXTENDED_FLAG_0x04 | MOVIE_EXTENDED_FLAG_0x08;
     } else {
         movieFlags &= ~MOVIE_EXTENDED_FLAG_0x08;
-        if ((flags & MOVIE_FLAG_0x02) != 0) {
+        if ((flags & MOVIE_FLAG_DIRECT) != 0) {
             movieFlags |= MOVIE_EXTENDED_FLAG_0x04;
         } else {
             movieFlags &= ~MOVIE_EXTENDED_FLAG_0x04;
         }
     }
 
-    if ((flags & MOVIE_FLAG_0x01) != 0) {
+    if ((flags & MOVIE_FLAG_SCALE) != 0) {
         movieScaleFlag = 1;
 
         if ((movieFlags & MOVIE_EXTENDED_FLAG_0x04) != 0) {
@@ -619,7 +618,7 @@ int movieSetFlags(int flags)
         }
     }
 
-    if ((flags & MOVIE_FLAG_0x08) != 0) {
+    if ((flags & MOVIE_FLAG_SUBTITLES) != 0) {
         movieFlags |= MOVIE_EXTENDED_FLAG_0x10;
     } else {
         movieFlags &= ~MOVIE_EXTENDED_FLAG_0x10;

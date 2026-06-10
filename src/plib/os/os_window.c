@@ -23,27 +23,18 @@ bool os_window_create(const char* title, int width, int height)
 {
     if (!GNW95_window) {
         GNW95_window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
-        if (!GNW95_window) { fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError()); return false; }
-
+        if (!GNW95_window) return false;
+        
         GNW95_renderer = SDL_CreateRenderer(GNW95_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-        if (!GNW95_renderer) { fprintf(stderr, "SDL_CreateRenderer failed: %s\n", SDL_GetError()); return false; }
+        if (!GNW95_renderer) return false;
 
         SDL_RenderSetLogicalSize(GNW95_renderer, width, height);
+        
+        GNW95_texture = SDL_CreateTexture(GNW95_renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, width, height);
+        if (!GNW95_texture) return false;
 
-        GNW95_texture = SDL_CreateTexture(GNW95_renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, width, height);
-        if (!GNW95_texture) { fprintf(stderr, "SDL_CreateTexture failed: %s\n", SDL_GetError()); return false; }
-
-        GNW95_surface = SDL_CreateRGBSurfaceWithFormat(0, width, height, 8, SDL_PIXELFORMAT_INDEX8);
-        if (!GNW95_surface) { fprintf(stderr, "SDL_CreateRGBSurfaceWithFormat failed: %s\n", SDL_GetError()); return false; }
-
-        SDL_Color current_palette[256];
-        for (int i = 0; i < 256; i++) {
-            current_palette[i].r = i;
-            current_palette[i].g = i;
-            current_palette[i].b = i;
-            current_palette[i].a = 255;
-        }
-        SDL_SetPaletteColors(GNW95_surface->format->palette, current_palette, 0, 256);
+        GNW95_surface = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32, SDL_PIXELFORMAT_RGBA32);
+        if (!GNW95_surface) return false;
     }
     return true;
 }
@@ -58,16 +49,8 @@ void os_window_destroy(void)
 
 void os_window_set_palette(int start, int count, const unsigned char* palette)
 {
-    if (GNW95_surface) {
-        SDL_Color colors[256];
-        for (int i = 0; i < count; i++) {
-            colors[i].r = palette[i * 3] << 2;
-            colors[i].g = palette[i * 3 + 1] << 2;
-            colors[i].b = palette[i * 3 + 2] << 2;
-            colors[i].a = 255;
-        }
-        SDL_SetPaletteColors(GNW95_surface->format->palette, colors, start, count);
-    }
+    // The surface is now 32-bit ARGB8888, so we don't set a hardware palette on it.
+    // GNW95_SetPalette in svga.c maintains the syspal array which cscale_8_to_32 uses.
 }
 
 void os_window_lock(void** pixels, int* pitch)
@@ -93,11 +76,7 @@ void os_window_present(void)
 {
     if (!GNW95_surface || !GNW95_texture || !GNW95_renderer) return;
 
-    SDL_Surface* rgbSurface = SDL_ConvertSurfaceFormat(GNW95_surface, SDL_PIXELFORMAT_ARGB8888, 0);
-    if (rgbSurface) {
-        SDL_UpdateTexture(GNW95_texture, NULL, rgbSurface->pixels, rgbSurface->pitch);
-        SDL_FreeSurface(rgbSurface);
-    }
+    SDL_UpdateTexture(GNW95_texture, NULL, GNW95_surface->pixels, GNW95_surface->pitch);
 
     SDL_RenderClear(GNW95_renderer);
     SDL_RenderCopy(GNW95_renderer, GNW95_texture, NULL, NULL);

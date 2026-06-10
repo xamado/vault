@@ -4,10 +4,10 @@
 #include "plib/gnw/rect.h"
 
 typedef enum MovieFlags {
-    MOVIE_FLAG_0x01 = 0x01,
-    MOVIE_FLAG_0x02 = 0x02,
-    MOVIE_FLAG_0x04 = 0x04,
-    MOVIE_FLAG_0x08 = 0x08,
+    MOVIE_FLAG_SCALE = 0x01,
+    MOVIE_FLAG_DIRECT = 0x02,
+    MOVIE_FLAG_DIRECT_CENTERED = 0x04,
+    MOVIE_FLAG_SUBTITLES = 0x08,
 } MovieFlags;
 
 typedef enum MovieExtendedFlags {

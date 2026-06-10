@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "ui.h"
 #include "game/automap.h"
 #include "game/bmpdlog.h"
 #include "game/combat.h"
@@ -44,6 +45,7 @@
 #include "plib/gnw/grbuf.h"
 #include "plib/gnw/input.h"
 #include "plib/gnw/memory.h"
+#include "plib/gnw/svga.h"
 #include "plib/gnw/text.h"
 
 #define LOAD_SAVE_SIGNATURE "FALLOUT SAVE FILE"
@@ -110,6 +112,7 @@ typedef struct LoadSaveSlotData {
 } LoadSaveSlotData;
 
 typedef enum LoadSaveFrm {
+    MAIN_MENU_FRM_BACKGROUND,
     LOAD_SAVE_FRM_BACKGROUND,
     LOAD_SAVE_FRM_BOX,
     LOAD_SAVE_FRM_PREVIEW_COVER,
@@ -150,6 +153,7 @@ static int EraseSave();
 
 // 0x47B7C0
 static const int lsgrphs[LOAD_SAVE_FRM_COUNT] = {
+    469, // main menu background
     237, // lsgame.frm - load/save game
     238, // lsgbox.frm - load/save game
     239, // lscover.frm - load/save game
@@ -270,11 +274,11 @@ static MessageListItem lsgmesg;
 // 0x6142C0
 static int dbleclkcntr;
 
-// 0x6142C4
+// 0x612D58
+static int win_bg;
 static int lsgwin;
 
-// 0x6142C8
-static unsigned char* lsbmp[LOAD_SAVE_FRM_COUNT];
+static Art* assets[LOAD_SAVE_FRM_COUNT];
 
 // 0x6142EC
 static unsigned char* snapshot;
@@ -839,7 +843,7 @@ int LoadGame(int mode)
     if (mode == LOAD_SAVE_MODE_QUICK && quick_done) {
         int quickSaveWindowX = 0;
         int quickSaveWindowY = 0;
-        int window = win_add(quickSaveWindowX,
+        int window = win_add_32(quickSaveWindowX,
             quickSaveWindowY,
             LS_WINDOW_WIDTH,
             LS_WINDOW_HEIGHT,
@@ -924,7 +928,8 @@ int LoadGame(int mode)
     case SLOT_STATE_EMPTY:
     case SLOT_STATE_ERROR:
     case SLOT_STATE_UNSUPPORTED_VERSION:
-        buf_to_buf(lsbmp[LOAD_SAVE_FRM_PREVIEW_COVER],
+        unsigned char* data = art_frame_data(assets[LOAD_SAVE_FRM_PREVIEW_COVER], 0, 0);
+        buf_to_buf(data,
             ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
             ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].height,
             ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
@@ -1080,7 +1085,7 @@ int LoadGame(int mode)
                     case SLOT_STATE_EMPTY:
                     case SLOT_STATE_ERROR:
                     case SLOT_STATE_UNSUPPORTED_VERSION:
-                        buf_to_buf(lsbmp[LOAD_SAVE_FRM_PREVIEW_COVER],
+                        buf_to_buf(art_frame_data(assets[LOAD_SAVE_FRM_PREVIEW_COVER], 0, 0),
                             ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
                             ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].height,
                             ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
@@ -1089,18 +1094,18 @@ int LoadGame(int mode)
                         break;
                     default:
                         LoadTumbSlot(slot_cursor);
-                        buf_to_buf(lsbmp[LOAD_SAVE_FRM_BACKGROUND] + LS_WINDOW_WIDTH * 39 + 340,
-                            ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
-                            ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].height,
-                            LS_WINDOW_WIDTH,
-                            lsgbuf + LS_WINDOW_WIDTH * 39 + 340,
-                            LS_WINDOW_WIDTH);
-                        buf_to_buf(thumbnail_image[0],
-                            LS_PREVIEW_WIDTH - 1,
-                            LS_PREVIEW_HEIGHT - 1,
-                            LS_PREVIEW_WIDTH,
-                            lsgbuf + LS_WINDOW_WIDTH * 58 + 366,
-                            LS_WINDOW_WIDTH);
+                        // buf_to_buf(lsbmp[LOAD_SAVE_FRM_BACKGROUND] + LS_WINDOW_WIDTH * 39 + 340,
+                        //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
+                        //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].height,
+                        //     LS_WINDOW_WIDTH,
+                        //     lsgbuf + LS_WINDOW_WIDTH * 39 + 340,
+                        //     LS_WINDOW_WIDTH);
+                        // buf_to_buf(thumbnail_image[0],
+                        //     LS_PREVIEW_WIDTH - 1,
+                        //     LS_PREVIEW_HEIGHT - 1,
+                        //     LS_PREVIEW_WIDTH,
+                        //     lsgbuf + LS_WINDOW_WIDTH * 58 + 366,
+                        //     LS_WINDOW_WIDTH);
                         break;
                     }
 
@@ -1123,27 +1128,27 @@ int LoadGame(int mode)
                 case SLOT_STATE_EMPTY:
                 case SLOT_STATE_ERROR:
                 case SLOT_STATE_UNSUPPORTED_VERSION:
-                    buf_to_buf(lsbmp[LOAD_SAVE_FRM_PREVIEW_COVER],
-                        ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
-                        ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].height,
-                        ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
-                        lsgbuf + LS_WINDOW_WIDTH * 39 + 340,
-                        LS_WINDOW_WIDTH);
+                    // buf_to_buf(lsbmp[LOAD_SAVE_FRM_PREVIEW_COVER],
+                    //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
+                    //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].height,
+                    //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
+                    //     lsgbuf + LS_WINDOW_WIDTH * 39 + 340,
+                    //     LS_WINDOW_WIDTH);
                     break;
                 default:
                     LoadTumbSlot(slot_cursor);
-                    buf_to_buf(lsbmp[LOAD_SAVE_FRM_BACKGROUND] + LS_WINDOW_WIDTH * 39 + 340,
-                        ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
-                        ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].height,
-                        LS_WINDOW_WIDTH,
-                        lsgbuf + LS_WINDOW_WIDTH * 39 + 340,
-                        LS_WINDOW_WIDTH);
-                    buf_to_buf(thumbnail_image[0],
-                        LS_PREVIEW_WIDTH - 1,
-                        LS_PREVIEW_HEIGHT - 1,
-                        LS_PREVIEW_WIDTH,
-                        lsgbuf + LS_WINDOW_WIDTH * 58 + 366,
-                        LS_WINDOW_WIDTH);
+                    // buf_to_buf(lsbmp[LOAD_SAVE_FRM_BACKGROUND] + LS_WINDOW_WIDTH * 39 + 340,
+                    //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
+                    //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].height,
+                    //     LS_WINDOW_WIDTH,
+                    //     lsgbuf + LS_WINDOW_WIDTH * 39 + 340,
+                    //     LS_WINDOW_WIDTH);
+                    // buf_to_buf(thumbnail_image[0],
+                    //     LS_PREVIEW_WIDTH - 1,
+                    //     LS_PREVIEW_HEIGHT - 1,
+                    //     LS_PREVIEW_WIDTH,
+                    //     lsgbuf + LS_WINDOW_WIDTH * 58 + 366,
+                    //     LS_WINDOW_WIDTH);
                     break;
                 }
 
@@ -1208,7 +1213,75 @@ int LoadGame(int mode)
     return rc;
 }
 
-// 0x47D2E4
+int debug_load_save_file(int slot)
+{
+    if (GetSlotList() == -1) {
+        return -1;
+    }
+    
+    if (slot < 0 || slot > 9) {
+        return -1;
+    }
+    
+    if (LSstatus[slot] != SLOT_STATE_OCCUPIED) {
+        return -1;
+    }
+
+    slot_cursor = slot;
+    return LoadSlot(slot);
+}
+
+static int loadsave_load_assets(int windowType)
+{
+    for (int index = 0; index < LOAD_SAVE_FRM_COUNT; index++)
+    {
+        int fid = art_id(OBJ_TYPE_INTERFACE, lsgrphs[index], 0, 0, 0);
+        assets[index] = art_ptr_lock(fid, &(grphkey[index]));
+
+        if (assets[index] == NULL) {
+            while (--index >= 0) {
+                art_ptr_unlock(grphkey[index]);
+            }
+            mem_free(snapshot);
+            message_exit(&lsgame_msgfl);
+            text_font(fontsave);
+
+            if (windowType != LOAD_SAVE_WINDOW_TYPE_LOAD_GAME_FROM_MAIN_MENU) {
+                if (bk_enable) {
+                    map_enable_bk_processes();
+                }
+            }
+
+            cycle_enable();
+            gmouse_set_cursor(MOUSE_CURSOR_ARROW);
+            return -1;
+        }
+    }
+}
+
+static int loadsave_unload_assets()
+{
+
+}
+
+static int loadsave_get_title(int windowType)
+{
+    switch (windowType) {
+        case LOAD_SAVE_WINDOW_TYPE_SAVE_GAME:
+            return 102; // SAVE GAME
+        case LOAD_SAVE_WINDOW_TYPE_PICK_QUICK_SAVE_SLOT:
+            return 103; // PICK A QUICK SAVE SLOT
+        case LOAD_SAVE_WINDOW_TYPE_LOAD_GAME:
+        case LOAD_SAVE_WINDOW_TYPE_LOAD_GAME_FROM_MAIN_MENU:
+            return 100; // LOAD GAME
+        case LOAD_SAVE_WINDOW_TYPE_PICK_QUICK_LOAD_SLOT:
+            return 101; // PICK A QUICK LOAD SLOT
+        default:
+            return 102;
+    }
+}
+
+// 0x46F3D0
 static int LSGameStart(int windowType)
 {
     fontsave = text_curr();
@@ -1257,43 +1330,29 @@ static int LSGameStart(int windowType)
         }
 
         unsigned char* windowBuf = win_get_buf(display_win);
-        cscale(windowBuf, 640, 380, 640, thumbnail_image[1], LS_PREVIEW_WIDTH, LS_PREVIEW_HEIGHT, LS_PREVIEW_WIDTH);
+        // cscale(windowBuf, 640, 380, 640, thumbnail_image[1], LS_PREVIEW_WIDTH, LS_PREVIEW_HEIGHT, LS_PREVIEW_WIDTH);
     }
 
-    for (int index = 0; index < LOAD_SAVE_FRM_COUNT; index++) {
-        int fid = art_id(OBJ_TYPE_INTERFACE, lsgrphs[index], 0, 0, 0);
-        lsbmp[index] = art_lock(fid,
-            &(grphkey[index]),
-            &(ginfo[index].width),
-            &(ginfo[index].height));
+    // Load all screen assets
+    loadsave_load_assets(windowType);
 
-        if (lsbmp[index] == NULL) {
-            while (--index >= 0) {
-                art_ptr_unlock(grphkey[index]);
-            }
-            mem_free(snapshot);
-            message_exit(&lsgame_msgfl);
-            text_font(fontsave);
+    const Size screen_size = screen_get_size();
+    const int ui_scale = ui_get_scale();
 
-            if (windowType != LOAD_SAVE_WINDOW_TYPE_LOAD_GAME_FROM_MAIN_MENU) {
-                if (bk_enable) {
-                    map_enable_bk_processes();
-                }
-            }
+    // Add a window for the background
+    win_bg = win_add_32(0, 0, screen_size.width, screen_size.height, 0, 0);
 
-            cycle_enable();
-            gmouse_set_cursor(MOUSE_CURSOR_ARROW);
-            return -1;
-        }
-    }
+    ui_image_fill_32(assets[MAIN_MENU_FRM_BACKGROUND], win_bg, 0, 0, screen_size.width, screen_size.height);
+    win_draw(win_bg);
 
-    int lsWindowX = 0;
-    int lsWindowY = 0;
-    lsgwin = win_add(lsWindowX,
-        lsWindowY,
-        LS_WINDOW_WIDTH,
-        LS_WINDOW_HEIGHT,
-        256,
+    // And another floating window
+    int lsWindowX = (screen_size.width - LS_WINDOW_WIDTH * ui_scale) / 2;
+    int lsWindowY = (screen_size.height - LS_WINDOW_HEIGHT * ui_scale) / 2;
+
+    lsgwin = win_add_32(
+        lsWindowX, lsWindowY,
+        LS_WINDOW_WIDTH * ui_scale, LS_WINDOW_HEIGHT * ui_scale,
+        0,
         WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (lsgwin == -1) {
         // FIXME: Leaking frms.
@@ -1313,115 +1372,115 @@ static int LSGameStart(int windowType)
     }
 
     lsgbuf = win_get_buf(lsgwin);
-    memcpy(lsgbuf, lsbmp[LOAD_SAVE_FRM_BACKGROUND], LS_WINDOW_WIDTH * LS_WINDOW_HEIGHT);
+    ui_image_indexed(assets[LOAD_SAVE_FRM_BACKGROUND], lsgwin, 0, 0, 640 * ui_scale, 480 * ui_scale, getColorPalette());
 
-    int messageId;
-    switch (windowType) {
-    case LOAD_SAVE_WINDOW_TYPE_SAVE_GAME:
-        // SAVE GAME
-        messageId = 102;
-        break;
-    case LOAD_SAVE_WINDOW_TYPE_PICK_QUICK_SAVE_SLOT:
-        // PICK A QUICK SAVE SLOT
-        messageId = 103;
-        break;
-    case LOAD_SAVE_WINDOW_TYPE_LOAD_GAME:
-    case LOAD_SAVE_WINDOW_TYPE_LOAD_GAME_FROM_MAIN_MENU:
-        // LOAD GAME
-        messageId = 100;
-        break;
-    case LOAD_SAVE_WINDOW_TYPE_PICK_QUICK_LOAD_SLOT:
-        // PICK A QUICK LOAD SLOT
-        messageId = 101;
-        break;
-    default:
-        assert(false && "Should be unreachable");
-    }
-
-    char* msg;
-
+    // Draw the title
+    char* msg = nullptr;
+    int messageId = loadsave_get_title(windowType);
     msg = getmsg(&lsgame_msgfl, &lsgmesg, messageId);
-    text_to_buf(lsgbuf + LS_WINDOW_WIDTH * 27 + 48, msg, LS_WINDOW_WIDTH, LS_WINDOW_WIDTH, colorTable[18979]);
+    ui_scaled_text(lsgwin, msg, 48 * ui_scale, 27 * ui_scale, ui_scale, colorTable[21091]);
 
-    // DONE
-    msg = getmsg(&lsgame_msgfl, &lsgmesg, 104);
-    text_to_buf(lsgbuf + LS_WINDOW_WIDTH * 348 + 410, msg, LS_WINDOW_WIDTH, LS_WINDOW_WIDTH, colorTable[18979]);
+    int btn = -1;
 
-    // CANCEL
-    msg = getmsg(&lsgame_msgfl, &lsgmesg, 105);
-    text_to_buf(lsgbuf + LS_WINDOW_WIDTH * 348 + 515, msg, LS_WINDOW_WIDTH, LS_WINDOW_WIDTH, colorTable[18979]);
+    int buttonWidth = art_frame_width(assets[LOAD_SAVE_FRM_RED_BUTTON_NORMAL], 0, 0);
+    int buttonHeight = art_frame_height(assets[LOAD_SAVE_FRM_RED_BUTTON_NORMAL], 0, 0);
 
-    int btn;
-
-    btn = win_register_button(lsgwin,
-        391,
-        349,
-        ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].width,
-        ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].height,
+    btn = ui_register_button(lsgwin,
+        391 * ui_scale,
+        349 * ui_scale,
+        buttonWidth * ui_scale,
+        buttonHeight * ui_scale,
         -1,
         -1,
         -1,
         500,
-        lsbmp[LOAD_SAVE_FRM_RED_BUTTON_NORMAL],
-        lsbmp[LOAD_SAVE_FRM_RED_BUTTON_PRESSED],
+        assets[LOAD_SAVE_FRM_RED_BUTTON_NORMAL],
+        assets[LOAD_SAVE_FRM_RED_BUTTON_PRESSED],
         NULL,
         BUTTON_FLAG_TRANSPARENT);
     if (btn != -1) {
         win_register_button_sound_func(btn, gsound_red_butt_press, gsound_red_butt_release);
     }
 
-    btn = win_register_button(lsgwin,
-        495,
-        349,
-        ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].width,
-        ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].height,
+    // DONE
+    msg = getmsg(&lsgame_msgfl, &lsgmesg, 104);
+    ui_scaled_text(lsgwin, msg, 410 * ui_scale, 348 * ui_scale, ui_scale, colorTable[18979]);
+
+    btn = ui_register_button(lsgwin,
+        495 * ui_scale,
+        349 * ui_scale,
+        buttonWidth * ui_scale,
+        buttonHeight * ui_scale,
         -1,
         -1,
         -1,
         501,
-        lsbmp[LOAD_SAVE_FRM_RED_BUTTON_NORMAL],
-        lsbmp[LOAD_SAVE_FRM_RED_BUTTON_PRESSED],
+        assets[LOAD_SAVE_FRM_RED_BUTTON_NORMAL],
+        assets[LOAD_SAVE_FRM_RED_BUTTON_PRESSED],
         NULL,
         BUTTON_FLAG_TRANSPARENT);
     if (btn != -1) {
         win_register_button_sound_func(btn, gsound_red_butt_press, gsound_red_butt_release);
     }
 
-    btn = win_register_button(lsgwin,
-        35,
-        58,
-        ginfo[LOAD_SAVE_FRM_ARROW_UP_PRESSED].width,
-        ginfo[LOAD_SAVE_FRM_ARROW_UP_PRESSED].height,
+    // CANCEL
+    msg = getmsg(&lsgame_msgfl, &lsgmesg, 105);
+    ui_scaled_text(lsgwin, msg, 515 * ui_scale, 348 * ui_scale, ui_scale, colorTable[18979]);
+
+    int arrowWidth = art_frame_width(assets[LOAD_SAVE_FRM_ARROW_UP_PRESSED], 0, 0);
+    int arrowHeight = art_frame_height(assets[LOAD_SAVE_FRM_ARROW_UP_PRESSED], 0, 0);
+
+    btn = ui_register_button(lsgwin,
+        35 * ui_scale,
+        58 * ui_scale,
+        arrowWidth * ui_scale,
+        arrowHeight * ui_scale,
         -1,
         505,
         506,
         505,
-        lsbmp[LOAD_SAVE_FRM_ARROW_UP_NORMAL],
-        lsbmp[LOAD_SAVE_FRM_ARROW_UP_PRESSED],
+        assets[LOAD_SAVE_FRM_ARROW_UP_NORMAL],
+        assets[LOAD_SAVE_FRM_ARROW_UP_PRESSED],
         NULL,
         BUTTON_FLAG_TRANSPARENT);
     if (btn != -1) {
         win_register_button_sound_func(btn, gsound_red_butt_press, gsound_red_butt_release);
     }
 
-    btn = win_register_button(lsgwin,
-        35,
-        ginfo[LOAD_SAVE_FRM_ARROW_UP_PRESSED].height + 58,
-        ginfo[LOAD_SAVE_FRM_ARROW_DOWN_PRESSED].width,
-        ginfo[LOAD_SAVE_FRM_ARROW_DOWN_PRESSED].height,
+    btn = ui_register_button(lsgwin,
+        35 * ui_scale,
+        (arrowHeight + 58) * ui_scale,
+        arrowWidth * ui_scale,
+        arrowHeight * ui_scale,
         -1,
         503,
         504,
         503,
-        lsbmp[LOAD_SAVE_FRM_ARROW_DOWN_NORMAL],
-        lsbmp[LOAD_SAVE_FRM_ARROW_DOWN_PRESSED],
+        assets[LOAD_SAVE_FRM_ARROW_DOWN_NORMAL],
+        assets[LOAD_SAVE_FRM_ARROW_DOWN_PRESSED],
         NULL,
         BUTTON_FLAG_TRANSPARENT);
     if (btn != -1) {
         win_register_button_sound_func(btn, gsound_red_butt_press, gsound_red_butt_release);
     }
 
-    win_register_button(lsgwin, 55, 87, 230, 353, -1, -1, -1, 502, NULL, NULL, NULL, BUTTON_FLAG_TRANSPARENT);
+    ui_register_button(lsgwin,
+        55 * ui_scale,
+        87 * ui_scale,
+        230 * ui_scale,
+        353 * ui_scale,
+        -1,
+        -1,
+        -1,
+        502,
+        NULL,
+        NULL,
+        NULL,
+        BUTTON_FLAG_TRANSPARENT
+    );
+
+    // win_register_button(lsgwin, 55, 87, 230, 353, -1, -1, -1, 502, NULL, NULL, NULL, BUTTON_FLAG_TRANSPARENT);
+
     text_font(101);
 
     return 0;
@@ -1865,17 +1924,21 @@ static int GetSlotList()
 // 0x47E6D8
 static void ShowSlotList(int a1)
 {
-    buf_fill(lsgbuf + LS_WINDOW_WIDTH * 87 + 55, 230, 353, LS_WINDOW_WIDTH, lsgbuf[LS_WINDOW_WIDTH * 86 + 55] & 0xFF);
+    int ui_scale = ui_get_scale();
 
-    int y = 87;
-    for (int index = 0; index < 10; index += 1) {
+    // buf_fill_32(lsgbuf + LS_WINDOW_WIDTH * 87 + 55, 230, 353, LS_WINDOW_WIDTH, lsgbuf[LS_WINDOW_WIDTH * 86 + 55] & 0xFF);
 
+    int y = 87 * ui_scale;
+
+    for (int index = 0; index < 10; index += 1)
+    {
         int color = index == slot_cursor ? colorTable[32747] : colorTable[992];
         const char* text = getmsg(&lsgame_msgfl, &lsgmesg, a1 != 0 ? 110 : 109);
         sprintf(str, "[   %s %.2d:   ]", text, index + 1);
-        text_to_buf(lsgbuf + LS_WINDOW_WIDTH * y + 55, str, LS_WINDOW_WIDTH, LS_WINDOW_WIDTH, color);
+        ui_scaled_text(lsgwin, str, 55 * ui_scale, y, ui_scale, color);
 
-        y += text_height();
+        y += text_height() * ui_scale;
+
         switch (LSstatus[index]) {
         case SLOT_STATE_OCCUPIED:
             strcpy(str, LSData[index].description);
@@ -1899,78 +1962,79 @@ static void ShowSlotList(int a1)
             break;
         }
 
-        text_to_buf(lsgbuf + LS_WINDOW_WIDTH * y + 55, str, LS_WINDOW_WIDTH, LS_WINDOW_WIDTH, color);
-        y += 2 * text_height() + 4;
+        ui_scaled_text(lsgwin, str, 55 * ui_scale, y, ui_scale, color);
+
+        y += 2 * text_height() * ui_scale + 4 * ui_scale;
     }
 }
 
 // 0x47E8E0
 static void DrawInfoBox(int a1)
 {
-    buf_to_buf(lsbmp[LOAD_SAVE_FRM_BACKGROUND] + LS_WINDOW_WIDTH * 254 + 396, 164, 60, LS_WINDOW_WIDTH, lsgbuf + LS_WINDOW_WIDTH * 254 + 396, 640);
-
-    unsigned char* dest;
-    const char* text;
-    int color = colorTable[992];
-
-    switch (LSstatus[a1]) {
-    case SLOT_STATE_OCCUPIED:
-        do {
-            LoadSaveSlotData* ptr = &(LSData[a1]);
-            text_to_buf(lsgbuf + LS_WINDOW_WIDTH * 254 + 396, ptr->characterName, LS_WINDOW_WIDTH, LS_WINDOW_WIDTH, color);
-
-            int v4 = ptr->gameTime / 600;
-            int minutes = v4 % 60;
-            int v6 = 25 * (v4 / 60 % 24);
-            int time = 4 * v6 + minutes;
-
-            text = getmsg(&lsgame_msgfl, &lsgmesg, 116 + ptr->gameMonth);
-            sprintf(str, "%.2d %s %.4d   %.4d", ptr->gameDay, text, ptr->gameYear, time);
-
-            int v2 = text_height();
-            text_to_buf(lsgbuf + LS_WINDOW_WIDTH * (256 + v2) + 397, str, LS_WINDOW_WIDTH, LS_WINDOW_WIDTH, color);
-
-            const char* v22 = map_get_elev_idx(ptr->map, ptr->elevation);
-            const char* v9 = map_get_short_name(ptr->map);
-            sprintf(str, "%s %s", v9, v22);
-
-            int y = v2 + 3 + v2 + 256;
-            short beginnings[WORD_WRAP_MAX_COUNT];
-            short count;
-            if (word_wrap(str, 164, beginnings, &count) == 0) {
-                for (int index = 0; index < count - 1; index += 1) {
-                    char* beginning = str + beginnings[index];
-                    char* ending = str + beginnings[index + 1];
-                    char c = *ending;
-                    *ending = '\0';
-                    text_to_buf(lsgbuf + LS_WINDOW_WIDTH * y + 399, beginning, 164, LS_WINDOW_WIDTH, color);
-                    y += v2 + 2;
-                }
-            }
-        } while (0);
-        return;
-    case SLOT_STATE_EMPTY:
-        // Empty.
-        text = getmsg(&lsgame_msgfl, &lsgmesg, 114);
-        dest = lsgbuf + LS_WINDOW_WIDTH * 262 + 404;
-        break;
-    case SLOT_STATE_ERROR:
-        // Error!
-        text = getmsg(&lsgame_msgfl, &lsgmesg, 115);
-        dest = lsgbuf + LS_WINDOW_WIDTH * 262 + 404;
-        color = colorTable[32328];
-        break;
-    case SLOT_STATE_UNSUPPORTED_VERSION:
-        // Old version.
-        text = getmsg(&lsgame_msgfl, &lsgmesg, 116);
-        dest = lsgbuf + LS_WINDOW_WIDTH * 262 + 400;
-        color = colorTable[32328];
-        break;
-    default:
-        assert(false && "Should be unreachable");
-    }
-
-    text_to_buf(dest, text, LS_WINDOW_WIDTH, LS_WINDOW_WIDTH, color);
+    // buf_to_buf(lsbmp[LOAD_SAVE_FRM_BACKGROUND] + LS_WINDOW_WIDTH * 254 + 396, 164, 60, LS_WINDOW_WIDTH, lsgbuf + LS_WINDOW_WIDTH * 254 + 396, 640);
+    //
+    // unsigned char* dest;
+    // const char* text;
+    // int color = colorTable[992];
+    //
+    // switch (LSstatus[a1]) {
+    // case SLOT_STATE_OCCUPIED:
+    //     do {
+    //         LoadSaveSlotData* ptr = &(LSData[a1]);
+    //         text_to_buf(lsgbuf + LS_WINDOW_WIDTH * 254 + 396, ptr->characterName, LS_WINDOW_WIDTH, LS_WINDOW_WIDTH, color);
+    //
+    //         int v4 = ptr->gameTime / 600;
+    //         int minutes = v4 % 60;
+    //         int v6 = 25 * (v4 / 60 % 24);
+    //         int time = 4 * v6 + minutes;
+    //
+    //         text = getmsg(&lsgame_msgfl, &lsgmesg, 116 + ptr->gameMonth);
+    //         sprintf(str, "%.2d %s %.4d   %.4d", ptr->gameDay, text, ptr->gameYear, time);
+    //
+    //         int v2 = text_height();
+    //         text_to_buf(lsgbuf + LS_WINDOW_WIDTH * (256 + v2) + 397, str, LS_WINDOW_WIDTH, LS_WINDOW_WIDTH, color);
+    //
+    //         const char* v22 = map_get_elev_idx(ptr->map, ptr->elevation);
+    //         const char* v9 = map_get_short_name(ptr->map);
+    //         sprintf(str, "%s %s", v9, v22);
+    //
+    //         int y = v2 + 3 + v2 + 256;
+    //         short beginnings[WORD_WRAP_MAX_COUNT];
+    //         short count;
+    //         if (word_wrap(str, 164, beginnings, &count) == 0) {
+    //             for (int index = 0; index < count - 1; index += 1) {
+    //                 char* beginning = str + beginnings[index];
+    //                 char* ending = str + beginnings[index + 1];
+    //                 char c = *ending;
+    //                 *ending = '\0';
+    //                 text_to_buf(lsgbuf + LS_WINDOW_WIDTH * y + 399, beginning, 164, LS_WINDOW_WIDTH, color);
+    //                 y += v2 + 2;
+    //             }
+    //         }
+    //     } while (0);
+    //     return;
+    // case SLOT_STATE_EMPTY:
+    //     // Empty.
+    //     text = getmsg(&lsgame_msgfl, &lsgmesg, 114);
+    //     dest = lsgbuf + LS_WINDOW_WIDTH * 262 + 404;
+    //     break;
+    // case SLOT_STATE_ERROR:
+    //     // Error!
+    //     text = getmsg(&lsgame_msgfl, &lsgmesg, 115);
+    //     dest = lsgbuf + LS_WINDOW_WIDTH * 262 + 404;
+    //     color = colorTable[32328];
+    //     break;
+    // case SLOT_STATE_UNSUPPORTED_VERSION:
+    //     // Old version.
+    //     text = getmsg(&lsgame_msgfl, &lsgmesg, 116);
+    //     dest = lsgbuf + LS_WINDOW_WIDTH * 262 + 400;
+    //     color = colorTable[32328];
+    //     break;
+    // default:
+    //     assert(false && "Should be unreachable");
+    // }
+    //
+    // text_to_buf(dest, text, LS_WINDOW_WIDTH, LS_WINDOW_WIDTH, color);
 }
 
 // 0x47EC48
@@ -2011,118 +2075,118 @@ static int LoadTumbSlot(int a1)
 // 0x47ED5C
 static int GetComment(int a1)
 {
-    int commentWindowX = LS_COMMENT_WINDOW_X;
-    int commentWindowY = LS_COMMENT_WINDOW_Y;
-    int window = win_add(commentWindowX,
-        commentWindowY,
-        ginfo[LOAD_SAVE_FRM_BOX].width,
-        ginfo[LOAD_SAVE_FRM_BOX].height,
-        256,
-        WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
-    if (window == -1) {
-        return -1;
-    }
-
-    unsigned char* windowBuffer = win_get_buf(window);
-    memcpy(windowBuffer,
-        lsbmp[LOAD_SAVE_FRM_BOX],
-        ginfo[LOAD_SAVE_FRM_BOX].height * ginfo[LOAD_SAVE_FRM_BOX].width);
-
-    text_font(103);
-
-    const char* msg;
-
-    // DONE
-    msg = getmsg(&lsgame_msgfl, &lsgmesg, 104);
-    text_to_buf(windowBuffer + ginfo[LOAD_SAVE_FRM_BOX].width * 57 + 56,
-        msg,
-        ginfo[LOAD_SAVE_FRM_BOX].width,
-        ginfo[LOAD_SAVE_FRM_BOX].width,
-        colorTable[18979]);
-
-    // CANCEL
-    msg = getmsg(&lsgame_msgfl, &lsgmesg, 105);
-    text_to_buf(windowBuffer + ginfo[LOAD_SAVE_FRM_BOX].width * 57 + 181,
-        msg,
-        ginfo[LOAD_SAVE_FRM_BOX].width,
-        ginfo[LOAD_SAVE_FRM_BOX].width,
-        colorTable[18979]);
-
-    // DESCRIPTION
-    msg = getmsg(&lsgame_msgfl, &lsgmesg, 130);
-
-    char title[260];
-    strcpy(title, msg);
-
-    int width = text_width(title);
-    text_to_buf(windowBuffer + ginfo[LOAD_SAVE_FRM_BOX].width * 7 + (ginfo[LOAD_SAVE_FRM_BOX].width - width) / 2,
-        title,
-        ginfo[LOAD_SAVE_FRM_BOX].width,
-        ginfo[LOAD_SAVE_FRM_BOX].width,
-        colorTable[18979]);
-
-    text_font(101);
-
-    int btn;
-
-    // DONE
-    btn = win_register_button(window,
-        34,
-        58,
-        ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].width,
-        ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].height,
-        -1,
-        -1,
-        -1,
-        507,
-        lsbmp[LOAD_SAVE_FRM_RED_BUTTON_NORMAL],
-        lsbmp[LOAD_SAVE_FRM_RED_BUTTON_PRESSED],
-        NULL,
-        BUTTON_FLAG_TRANSPARENT);
-    if (btn == -1) {
-        win_register_button_sound_func(btn, gsound_red_butt_press, gsound_red_butt_release);
-    }
-
-    // CANCEL
-    btn = win_register_button(window,
-        160,
-        58,
-        ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].width,
-        ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].height,
-        -1,
-        -1,
-        -1,
-        508,
-        lsbmp[LOAD_SAVE_FRM_RED_BUTTON_NORMAL],
-        lsbmp[LOAD_SAVE_FRM_RED_BUTTON_PRESSED],
-        NULL,
-        BUTTON_FLAG_TRANSPARENT);
-    if (btn == -1) {
-        win_register_button_sound_func(btn, gsound_red_butt_press, gsound_red_butt_release);
-    }
-
-    win_draw(window);
-
-    char description[LOAD_SAVE_DESCRIPTION_LENGTH];
-    if (LSstatus[slot_cursor] == SLOT_STATE_OCCUPIED) {
-        strncpy(description, LSData[a1].description, LOAD_SAVE_DESCRIPTION_LENGTH);
-    } else {
-        memset(description, '\0', LOAD_SAVE_DESCRIPTION_LENGTH);
-    }
-
-    int rc;
-
-    if (get_input_str2(window, 507, 508, description, LOAD_SAVE_DESCRIPTION_LENGTH - 1, 24, 35, colorTable[992], lsbmp[LOAD_SAVE_FRM_BOX][ginfo[1].width * 35 + 24], 0) == 0) {
-        strncpy(LSData[a1].description, description, LOAD_SAVE_DESCRIPTION_LENGTH);
-        LSData[a1].description[LOAD_SAVE_DESCRIPTION_LENGTH - 1] = '\0';
-        rc = 1;
-    } else {
-        rc = 0;
-    }
-
-    win_delete(window);
-
-    return rc;
+    // int commentWindowX = LS_COMMENT_WINDOW_X;
+    // int commentWindowY = LS_COMMENT_WINDOW_Y;
+    // int window = win_add(commentWindowX,
+    //     commentWindowY,
+    //     ginfo[LOAD_SAVE_FRM_BOX].width,
+    //     ginfo[LOAD_SAVE_FRM_BOX].height,
+    //     256,
+    //     WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
+    // if (window == -1) {
+    //     return -1;
+    // }
+    //
+    // unsigned char* windowBuffer = win_get_buf(window);
+    // memcpy(windowBuffer,
+    //     lsbmp[LOAD_SAVE_FRM_BOX],
+    //     ginfo[LOAD_SAVE_FRM_BOX].height * ginfo[LOAD_SAVE_FRM_BOX].width);
+    //
+    // text_font(103);
+    //
+    // const char* msg;
+    //
+    // // DONE
+    // msg = getmsg(&lsgame_msgfl, &lsgmesg, 104);
+    // text_to_buf(windowBuffer + ginfo[LOAD_SAVE_FRM_BOX].width * 57 + 56,
+    //     msg,
+    //     ginfo[LOAD_SAVE_FRM_BOX].width,
+    //     ginfo[LOAD_SAVE_FRM_BOX].width,
+    //     colorTable[18979]);
+    //
+    // // CANCEL
+    // msg = getmsg(&lsgame_msgfl, &lsgmesg, 105);
+    // text_to_buf(windowBuffer + ginfo[LOAD_SAVE_FRM_BOX].width * 57 + 181,
+    //     msg,
+    //     ginfo[LOAD_SAVE_FRM_BOX].width,
+    //     ginfo[LOAD_SAVE_FRM_BOX].width,
+    //     colorTable[18979]);
+    //
+    // // DESCRIPTION
+    // msg = getmsg(&lsgame_msgfl, &lsgmesg, 130);
+    //
+    // char title[260];
+    // strcpy(title, msg);
+    //
+    // int width = text_width(title);
+    // text_to_buf(windowBuffer + ginfo[LOAD_SAVE_FRM_BOX].width * 7 + (ginfo[LOAD_SAVE_FRM_BOX].width - width) / 2,
+    //     title,
+    //     ginfo[LOAD_SAVE_FRM_BOX].width,
+    //     ginfo[LOAD_SAVE_FRM_BOX].width,
+    //     colorTable[18979]);
+    //
+    // text_font(101);
+    //
+    // int btn;
+    //
+    // // DONE
+    // btn = win_register_button(window,
+    //     34,
+    //     58,
+    //     ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].width,
+    //     ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].height,
+    //     -1,
+    //     -1,
+    //     -1,
+    //     507,
+    //     lsbmp[LOAD_SAVE_FRM_RED_BUTTON_NORMAL],
+    //     lsbmp[LOAD_SAVE_FRM_RED_BUTTON_PRESSED],
+    //     NULL,
+    //     BUTTON_FLAG_TRANSPARENT);
+    // if (btn == -1) {
+    //     win_register_button_sound_func(btn, gsound_red_butt_press, gsound_red_butt_release);
+    // }
+    //
+    // // CANCEL
+    // btn = win_register_button(window,
+    //     160,
+    //     58,
+    //     ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].width,
+    //     ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].height,
+    //     -1,
+    //     -1,
+    //     -1,
+    //     508,
+    //     lsbmp[LOAD_SAVE_FRM_RED_BUTTON_NORMAL],
+    //     lsbmp[LOAD_SAVE_FRM_RED_BUTTON_PRESSED],
+    //     NULL,
+    //     BUTTON_FLAG_TRANSPARENT);
+    // if (btn == -1) {
+    //     win_register_button_sound_func(btn, gsound_red_butt_press, gsound_red_butt_release);
+    // }
+    //
+    // win_draw(window);
+    //
+    // char description[LOAD_SAVE_DESCRIPTION_LENGTH];
+    // if (LSstatus[slot_cursor] == SLOT_STATE_OCCUPIED) {
+    //     strncpy(description, LSData[a1].description, LOAD_SAVE_DESCRIPTION_LENGTH);
+    // } else {
+    //     memset(description, '\0', LOAD_SAVE_DESCRIPTION_LENGTH);
+    // }
+    //
+    // int rc;
+    //
+    // if (get_input_str2(window, 507, 508, description, LOAD_SAVE_DESCRIPTION_LENGTH - 1, 24, 35, colorTable[992], lsbmp[LOAD_SAVE_FRM_BOX][ginfo[1].width * 35 + 24], 0) == 0) {
+    //     strncpy(LSData[a1].description, description, LOAD_SAVE_DESCRIPTION_LENGTH);
+    //     LSData[a1].description[LOAD_SAVE_DESCRIPTION_LENGTH - 1] = '\0';
+    //     rc = 1;
+    // } else {
+    //     rc = 0;
+    // }
+    //
+    // win_delete(window);
+    //
+    // return rc;
 }
 
 // 0x47F084

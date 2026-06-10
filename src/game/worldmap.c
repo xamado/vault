@@ -1506,9 +1506,13 @@ static int wmParseEncounterTableIndex(EncounterEntry* entry, char* string)
         strParseStrSepVal(&string, "chance", &(entry->chance), ":");
         strParseStrSepVal(&string, "counter", &(entry->counter), ":");
 
-        if (strstr(string, "special")) {
+        char* pchSpecial = strstr(string, "special");
+        if (pchSpecial != NULL) {
             entry->flags |= ENCOUNTER_ENTRY_SPECIAL;
-            string += 8;
+            string = pchSpecial + 7;
+            while (*string == ' ' || *string == ',') {
+                string++;
+            }
         }
 
         if (string != NULL) {

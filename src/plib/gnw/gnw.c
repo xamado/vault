@@ -8,6 +8,7 @@
 #include "plib/gnw/grbuf.h"
 #include "plib/gnw/memory.h"
 #include "game/palette.h"
+#include "game/fontmgr.h"
 #include "plib/gnw/text.h"
 #include "plib/gnw/vcr.h"
 #include "plib/gnw/intrface.h"
@@ -121,7 +122,8 @@ int win_init(VideoSystemInitProc* videoSystemInitProc, VideoSystemExitProc* vide
     }
 
     if (a3 & 1) {
-        screen_buffer = (unsigned char*)mem_malloc((scr_size.lry - scr_size.uly + 1) * (scr_size.lrx - scr_size.ulx + 1));
+        int buffer_size = (scr_size.lry - scr_size.uly + 1) * (scr_size.lrx - scr_size.ulx + 1) * 4;
+        screen_buffer = (unsigned char*)mem_malloc(buffer_size);
         if (screen_buffer == NULL) {
             if (video_reset != NULL) {
                 video_reset();
@@ -131,6 +133,7 @@ int win_init(VideoSystemInitProc* videoSystemInitProc, VideoSystemExitProc* vide
 
             return WINDOW_MANAGER_ERR_NO_MEMORY;
         }
+        memset(screen_buffer, 0, buffer_size);
     }
 
     buffering = false;
@@ -364,6 +367,97 @@ int win_add(int x, int y, int width, int height, int a4, int flags)
     return index;
 }
 
+int win_add_32(int x, int y, int width, int height, int clearColor, int flags)
+{
+    int v23;
+    int v25, v26;
+    Window* tmp;
+
+    if (!GNW_win_init_flag) {
+        return -1;
+    }
+
+    if (num_windows == MAX_WINDOW_COUNT) {
+        return -1;
+    }
+
+    if (width > rectGetWidth(&scr_size)) {
+        return -1;
+    }
+
+    if (height > rectGetHeight(&scr_size)) {
+        return -1;
+    }
+
+    Window* w = window[num_windows] = (Window*)mem_malloc(sizeof(*w));
+    if (w == NULL) {
+        return -1;
+    }
+
+    w->buffer = (unsigned char*)mem_malloc(width * height * 4); // 32 bit colors
+    if (w->buffer == NULL) {
+        mem_free(w);
+        return -1;
+    }
+
+    int index = 1;
+    while (GNW_find(index) != NULL) {
+        index++;
+    }
+
+    w->id = index;
+
+    if ((flags & WINDOW_FLAG_0x01) != 0) {
+        flags |= window_flags;
+    }
+
+    w->width = width;
+    w->height = height;
+    w->flags = flags;
+    w->field_24 = rand() & 0xFFFE;
+    w->field_28 = rand() & 0xFFFE;
+
+    w->buttonListHead = 0;
+    w->field_34 = 0;
+    w->field_38 = 0;
+    w->menuBar = NULL;
+    w->blitProc = trans_buf_to_buf_32;
+    window_index[index] = num_windows;
+    num_windows++;
+
+    win_fill_32(index, 0, 0, width, height, clearColor);
+
+    w->flags |= WINDOW_HIDDEN;
+    win_move(index, x, y);
+    w->flags = flags | WINDOW_FLAG_32BIT;
+
+    if ((flags & WINDOW_FLAG_ALWAYS_ON_TOP) == 0) {
+        v23 = num_windows - 2;
+        while (v23 > 0) {
+            if (!(window[v23]->flags & WINDOW_FLAG_ALWAYS_ON_TOP)) {
+                break;
+            }
+            v23--;
+        }
+
+        if (v23 != num_windows - 2) {
+            v25 = v23 + 1;
+            v26 = num_windows - 1;
+            while (v26 > v25) {
+                tmp = window[v26 - 1];
+                window[v26] = tmp;
+                window_index[tmp->id] = v26;
+                v26--;
+            }
+
+            window[v25] = w;
+            window_index[index] = v25;
+        }
+    }
+
+    return index;
+}
+
 // 0x4D6468
 void win_delete(int win)
 {
@@ -488,29 +582,52 @@ void win_print(int win, char* str, int a3, int x, int y, int a6)
         v7 = w->width - x;
     }
 
-    buf = w->buffer + x + y * w->width;
-
     v14 = text_height();
     if (v14 + y > w->height) {
         return;
     }
 
-    if (!(a6 & 0x02000000)) {
-        if (w->field_20 == 256 && GNW_texture != NULL) {
-            buf_texture(buf, v7, text_height(), w->width, GNW_texture, w->field_24 + x, w->field_28 + y);
-        } else {
-            buf_fill(buf, v7, text_height(), w->width, w->field_20);
+    if (w->flags & WINDOW_FLAG_32BIT) {
+        buf = w->buffer + (x + y * w->width) * 4;
+
+        if (!(a6 & 0x02000000)) {
+            if (w->field_20 == 256 && GNW_texture != NULL) {
+                // Not supported for 32-bit
+            } else {
+                buf_fill_32(buf, v7, text_height(), w->width, w->field_20); // Note: field_20 is not a 32-bit color, but we'll pass it
+            }
         }
-    }
 
-    if ((a6 & 0xFF00) != 0) {
-        int colorIndex = (a6 & 0xFF) - 1;
-        v27 = (a6 & ~0xFFFF) | colorTable[GNW_wcolor[colorIndex]];
+        if ((a6 & 0xFF00) != 0) {
+            int colorIndex = (a6 & 0xFF) - 1;
+            unsigned char* pal = getColorPalette();
+            int c = colorTable[GNW_wcolor[colorIndex]] & 0xFF;
+            v27 = (0xFF << 24) | ((pal[c * 3 + 2] << 2) << 16) | ((pal[c * 3 + 1] << 2) << 8) | (pal[c * 3] << 2);
+        } else {
+            v27 = a6;
+        }
+
+        FMtext_to_buf_32(buf, str, v7, w->width, v27);
     } else {
-        v27 = a6;
-    }
+        buf = w->buffer + x + y * w->width;
 
-    text_to_buf(buf, str, v7, w->width, v27);
+        if (!(a6 & 0x02000000)) {
+            if (w->field_20 == 256 && GNW_texture != NULL) {
+                buf_texture(buf, v7, text_height(), w->width, GNW_texture, w->field_24 + x, w->field_28 + y);
+            } else {
+                buf_fill(buf, v7, text_height(), w->width, w->field_20);
+            }
+        }
+
+        if ((a6 & 0xFF00) != 0) {
+            int colorIndex = (a6 & 0xFF) - 1;
+            v27 = (a6 & ~0xFFFF) | colorTable[GNW_wcolor[colorIndex]];
+        } else {
+            v27 = a6;
+        }
+
+        text_to_buf(buf, str, v7, w->width, v27);
+    }
 
     if (a6 & 0x01000000) {
         // TODO: Check.
@@ -642,6 +759,21 @@ void win_fill(int win, int x, int y, int width, int height, int a6)
     if (a6 < 256) {
         buf_fill(w->buffer + w->width * y + x, width, height, w->width, a6);
     }
+}
+
+void win_fill_32(int win, int x, int y, int width, int height, int color)
+{
+    Window* w = GNW_find(win);
+
+    if (!GNW_win_init_flag) {
+        return;
+    }
+
+    if (w == NULL) {
+        return;
+    }
+
+    buf_fill_32(w->buffer + (w->width * y + x) * 4, width, height, w->width, color);
 }
 
 // 0x4D6DAC
@@ -869,16 +1001,29 @@ void GNW_win_refresh(Window* w, Rect* rect, unsigned char* a3)
                                     scr_size.lrx - scr_size.ulx + 1);
                             }
                         } else {
-                            scr_blit(
-                                w->buffer + v20->rect.ulx - w->rect.ulx + (v20->rect.uly - w->rect.uly) * w->width,
-                                w->width,
-                                v20->rect.lry - v20->rect.lry + 1,
-                                0,
-                                0,
-                                v20->rect.lrx - v20->rect.ulx + 1,
-                                v20->rect.lry - v20->rect.uly + 1,
-                                v20->rect.ulx,
-                                v20->rect.uly);
+                            if (w->flags & WINDOW_FLAG_32BIT) {
+                                GNW95_ShowRect32(
+                                    w->buffer + (v20->rect.ulx - w->rect.ulx) * 4 + (v20->rect.uly - w->rect.uly) * w->width * 4,
+                                    w->width,
+                                    v20->rect.lry - v20->rect.uly + 1,
+                                    0,
+                                    0,
+                                    v20->rect.lrx - v20->rect.ulx + 1,
+                                    v20->rect.lry - v20->rect.uly + 1,
+                                    v20->rect.ulx,
+                                    v20->rect.uly);
+                            } else {
+                                scr_blit(
+                                    w->buffer + (v20->rect.ulx - w->rect.ulx) + (v20->rect.uly - w->rect.uly) * w->width,
+                                    w->width,
+                                    v20->rect.lry - v20->rect.uly + 1,
+                                    0,
+                                    0,
+                                    v20->rect.lrx - v20->rect.ulx + 1,
+                                    v20->rect.lry - v20->rect.uly + 1,
+                                    v20->rect.ulx,
+                                    v20->rect.uly);
+                            }
                         }
                     }
 
@@ -889,31 +1034,37 @@ void GNW_win_refresh(Window* w, Rect* rect, unsigned char* a3)
                 while (v16 != NULL) {
                     int width = v16->rect.lrx - v16->rect.ulx + 1;
                     int height = v16->rect.lry - v16->rect.uly + 1;
-                    unsigned char* buf = (unsigned char*)mem_malloc(width * height);
-                    if (buf != NULL) {
-                        buf_fill(buf, width, height, width, bk_color);
-                        if (dest_pitch != 0) {
-                            buf_to_buf(
-                                buf,
-                                width,
-                                height,
-                                width,
-                                a3 + dest_pitch * (v16->rect.uly - rect->uly) + v16->rect.ulx - rect->ulx,
-                                dest_pitch);
+                    if (dest_pitch != 0) {
+                        // NOTE: Unhandled in 32-bit conversion.
+                    } else {
+                        if (buffering) {
+                            unsigned char* globalPal = getColorPalette();
+                            int palIndex = bk_color & 0xFF;
+                            unsigned int fgColor = (0xFF << 24) | 
+                                                   ((globalPal[palIndex * 3 + 2] << 2) << 16) |
+                                                   ((globalPal[palIndex * 3 + 1] << 2) << 8) |
+                                                   (globalPal[palIndex * 3] << 2);
+
+                            buf_fill_32(screen_buffer + (v16->rect.uly * (scr_size.lrx - scr_size.ulx + 1) + v16->rect.ulx) * 4,
+                                width, height, scr_size.lrx - scr_size.ulx + 1, fgColor);
                         } else {
-                            if (buffering) {
-                                buf_to_buf(buf,
-                                    width,
-                                    height,
-                                    width,
-                                    screen_buffer + v16->rect.uly * (scr_size.lrx - scr_size.ulx + 1) + v16->rect.ulx,
-                                    scr_size.lrx - scr_size.ulx + 1);
-                            } else {
-                                scr_blit(buf, width, height, 0, 0, width, height, v16->rect.ulx, v16->rect.uly);
+                            unsigned int* buf32 = (unsigned int*)mem_malloc(width * height * 4);
+                            if (buf32 != NULL) {
+                                unsigned char* globalPal = getColorPalette();
+                                int palIndex = bk_color & 0xFF;
+                                unsigned int fgColor = (0xFF << 24) | 
+                                                       ((globalPal[palIndex * 3 + 2] << 2) << 16) |
+                                                       ((globalPal[palIndex * 3 + 1] << 2) << 8) |
+                                                       (globalPal[palIndex * 3] << 2);
+
+                                for (int i = 0; i < width * height; i++) {
+                                    buf32[i] = fgColor;
+                                }
+
+                                GNW95_ShowRect32((unsigned char*)buf32, width, height, 0, 0, width, height, v16->rect.ulx, v16->rect.uly);
+                                mem_free(buf32);
                             }
                         }
-
-                        mem_free(buf);
                     }
                     v16 = v16->next;
                 }
@@ -924,8 +1075,8 @@ void GNW_win_refresh(Window* w, Rect* rect, unsigned char* a3)
                 v24 = v23->next;
 
                 if (buffering && !a3) {
-                    scr_blit(
-                        screen_buffer + v23->rect.ulx + (scr_size.lrx - scr_size.ulx + 1) * v23->rect.uly,
+                    GNW95_ShowRect32(
+                        screen_buffer + v23->rect.ulx * 4 + (scr_size.lrx - scr_size.ulx + 1) * v23->rect.uly * 4,
                         scr_size.lrx - scr_size.ulx + 1,
                         v23->rect.lry - v23->rect.uly + 1,
                         0,

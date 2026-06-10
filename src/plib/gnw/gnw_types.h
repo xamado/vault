@@ -81,6 +81,8 @@ static_assert(sizeof(Window) == 68, "wrong size");
 typedef struct Button {
     int id;
     int flags;
+    int srcWidth;
+    int srcHeight;
     Rect rect;
     int mouseEnterEventCode;
     int mouseExitEventCode;
@@ -108,7 +110,7 @@ typedef struct Button {
     Button* prev;
     Button* next;
 } Button;
-static_assert(sizeof(Button) == 124, "wrong size");
+static_assert(sizeof(Button) == 132, "wrong size");
 
 typedef struct RadioGroup {
     int field_0;

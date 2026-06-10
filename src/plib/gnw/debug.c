@@ -139,11 +139,10 @@ int debug_printf(const char* format, ...)
 
         rc = debug_func(string);
     } else {
-#ifdef _DEBUG
-        char string[260];
+        char string[1024];
         vsprintf(string, format, args);
-        fputs(string, stderr);
-#endif
+        fputs(string, stdout);
+        fflush(stdout);
         rc = -1;
     }
 

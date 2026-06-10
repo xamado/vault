@@ -1,6 +1,7 @@
 #include "plib/gnw/input.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <SDL2/SDL.h>
 
 #include "plib/color/color.h"
@@ -1010,7 +1011,7 @@ void GNW95_process_message()
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_QUIT) {
-            win_exit();
+            exit(0);
         } else if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) {
             if (GNW95_isActive && !kb_is_disabled()) {
                 unsigned char dik = sdl_to_dik(e.key.keysym.scancode);
