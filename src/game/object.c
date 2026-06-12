@@ -539,7 +539,7 @@ static int obj_load_func(File* stream)
                         return -1;
                     }
 
-                    if (obj_load_obj(stream, &(inventoryItem->item), elevation, objectListNode->obj) == -1) {
+                    if (obj_load_obj(stream, &(inventoryItem->item), elevation, objectListNode->obj) != 0) {
                         return -1;
                     }
                 }
@@ -1440,11 +1440,14 @@ int obj_move_to_tile(Object* obj, int tile, int elevation, Rect* rect)
         if (roofX != obj_last_roof_x || roofY != obj_last_roof_y || elevation != obj_last_elev) {
             int currentSquare = square[elevation]->field_0[roofX + 100 * roofY];
             int currentSquareFid = art_id(OBJ_TYPE_TILE, (currentSquare >> 16) & 0xFFF, 0, 0, 0);
-            int previousSquare = square[elevation]->field_0[obj_last_roof_x + 100 * obj_last_roof_y];
+            int previousSquare = 0;
+            if (obj_last_roof_x != -1) {
+                previousSquare = square[elevation]->field_0[obj_last_roof_x + 100 * obj_last_roof_y];
+            }
             bool isEmpty = art_id(OBJ_TYPE_TILE, 1, 0, 0, 0) == currentSquareFid;
 
-            if (isEmpty != obj_last_is_empty || (((currentSquare >> 16) & 0xF000) >> 12) != (((previousSquare >> 16) & 0xF000) >> 12)) {
-                if (!obj_last_is_empty) {
+            if (isEmpty != obj_last_is_empty || (obj_last_roof_x == -1) || (((currentSquare >> 16) & 0xF000) >> 12) != (((previousSquare >> 16) & 0xF000) >> 12)) {
+                if (!obj_last_is_empty && obj_last_roof_x != -1) {
                     tile_fill_roof(obj_last_roof_x, obj_last_roof_y, elevation, 1);
                 }
 
@@ -1490,6 +1493,10 @@ int obj_move_to_tile(Object* obj, int tile, int elevation, Rect* rect)
 // 0x48A9A0
 int obj_reset_roof()
 {
+    if (obj_last_roof_x == -1) {
+        return 0;
+    }
+    
     int fid = art_id(OBJ_TYPE_TILE, (square[obj_dude->elevation]->field_0[obj_last_roof_x + 100 * obj_last_roof_y] >> 16) & 0xFFF, 0, 0, 0);
     if (fid != art_id(OBJ_TYPE_TILE, 1, 0, 0, 0)) {
         tile_fill_roof(obj_last_roof_x, obj_last_roof_y, obj_dude->elevation, 1);
@@ -3710,6 +3717,10 @@ static int obj_create_object(Object** objectPtr)
     return 0;
 }
 
+// This is an ugly fucking hack... handles should probably be handled at the object_ namespace, 
+// to avoid this intrusion
+extern void script_object_handle_remove(Object* obj);
+
 // NOTE: Inlined.
 //
 // 0x48D7F8
@@ -3723,6 +3734,7 @@ static void obj_destroy_object(Object** objectPtr)
         return;
     }
 
+    script_object_handle_remove(*objectPtr);
     mem_free(*objectPtr);
 
     *objectPtr = NULL;

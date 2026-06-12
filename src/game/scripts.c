@@ -2273,30 +2273,28 @@ int scr_remove_all()
     for (int scrType = 0; scrType < SCRIPT_TYPE_COUNT; scrType++) {
         ScriptList* scriptList = &(scriptlists[scrType]);
 
-        // TODO: Super odd way to remove scripts. The problem is that [scrRemove]
-        // does relocate scripts between extents, so current extent may become
-        // empty. In addition there is a 0x10 flag on the script that is not
-        // removed. Find a way to refactor this.
-        ScriptListExtent* scriptListExtent = scriptList->head;
-        while (scriptListExtent != NULL) {
-            ScriptListExtent* next = NULL;
-            for (int scriptIndex = 0; scriptIndex < scriptListExtent->length;) {
-                Script* script = &(scriptListExtent->scripts[scriptIndex]);
+        // Refactored to safely remove scripts without use-after-free or leaks.
+        // scr_remove can relocate tail scripts or free the tail extent. 
+        // Restarting from head ensures we never access a freed extent.
+        bool removed_any;
+        do {
+            removed_any = false;
+            ScriptListExtent* scriptListExtent = scriptList->head;
+            while (scriptListExtent != NULL && !removed_any) {
+                for (int scriptIndex = 0; scriptIndex < scriptListExtent->length; scriptIndex++) {
+                    Script* script = &(scriptListExtent->scripts[scriptIndex]);
 
-                if ((script->flags & SCRIPT_FLAG_0x10) != 0) {
-                    scriptIndex++;
-                } else {
-                    if (scriptIndex != 0 || scriptListExtent->length != 1) {
+                    if ((script->flags & SCRIPT_FLAG_0x10) == 0) {
                         scr_remove(script->sid);
-                    } else {
-                        next = scriptListExtent->next;
-                        scr_remove(script->sid);
+                        removed_any = true;
+                        break;
                     }
                 }
+                if (!removed_any) {
+                    scriptListExtent = scriptListExtent->next;
+                }
             }
-
-            scriptListExtent = next;
-        }
+        } while (removed_any);
     }
 
     scr_find_first_idx = 0;

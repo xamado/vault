@@ -216,6 +216,11 @@ int proto_list_str(int pid, char* proto_path)
         *pch = '\0';
     }
 
+    pch = strchr(string, '\r');
+    if (pch != NULL) {
+        *pch = '\0';
+    }
+
     strcpy(proto_path, string);
 
     return 0;
@@ -415,8 +420,11 @@ int proto_read_protoUpdateData(Object* obj, File* stream)
     Inventory* inventory = &(obj->data.inventory);
     if (db_freadInt(stream, &(inventory->length)) == -1) return -1;
     if (db_freadInt(stream, &(inventory->capacity)) == -1) return -1;
-    // TODO: See below.
-    if (db_freadInt(stream, (int*)&(inventory->items)) == -1) return -1;
+
+    // XA: This reads back the dummy "4 byte pointer" that the legacy code seemed to write
+    int dummy_items_ptr;
+    if (db_freadInt(stream, &dummy_items_ptr) == -1) return -1;
+    inventory->items = NULL;
 
     if (PID_TYPE(obj->pid) == OBJ_TYPE_CRITTER) {
         if (db_freadInt(stream, &(obj->data.critter.field_0)) == -1) return -1;
@@ -511,9 +519,9 @@ int proto_write_protoUpdateData(Object* obj, File* stream)
     ObjectData* data = &(obj->data);
     if (db_fwriteInt(stream, data->inventory.length) == -1) return -1;
     if (db_fwriteInt(stream, data->inventory.capacity) == -1) return -1;
-    // TODO: Why do we need to write address of pointer? That probably means
-    // this field is shared with something else.
-    if (db_fwriteInt(stream, (intptr_t)data->inventory.items) == -1) return -1;
+    // XA: Original code seemed to write data->inventory.items ptr into disk... not sure why
+    // replacing to a safe number.
+    if (db_fwriteInt(stream, 0) == -1) return -1;
 
     if (PID_TYPE(obj->pid) == OBJ_TYPE_CRITTER) {
         if (db_fwriteInt(stream, data->flags) == -1) return -1;
@@ -1657,7 +1665,7 @@ int proto_load_pid(int pid, Proto** protoPtr)
 
     File* stream = db_fopen(path, "rb");
     if (stream == NULL) {
-        debug_printf("\nError: Can't fopen proto!\n");
+        debug_printf("\nError: Can't fopen proto! path=%s\n", path);
         *protoPtr = NULL;
         return -1;
     }
