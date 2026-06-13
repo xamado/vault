@@ -97,7 +97,7 @@ int art_init()
 
     int cacheSize;
     if (!config_get_value(&game_config, GAME_CONFIG_SYSTEM_KEY, GAME_CONFIG_ART_CACHE_SIZE_KEY, &cacheSize)) {
-        cacheSize = 8;
+        cacheSize = 32;
     }
 
     if (!cache_init(&art_cache, art_data_size, art_data_load, art_data_free, cacheSize << 20)) {
@@ -970,7 +970,10 @@ int art_data_size(int fid, int* sizePtr)
         }
 
         if (loaded) {
-            *sizePtr = fileSize;
+            // FRM files on disk use 8-bit indexed pixels. At load time we
+            // convert all pixel data to 32-bit RGBA (see load_frame_into),
+            // so the in-memory size is approximately 4x the on-disk size.
+            *sizePtr = fileSize * 4;
             result = 0;
         }
     }

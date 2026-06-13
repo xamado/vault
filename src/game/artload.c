@@ -1,6 +1,9 @@
 #include "game/artload.h"
 
 #include "plib/gnw/memory.h"
+#include "plib/color/color.h"
+#include <string.h>
+#include <stdint.h>
 
 static int art_readSubFrameData(unsigned char* data, File* stream, int count);
 static int art_readFrameData(Art* art, File* stream);
@@ -88,7 +91,6 @@ int load_frame(const char* path, Art** artPtr)
     return 0;
 }
 
-// 0x419FC0
 int load_frame_into(const char* path, unsigned char* data)
 {
     File* stream = db_fopen(path, "rb");
@@ -96,23 +98,112 @@ int load_frame_into(const char* path, unsigned char* data)
         return -2;
     }
 
-    Art* art = (Art*)data;
-    if (art_readFrameData(art, stream) != 0) {
+    int version;
+    if (db_freadInt(stream, &version) == -1) {
         db_fclose(stream);
         return -3;
     }
+    db_fseek(stream, 0, SEEK_SET);
 
-    for (int index = 0; index < ROTATION_COUNT; index++) {
-        if (index == 0 || art->dataOffsets[index - 1] != art->dataOffsets[index]) {
-            if (art_readSubFrameData(data + sizeof(Art) + art->dataOffsets[index], stream, art->frameCount) != 0) {
-                db_fclose(stream);
-                return -5;
+    if (version == 5) {
+        Art* art = (Art*)data;
+        if (art_readFrameData(art, stream) != 0) {
+            db_fclose(stream);
+            return -3;
+        }
+
+        for (int index = 0; index < ROTATION_COUNT; index++) {
+            if (index == 0 || art->dataOffsets[index - 1] != art->dataOffsets[index]) {
+                if (art_readSubFrameData(data + sizeof(Art) + art->dataOffsets[index], stream, art->frameCount) != 0) {
+                    db_fclose(stream);
+                    return -5;
+                }
             }
         }
+
+        db_fclose(stream);
+        return 0;
+    } else if (version == 4) {
+        int fileSize;
+        db_dir_entry(path, &fileSize);
+        unsigned char* tempBuf = mem_malloc(fileSize);
+        if (!tempBuf) {
+            db_fclose(stream);
+            return -1;
+        }
+
+        Art* tempArt = (Art*)tempBuf;
+        if (art_readFrameData(tempArt, stream) != 0) {
+            mem_free(tempBuf);
+            db_fclose(stream);
+            return -3;
+        }
+
+        for (int index = 0; index < ROTATION_COUNT; index++) {
+            if (index == 0 || tempArt->dataOffsets[index - 1] != tempArt->dataOffsets[index]) {
+                if (art_readSubFrameData(tempBuf + sizeof(Art) + tempArt->dataOffsets[index], stream, tempArt->frameCount) != 0) {
+                    mem_free(tempBuf);
+                    db_fclose(stream);
+                    return -5;
+                }
+            }
+        }
+        db_fclose(stream);
+
+        Art* outArt = (Art*)data;
+        memcpy(outArt, tempArt, sizeof(Art));
+        outArt->version = 5;
+
+        int current_out_offset = 0;
+        int in_offsets[ROTATION_COUNT];
+        memcpy(in_offsets, tempArt->dataOffsets, sizeof(in_offsets));
+
+        for (int index = 0; index < ROTATION_COUNT; index++) {
+            if (index == 0 || in_offsets[index - 1] != in_offsets[index]) {
+                outArt->dataOffsets[index] = current_out_offset;
+
+                unsigned char* in_ptr = tempBuf + sizeof(Art) + in_offsets[index];
+                unsigned char* out_ptr = data + sizeof(Art) + current_out_offset;
+
+                for (int f = 0; f < tempArt->frameCount; f++) {
+                    ArtFrame* in_frame = (ArtFrame*)in_ptr;
+                    ArtFrame* out_frame = (ArtFrame*)out_ptr;
+
+                    *out_frame = *in_frame;
+                    int num_pixels = in_frame->width * in_frame->height;
+                    out_frame->size = num_pixels * 4;
+
+                    uint32_t* out_pixels = (uint32_t*)(out_ptr + sizeof(ArtFrame));
+                    unsigned char* in_pixels = in_ptr + sizeof(ArtFrame);
+
+                    for (int p = 0; p < num_pixels; p++) {
+                        unsigned char c = in_pixels[p];
+                        if (c == 0) {
+                            out_pixels[p] = 0;
+                        } else {
+                            unsigned char r = cmap[c * 3] << 2;
+                            unsigned char g = cmap[c * 3 + 1] << 2;
+                            unsigned char b = cmap[c * 3 + 2] << 2;
+                            out_pixels[p] = (0xFF << 24) | (b << 16) | (g << 8) | r;
+                        }
+                    }
+
+                    in_ptr += sizeof(ArtFrame) + in_frame->size;
+                    out_ptr += sizeof(ArtFrame) + out_frame->size;
+                }
+                current_out_offset = out_ptr - (data + sizeof(Art));
+            } else {
+                outArt->dataOffsets[index] = outArt->dataOffsets[index - 1];
+            }
+        }
+
+        outArt->totalSize = current_out_offset;
+        mem_free(tempBuf);
+        return 0;
     }
 
     db_fclose(stream);
-    return 0;
+    return -3;
 }
 
 // NOTE: Unused.
