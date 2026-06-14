@@ -47,8 +47,6 @@ add_executable(${EXECUTABLE_NAME}
     "src/game/elevator.h"
     "src/game/endgame.c"
     "src/game/endgame.h"
-    "src/game/ereg.c"
-    "src/game/ereg.h"
     "src/game/fontmgr.c"
     "src/game/fontmgr.h"
     "src/game/game_vars.h"

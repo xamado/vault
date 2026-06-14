@@ -21,7 +21,6 @@
 #include "plib/gnw/debug.h"
 #include "game/display.h"
 #include "plib/gnw/grbuf.h"
-#include "game/ereg.h"
 #include "game/endgame.h"
 #include "game/fontmgr.h"
 #include "game/gconfig.h"
@@ -145,7 +144,6 @@ int game_init(const char* windowTitle, int font, int a4, int argc, char** argv)
         return -1;
     }
 
-    annoy_user();
     win_set_minimized_title(windowTitle);
 
     int screen_width = 640;
