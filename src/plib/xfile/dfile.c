@@ -9,12 +9,6 @@
 
 #include <fpattern.h>
 
-
-static_assert(sizeof(DBase) == 20, "wrong size");
-static_assert(sizeof(DBaseEntry) == 20, "wrong size");
-static_assert(sizeof(DFile) == 44, "wrong size");
-static_assert(sizeof(DFileFindData) == 524, "wrong size");
-
 static int dinfo_bsearch_compare(const void* a1, const void* a2);
 static int dinfo_qsort_compare(const void* a1, const void* a2);
 static DFile* dfile_fopen_helper(DBase* dbase, const char* filename, const char* mode, DFile* a4);

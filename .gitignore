@@ -392,3 +392,5 @@ FodyWeavers.xsd
 /out
 /build
 /f2
+/cmake-build-debug
+/cmake-build-release

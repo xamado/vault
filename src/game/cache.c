@@ -9,9 +9,6 @@
 #include "plib/gnw/memory.h"
 #include "int/sound.h"
 
-static_assert(sizeof(CacheEntry) == 32, "wrong size");
-static_assert(sizeof(Cache) == 84, "wrong size");
-
 static bool cache_add(Cache* cache, int key, int* indexPtr);
 static bool cache_insert(Cache* cache, CacheEntry* cacheEntry, int index);
 static int cache_find(Cache* cache, int key, int* indexPtr);

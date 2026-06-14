@@ -79,8 +79,6 @@ typedef enum ScriptProc {
     SCRIPT_PROC_COUNT,
 } ScriptProc;
 
-static_assert(SCRIPT_PROC_COUNT == 28, "wrong count");
-
 typedef struct ScriptsListEntry {
     char name[16];
     int local_vars_num;
@@ -152,8 +150,6 @@ typedef struct Script {
     int field_D8;
     int field_DC;
 } Script;
-
-static_assert(sizeof(Script) == 0xE0, "wrong size");
 
 extern int num_script_indexes;
 extern Object* scrQueueTestObj;

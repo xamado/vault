@@ -110,7 +110,7 @@ int main_menu_create()
     const Size screen_size = screen_get_size();
     const int ui_scale = ui_get_scale();
 
-    main_window = win_add_32(mainMenuWindowX, mainMenuWindowY, screen_size.width, screen_size.height, 0, WINDOW_HIDDEN | WINDOW_FLAG_ALWAYS_ON_TOP);
+    main_window = win_add(mainMenuWindowX, mainMenuWindowY, screen_size.width, screen_size.height, 0, WINDOW_HIDDEN | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (main_window == -1) {
         // NOTE: Uninline.
         return main_menu_fatal_error();
@@ -137,7 +137,7 @@ int main_menu_create()
     int panel_x = 40 * ui_scale;
     int panel_y = 200 * ui_scale;
     int panel_width = (int) (222 * ui_scale);
-    int panel_height = (int) (281 * ui_scale);
+    int panel_height = (int) (280 * ui_scale);
 
     CacheEntry* panel_key = nullptr;
     int panelFid = art_id(OBJ_TYPE_INTERFACE, 471, 0, 0, 0);

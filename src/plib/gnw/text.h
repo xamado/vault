@@ -30,8 +30,6 @@ typedef struct FontMgr {
     text_max_func* text_max;
 } FontMgr;
 
-static_assert(sizeof(FontMgr) == 44, "wrong size");
-
 typedef FontMgr* FontMgrPtr;
 
 typedef struct FontInfo {

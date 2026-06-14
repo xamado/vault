@@ -52,6 +52,7 @@ void square_render_roof(Rect* rect, int elevation);
 void tile_fill_roof(int x, int y, int elevation, int a4);
 void square_render_floor(Rect* rect, int elevation);
 bool square_roof_intersect(int x, int y, int elevation);
+#ifdef ENABLE_TILE_GRID_DEBUG
 void grid_toggle();
 void grid_on();
 void grid_off();
@@ -59,6 +60,7 @@ int get_grid_flag();
 void grid_render(Rect* rect, int elevation);
 void grid_draw(int tile, int elevation);
 void draw_grid(int tile, int elevation, Rect* rect);
+#endif
 void floor_draw(int fid, int x, int y, Rect* rect);
 int tile_make_line(int currentCenterTile, int newCenterTile, int* tiles, int tilesCapacity);
 int tile_scroll_to(int tile, int flags);

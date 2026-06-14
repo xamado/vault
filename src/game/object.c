@@ -1,6 +1,7 @@
 #include "game/object.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "game/anim.h"
@@ -26,6 +27,21 @@
 #include "game/tile.h"
 #include "game/worldmap.h"
 #include "plib/gnw/svga.h"
+
+// 32-bit RGBA translucency tint colors.
+// Tint colors derived from original RGB555 colorTable blend indices:
+//   red   (31744/0x7C00) -> pure red
+//   wall  (25439/0x635F) -> blue-ish
+//   glass (10239/0x27FF) -> cyan-green
+//   steam (32767/0x7FFF) -> white
+//   energy(30689/0x77E1) -> yellow-green
+//
+// Tint color format: 0xAABBGGRR
+#define TINT_RED    0xFF0000FFu  // pure red
+#define TINT_WALL   0xFFFF9E63u  // blue/steel (B:255 G:158 R:99)
+#define TINT_GLASS  0xFFFFFF84u  // cyan-green (B:255 G:255 R:132)
+#define TINT_STEAM  0xFFFFFFFFu  // white (no tint, just alpha)
+#define TINT_ENERGY 0xFF08FFEFu  // yellow-green (B:8 G:255 R:239)
 
 static int obj_read_obj(Object* obj, File* stream);
 static int obj_load_func(File* stream);
@@ -773,7 +789,11 @@ void obj_render_pre_roof(Rect* rect, int elevation)
         if (updateAreaHexHeight > offsetDivTable[offsetIndex] && updateAreaHexWidth > offsetModTable[offsetIndex]) {
             int light;
 
-            ObjectListNode* objectListNode = objectTable[topLeftTile + offsets[offsetIndex]];
+            int tileIndex = topLeftTile + offsets[offsetIndex];
+            if (tileIndex < 0 || tileIndex >= HEX_GRID_SIZE) {
+                continue;
+            }
+            ObjectListNode* objectListNode = objectTable[tileIndex];
             if (objectListNode != NULL) {
                 // NOTE: calls light_get_tile two times, probably result of min/max macro
                 int tileLight = light_get_tile(elevation, objectListNode->obj->tile);
@@ -2720,122 +2740,203 @@ void obj_delete_list(Object** objectList)
 }
 
 // 0x48BDD8
+// Original: processes ALL pixels (including transparent), blends src with dest via gray+blend tables.
+// 32-bit: alpha blend every pixel at 50% with destination. No transparency skip, no lighting.
 void translucent_trans_buf_to_buf(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsigned char* dest, int destX, int destY, int destPitch, unsigned char* a9, unsigned char* a10)
 {
-    dest += destPitch * destY + destX;
+    uint32_t* sp = (uint32_t*)src;
+    uint32_t* dp = (uint32_t*)dest + destPitch * destY + destX;
     int srcStep = srcPitch - srcWidth;
     int destStep = destPitch - srcWidth;
 
     for (int y = 0; y < srcHeight; y++) {
         for (int x = 0; x < srcWidth; x++) {
-            // TODO: Probably wrong.
-            unsigned char v1 = a10[*src];
-            unsigned char* v2 = a9 + (v1 << 8);
-            unsigned char v3 = *dest;
-
-            *dest = v2[v3];
-
-            src++;
-            dest++;
+            uint32_t pixel = *sp;
+            uint32_t dpx = *dp;
+            unsigned int sr = pixel & 0xFF;
+            unsigned int sg = (pixel >> 8) & 0xFF;
+            unsigned int sb = (pixel >> 16) & 0xFF;
+            unsigned int dr = dpx & 0xFF;
+            unsigned int dg = (dpx >> 8) & 0xFF;
+            unsigned int db = (dpx >> 16) & 0xFF;
+            unsigned int r = (sr + dr) >> 1;
+            unsigned int g = (sg + dg) >> 1;
+            unsigned int b = (sb + db) >> 1;
+            *dp = (0xFFu << 24) | (b << 16) | (g << 8) | r;
+            sp++;
+            dp++;
         }
-
-        src += srcStep;
-        dest += destStep;
+        sp += srcStep;
+        dp += destStep;
     }
 }
 
 // 0x48BEFC
+// Original: skips transparent pixels, applies intensityColorTable darkening.
+// 32-bit: simple darken by scaling color channels. lightModifier 0=black, 128=full brightness.
 void dark_trans_buf_to_buf(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsigned char* dest, int destX, int destY, int destPitch, int light)
 {
-    unsigned char* sp = src;
-    unsigned char* dp = dest + destPitch * destY + destX;
+    uint32_t* sp = (uint32_t*)src;
+    uint32_t* dp = (uint32_t*)dest + destPitch * destY + destX;
 
     int srcStep = srcPitch - srcWidth;
     int destStep = destPitch - srcWidth;
-    // TODO: Name might be confusing.
+    // light is fixed-point 16.16 where 0x10000 = full brightness.
+    // >> 9 gives 0..128 range. Clamp to 128 max.
     int lightModifier = light >> 9;
+    if (lightModifier > 128) lightModifier = 128;
 
     for (int y = 0; y < srcHeight; y++) {
         for (int x = 0; x < srcWidth; x++) {
-            unsigned char b = *sp;
-            if (b != 0) {
-                if (b < 0xE5) {
-                    b = intensityColorTable[b][lightModifier];
-                }
-
-                *dp = b;
+            uint32_t pixel = *sp;
+            if (pixel != 0) {
+                unsigned int r = pixel & 0xFF;
+                unsigned int g = (pixel >> 8) & 0xFF;
+                unsigned int b = (pixel >> 16) & 0xFF;
+                r = (r * lightModifier) >> 7;
+                g = (g * lightModifier) >> 7;
+                b = (b * lightModifier) >> 7;
+                if (r > 255) r = 255;
+                if (g > 255) g = 255;
+                if (b > 255) b = 255;
+                *dp = (0xFFu << 24) | (b << 16) | (g << 8) | r;
             }
-
             sp++;
             dp++;
         }
-
         sp += srcStep;
         dp += destStep;
     }
 }
 
 // 0x48BF88
-void dark_translucent_trans_buf_to_buf(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsigned char* dest, int destX, int destY, int destPitch, int light, unsigned char* a10, unsigned char* a11)
+// Original: skips transparent, converts source to grayscale (gray table), uses that
+// luminance to index into blend table (tintColor * luminance blended with dest),
+// THEN applies intensityColorTable darkening on the blended result.
+// 32-bit: grayscale source → scale tint by luminance → blend with dest → darken.
+void dark_translucent_trans_buf_to_buf(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsigned char* dest, int destX, int destY, int destPitch, int light, int alpha, uint32_t tint_color)
 {
+    uint32_t* sp = (uint32_t*)src;
+    uint32_t* dp = (uint32_t*)dest + destPitch * destY + destX;
     int srcStep = srcPitch - srcWidth;
     int destStep = destPitch - srcWidth;
-    int lightModifier = light >> 9;
 
-    dest += destPitch * destY + destX;
+    // light is fixed-point 16.16 where 0x10000 = full brightness.
+    // >> 9 gives 0..128 range. Clamp to 128 max.
+    int lightModifier = light >> 9;
+    if (lightModifier > 128) lightModifier = 128;
+
+    // Extract tint channels (0-255 each)
+    unsigned int tint_r = tint_color & 0xFF;
+    unsigned int tint_g = (tint_color >> 8) & 0xFF;
+    unsigned int tint_b = (tint_color >> 16) & 0xFF;
+
+    unsigned int inv_alpha = 255 - alpha;
 
     for (int y = 0; y < srcHeight; y++) {
         for (int x = 0; x < srcWidth; x++) {
-            unsigned char srcByte = *src;
-            if (srcByte != 0) {
-                unsigned char destByte = *dest;
-                unsigned int index = a11[srcByte] << 8;
-                index = a10[index + destByte];
-                *dest = intensityColorTable[index][lightModifier];
+            uint32_t pixel = *sp;
+            if (pixel != 0) {
+                // Step 1: Convert source to grayscale luminance (matching gray table)
+                unsigned int sr = pixel & 0xFF;
+                unsigned int sg = (pixel >> 8) & 0xFF;
+                unsigned int sb = (pixel >> 16) & 0xFF;
+                unsigned int lum = (sr * 77 + sg * 150 + sb * 29) >> 8;
+
+                // Step 2: Scale tint color by source luminance
+                // This matches the original: tintColor * grayscale(src) / 255
+                unsigned int tr = (tint_r * lum) / 255;
+                unsigned int tg = (tint_g * lum) / 255;
+                unsigned int tb = (tint_b * lum) / 255;
+
+                // Step 3: Alpha blend tinted source over destination
+                uint32_t dpx = *dp;
+                unsigned int dr = dpx & 0xFF;
+                unsigned int dg = (dpx >> 8) & 0xFF;
+                unsigned int db = (dpx >> 16) & 0xFF;
+                unsigned int r = (tr * alpha + dr * inv_alpha) / 255;
+                unsigned int g = (tg * alpha + dg * inv_alpha) / 255;
+                unsigned int b = (tb * alpha + db * inv_alpha) / 255;
+
+                // Step 4: Apply lighting AFTER blend (matching original order)
+                r = (r * lightModifier) >> 7;
+                g = (g * lightModifier) >> 7;
+                b = (b * lightModifier) >> 7;
+                if (r > 255) r = 255;
+                if (g > 255) g = 255;
+                if (b > 255) b = 255;
+
+                *dp = (0xFFu << 24) | (b << 16) | (g << 8) | r;
             }
-
-            src++;
-            dest++;
+            sp++;
+            dp++;
         }
-
-        src += srcStep;
-        dest += destStep;
+        sp += srcStep;
+        dp += destStep;
     }
 }
 
 // 0x48C03C
 void intensity_mask_buf_to_buf(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsigned char* dest, int destPitch, unsigned char* mask, int maskPitch, int light)
 {
+    // 32-bit: blend src and dest using mask as alpha, with lighting.
+    // mask pixel: 0 = fully opaque src, >0 = blend (mask is alpha for dest).
+    uint32_t* sp = (uint32_t*)src;
+    uint32_t* dp = (uint32_t*)dest;
+    // mask is from the egg FRM which is now 32-bit RGBA
+    uint32_t* mp = (uint32_t*)mask;
     int srcStep = srcPitch - srcWidth;
     int destStep = destPitch - srcWidth;
     int maskStep = maskPitch - srcWidth;
-    light >>= 9;
+    int lightModifier = light >> 9;
+    int factor = (lightModifier <= 127)
+        ? lightModifier * 512
+        : (lightModifier - 128) * 512;
+    int darken = (lightModifier <= 127);
 
     for (int y = 0; y < srcHeight; y++) {
         for (int x = 0; x < srcWidth; x++) {
-            unsigned char b = *src;
-            if (b != 0) {
-                b = intensityColorTable[b][light];
-                unsigned char m = *mask;
-                if (m != 0) {
-                    unsigned char d = *dest;
-                    int q = intensityColorTable[d][128 - m];
-                    m = intensityColorTable[b][m];
-                    b = colorMixAddTable[m][q];
+            uint32_t pixel = *sp;
+            if (pixel != 0) {
+                // Apply lighting
+                unsigned char sr = pixel & 0xFF;
+                unsigned char sg = (pixel >> 8) & 0xFF;
+                unsigned char sb = (pixel >> 16) & 0xFF;
+                if (darken) {
+                    sr = (sr * factor) >> 16;
+                    sg = (sg * factor) >> 16;
+                    sb = (sb * factor) >> 16;
+                } else {
+                    sr = sr + (((255 - sr) * factor) >> 16);
+                    sg = sg + (((255 - sg) * factor) >> 16);
+                    sb = sb + (((255 - sb) * factor) >> 16);
                 }
-                *dest = b;
+                uint32_t mval = *mp;
+                // If mask is 0 (transparent), use full lit src. Otherwise blend.
+                if (mval != 0) {
+                    unsigned char alpha = mval & 0xFF;
+                    uint32_t dpx = *dp;
+                    unsigned char dr = dpx & 0xFF;
+                    unsigned char dg = (dpx >> 8) & 0xFF;
+                    unsigned char db = (dpx >> 16) & 0xFF;
+                    unsigned char r = (sr * (255 - alpha) + dr * alpha) / 255;
+                    unsigned char g = (sg * (255 - alpha) + dg * alpha) / 255;
+                    unsigned char b = (sb * (255 - alpha) + db * alpha) / 255;
+                    *dp = (0xFFu << 24) | (b << 16) | (g << 8) | r;
+                } else {
+                    *dp = (0xFFu << 24) | (sb << 16) | (sg << 8) | sr;
+                }
             }
-
-            src++;
-            dest++;
-            mask++;
+            sp++;
+            dp++;
+            mp++;
         }
-
-        src += srcStep;
-        dest += destStep;
-        mask += maskStep;
+        sp += srcStep;
+        dp += destStep;
+        mp += maskStep;
     }
 }
+
 
 // 0x48C2B4
 int obj_outline_object(Object* obj, int outlineType, Rect* rect)
@@ -2926,7 +3027,7 @@ int obj_intersects_with(Object* object, int x, int y)
             if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
                 unsigned char* data = art_frame_data(art, object->frame, object->rotation);
                 if (data != NULL) {
-                    if (data[width * (y - minY) + x - minX] != 0) {
+                    if (((uint32_t*)data)[width * (y - minY) + x - minX] != 0) {
                         flags |= 0x01;
 
                         if ((object->flags & OBJECT_FLAG_0xFC000) != 0) {
@@ -2988,7 +3089,11 @@ int obj_create_intersect_list(int x, int y, int elevation, int objectType, Objec
     for (int index = 0; index < updateHexArea; index++) {
         int v7 = orderTable[parity][index];
         if (offsetDivTable[v7] < 30 && offsetModTable[v7] < 20) {
-            ObjectListNode* objectListNode = objectTable[offsetTable[parity][v7] + v5];
+            int intersectTileIndex = offsetTable[parity][v7] + v5;
+            if (intersectTileIndex < 0 || intersectTileIndex >= HEX_GRID_SIZE) {
+                continue;
+            }
+            ObjectListNode* objectListNode = objectTable[intersectTileIndex];
             while (objectListNode != NULL) {
                 Object* object = objectListNode->obj;
                 if (object->elevation > elevation) {
@@ -4636,15 +4741,15 @@ static void obj_render_outline(Object* object, Rect* rect)
     int frameHeight = 0;
     art_frame_width_length(art, object->frame, object->rotation, &frameWidth, &frameHeight);
 
-    Rect v49;
-    v49.ulx = 0;
-    v49.uly = 0;
-    v49.lrx = frameWidth - 1;
+    Rect clipRect;
+    clipRect.ulx = 0;
+    clipRect.uly = 0;
+    clipRect.lrx = frameWidth - 1;
 
     // FIXME: I'm not sure why it ignores frameHeight and makes separate call
     // to obtain height.
-    int v8 = art_frame_length(art, object->frame, object->rotation);
-    v49.lry = v8 - 1;
+    int artHeight = art_frame_length(art, object->frame, object->rotation);
+    clipRect.lry = artHeight - 1;
 
     Rect objectRect;
     if (object->tile == -1) {
@@ -4674,198 +4779,197 @@ static void obj_render_outline(Object* object, Rect* rect)
         object->sy = objectRect.uly;
     }
 
-    Rect v32;
-    rectCopy(&v32, rect);
+    Rect expandedRect;
+    rectCopy(&expandedRect, rect);
 
-    v32.ulx--;
-    v32.uly--;
-    v32.lrx++;
-    v32.lry++;
+    expandedRect.ulx--;
+    expandedRect.uly--;
+    expandedRect.lrx++;
+    expandedRect.lry++;
 
-    rect_inside_bound(&v32, &buf_rect, &v32);
+    rect_inside_bound(&expandedRect, &buf_rect, &expandedRect);
 
-    if (rect_inside_bound(&objectRect, &v32, &objectRect) == 0) {
-        v49.ulx += objectRect.ulx - object->sx;
-        v49.uly += objectRect.uly - object->sy;
-        v49.lrx = v49.ulx + (objectRect.lrx - objectRect.ulx);
-        v49.lry = v49.uly + (objectRect.lry - objectRect.uly);
+    if (rect_inside_bound(&objectRect, &expandedRect, &objectRect) == 0) {
+        clipRect.ulx += objectRect.ulx - object->sx;
+        clipRect.uly += objectRect.uly - object->sy;
+        clipRect.lrx = clipRect.ulx + (objectRect.lrx - objectRect.ulx);
+        clipRect.lry = clipRect.uly + (objectRect.lry - objectRect.uly);
 
         unsigned char* src = art_frame_data(art, object->frame, object->rotation);
 
-        unsigned char* dest = back_buf + buf_full * object->sy + object->sx;
+        unsigned char* dest = back_buf + (buf_full * object->sy + object->sx) * 4;
         int destStep = buf_full - frameWidth;
 
         unsigned char color;
-        unsigned char* v47 = NULL;
-        unsigned char* v48 = NULL;
-        int v53 = object->outline & OUTLINE_PALETTED;
+        unsigned char* grayTable = NULL;
+        unsigned char* blendTable = NULL;
+        int paletted = object->outline & OUTLINE_PALETTED;
         int outlineType = object->outline & OUTLINE_TYPE_MASK;
-        int v43;
-        int v44;
+        int cycleLen;
+        int cycleInterval;
 
         switch (outlineType) {
         case OUTLINE_TYPE_HOSTILE:
             color = 243;
-            v53 = 0;
-            v43 = 5;
-            v44 = frameHeight / 5;
+            paletted = 0;
+            cycleLen = 5;
+            cycleInterval = frameHeight / 5;
             break;
         case OUTLINE_TYPE_2:
             color = colorTable[31744];
-            v44 = 0;
-            if (v53 != 0) {
-                v47 = commonGrayTable;
-                v48 = redBlendTable;
+            cycleInterval = 0;
+            if (paletted != 0) {
+                grayTable = commonGrayTable;
+                blendTable = redBlendTable;
             }
             break;
         case OUTLINE_TYPE_4:
             color = colorTable[15855];
-            v44 = 0;
-            if (v53 != 0) {
-                v47 = commonGrayTable;
-                v48 = wallBlendTable;
+            cycleInterval = 0;
+            if (paletted != 0) {
+                grayTable = commonGrayTable;
+                blendTable = wallBlendTable;
             }
             break;
         case OUTLINE_TYPE_FRIENDLY:
-            v43 = 4;
-            v44 = frameHeight / 4;
+            cycleLen = 4;
+            cycleInterval = frameHeight / 4;
             color = 229;
-            v53 = 0;
+            paletted = 0;
             break;
         case OUTLINE_TYPE_ITEM:
-            v44 = 0;
+            cycleInterval = 0;
             color = colorTable[30632];
-            if (v53 != 0) {
-                v47 = commonGrayTable;
-                v48 = redBlendTable;
+            if (paletted != 0) {
+                grayTable = commonGrayTable;
+                blendTable = redBlendTable;
             }
             break;
         case OUTLINE_TYPE_32:
             color = 61;
-            v53 = 0;
-            v43 = 1;
-            v44 = frameHeight;
+            paletted = 0;
+            cycleLen = 1;
+            cycleInterval = frameHeight;
             break;
         default:
             color = colorTable[31775];
-            v53 = 0;
-            v44 = 0;
+            paletted = 0;
+            cycleInterval = 0;
             break;
         }
 
-        unsigned char v54 = color;
-        unsigned char* dest14 = dest;
-        unsigned char* src15 = src;
+        // Use system palette (not cmap) because some outline colors like
+        // fire_fast (indices 243-247) are animated via palette cycling and
+        // only have live values in the system palette.
+        unsigned char* pal = getSystemPalette();
+        uint32_t color32 = (0xFFu << 24)
+            | ((pal[color * 3 + 2] << 2) << 16)
+            | ((pal[color * 3 + 1] << 2) << 8)
+            | (pal[color * 3] << 2);
+
+        uint32_t* dest32 = (uint32_t*)dest;
+        uint32_t* src32 = (uint32_t*)src;
+        int destStepPixels = buf_full - frameWidth;
+
+        // Horizontal edge detection pass
+        unsigned char curIdx = color;
+        uint32_t curColor = color32;
+        uint32_t* destRow = dest32;
+        uint32_t* srcRow = src32;
         for (int y = 0; y < frameHeight; y++) {
             bool cycle = true;
-            if (v44 != 0) {
-                if (y % v44 == 0) {
-                    v54++;
+            if (cycleInterval != 0) {
+                if (y % cycleInterval == 0) {
+                    curIdx++;
+                    curColor = (0xFFu << 24)
+                        | ((pal[curIdx * 3 + 2] << 2) << 16)
+                        | ((pal[curIdx * 3 + 1] << 2) << 8)
+                        | (pal[curIdx * 3] << 2);
                 }
 
-                if (v54 > v43 + color - 1) {
-                    v54 = color;
+                if (curIdx > cycleLen + color - 1) {
+                    curIdx = color;
+                    curColor = color32;
                 }
             }
 
-            int v22 = dest14 - back_buf;
+            int destOfs = (int)(destRow - (uint32_t*)back_buf);
             for (int x = 0; x < frameWidth; x++) {
-                v22 = dest14 - back_buf;
-                if (*src15 != 0 && cycle) {
-                    if (x >= v49.ulx && x <= v49.lrx && y >= v49.uly && y <= v49.lry && v22 > 0 && v22 % buf_full != 0) {
-                        unsigned char v20;
-                        if (v53 != 0) {
-                            v20 = v48[(v47[v54] << 8) + *(dest14 - 1)];
-                        } else {
-                            v20 = v54;
-                        }
-                        *(dest14 - 1) = v20;
+                destOfs = (int)(destRow - (uint32_t*)back_buf);
+                if (*srcRow != 0 && cycle) {
+                    if (x >= clipRect.ulx && x <= clipRect.lrx && y >= clipRect.uly && y <= clipRect.lry && destOfs > 0 && destOfs % buf_full != 0) {
+                        *(destRow - 1) = curColor;
                     }
                     cycle = false;
-                } else if (*src15 == 0 && !cycle) {
-                    if (x >= v49.ulx && x <= v49.lrx && y >= v49.uly && y <= v49.lry) {
-                        int v21;
-                        if (v53 != 0) {
-                            v21 = v48[(v47[v54] << 8) + *dest14];
-                        } else {
-                            v21 = v54;
-                        }
-                        *dest14 = v21 & 0xFF;
+                } else if (*srcRow == 0 && !cycle) {
+                    if (x >= clipRect.ulx && x <= clipRect.lrx && y >= clipRect.uly && y <= clipRect.lry) {
+                        *destRow = curColor;
                     }
                     cycle = true;
                 }
-                dest14++;
-                src15++;
+                destRow++;
+                srcRow++;
             }
 
-            if (*(src15 - 1) != 0) {
-                if (v22 < buf_size) {
+            if (*(srcRow - 1) != 0) {
+                if (destOfs < buf_full * buf_length) {
                     int v23 = frameWidth - 1;
-                    if (v23 >= v49.ulx && v23 <= v49.lrx && y >= v49.uly && y <= v49.lry) {
-                        if (v53 != 0) {
-                            *dest14 = v48[(v47[v54] << 8) + *dest14];
-                        } else {
-                            *dest14 = v54;
-                        }
+                    if (v23 >= clipRect.ulx && v23 <= clipRect.lrx && y >= clipRect.uly && y <= clipRect.lry) {
+                        *destRow = curColor;
                     }
                 }
             }
 
-            dest14 += destStep;
+            destRow += destStepPixels;
         }
 
+        // Vertical edge detection pass
         for (int x = 0; x < frameWidth; x++) {
             bool cycle = true;
-            unsigned char v28 = color;
-            unsigned char* dest27 = dest + x;
-            unsigned char* src27 = src + x;
+            unsigned char curIdx = color;
+            uint32_t curColor = color32;
+            uint32_t* destCol = dest32 + x;
+            uint32_t* srcCol = src32 + x;
             for (int y = 0; y < frameHeight; y++) {
-                if (v44 != 0) {
-                    if (y % v44 == 0) {
-                        v28++;
+                if (cycleInterval != 0) {
+                    if (y % cycleInterval == 0) {
+                        curIdx++;
+                        curColor = (0xFFu << 24)
+                            | ((pal[curIdx * 3 + 2] << 2) << 16)
+                            | ((pal[curIdx * 3 + 1] << 2) << 8)
+                            | (pal[curIdx * 3] << 2);
                     }
 
-                    if (v28 > color + v43 - 1) {
-                        v28 = color;
+                    if (curIdx > color + cycleLen - 1) {
+                        curIdx = color;
+                        curColor = color32;
                     }
                 }
 
-                if (*src27 != 0 && cycle) {
-                    if (x >= v49.ulx && x <= v49.lrx && y >= v49.uly && y <= v49.lry) {
-                        unsigned char* v29 = dest27 - buf_full;
-                        if (v29 >= back_buf) {
-                            if (v53) {
-                                *v29 = v48[(v47[v28] << 8) + *v29];
-                            } else {
-                                *v29 = v28;
-                            }
+                if (*srcCol != 0 && cycle) {
+                    if (x >= clipRect.ulx && x <= clipRect.lrx && y >= clipRect.uly && y <= clipRect.lry) {
+                        uint32_t* above = destCol - buf_full;
+                        if (above >= (uint32_t*)back_buf) {
+                            *above = curColor;
                         }
                     }
                     cycle = false;
-                } else if (*src27 == 0 && !cycle) {
-                    if (x >= v49.ulx && x <= v49.lrx && y >= v49.uly && y <= v49.lry) {
-                        if (v53) {
-                            *dest27 = v48[(v47[v28] << 8) + *dest27];
-                        } else {
-                            *dest27 = v28;
-                        }
+                } else if (*srcCol == 0 && !cycle) {
+                    if (x >= clipRect.ulx && x <= clipRect.lrx && y >= clipRect.uly && y <= clipRect.lry) {
+                        *destCol = curColor;
                     }
                     cycle = true;
                 }
 
-                dest27 += buf_full;
-                src27 += frameWidth;
+                destCol += buf_full;
+                srcCol += frameWidth;
             }
 
-            if (src27[-frameWidth] != 0) {
-                if (dest27 - back_buf < buf_size) {
+            if (srcCol[-frameWidth] != 0) {
+                if ((destCol - (uint32_t*)back_buf) < buf_full * buf_length) {
                     int y = frameHeight - 1;
-                    if (x >= v49.ulx && x <= v49.lrx && y >= v49.uly && y <= v49.lry) {
-                        if (v53) {
-                            *dest27 = v48[(v47[v28] << 8) + *dest27];
-                        } else {
-                            *dest27 = v28;
-                        }
+                    if (x >= clipRect.ulx && x <= clipRect.lrx && y >= clipRect.uly && y <= clipRect.lry) {
+                        *destCol = curColor;
                     }
                 }
             }
@@ -4929,7 +5033,7 @@ static void obj_render_object(Object* object, Rect* rect, int light)
     unsigned char* src2 = src;
     int v50 = objectRect.ulx - object->sx;
     int v49 = objectRect.uly - object->sy;
-    src += frameWidth * v49 + v50;
+    src += (frameWidth * v49 + v50) * 4;
     int objectWidth = objectRect.lrx - objectRect.ulx + 1;
     int objectHeight = objectRect.lry - objectRect.uly + 1;
 
@@ -4938,7 +5042,7 @@ static void obj_render_object(Object* object, Rect* rect, int light)
             objectWidth,
             objectHeight,
             frameWidth,
-            back_buf + buf_full * objectRect.uly + objectRect.ulx,
+            back_buf + (buf_full * objectRect.uly + objectRect.ulx) * 4,
             buf_full);
         art_ptr_unlock(cacheEntry);
         return;
@@ -5036,20 +5140,20 @@ static void obj_render_object(Object* object, Rect* rect, int light)
                     for (int i = 0; i < 4; i++) {
                         Rect* v21 = &(rects[i]);
                         if (v21->ulx <= v21->lrx && v21->uly <= v21->lry) {
-                            unsigned char* sp = src + frameWidth * (v21->uly - objectRect.uly) + (v21->ulx - objectRect.ulx);
+                            unsigned char* sp = src + (frameWidth * (v21->uly - objectRect.uly) + (v21->ulx - objectRect.ulx)) * 4;
                             dark_trans_buf_to_buf(sp, v21->lrx - v21->ulx + 1, v21->lry - v21->uly + 1, frameWidth, back_buf, v21->ulx, v21->uly, buf_full, light);
                         }
                     }
 
                     unsigned char* mask = art_frame_data(egg, 0, 0);
                     intensity_mask_buf_to_buf(
-                        src + frameWidth * (updatedEggRect.uly - objectRect.uly) + (updatedEggRect.ulx - objectRect.ulx),
+                        src + (frameWidth * (updatedEggRect.uly - objectRect.uly) + (updatedEggRect.ulx - objectRect.ulx)) * 4,
                         updatedEggRect.lrx - updatedEggRect.ulx + 1,
                         updatedEggRect.lry - updatedEggRect.uly + 1,
                         frameWidth,
-                        back_buf + buf_full * updatedEggRect.uly + updatedEggRect.ulx,
+                        back_buf + (buf_full * updatedEggRect.uly + updatedEggRect.ulx) * 4,
                         buf_full,
-                        mask + eggWidth * (updatedEggRect.uly - eggRect.uly) + (updatedEggRect.ulx - eggRect.ulx),
+                        mask + (eggWidth * (updatedEggRect.uly - eggRect.uly) + (updatedEggRect.ulx - eggRect.ulx)) * 4,
                         eggWidth,
                         light);
                     art_ptr_unlock(eggHandle);
@@ -5064,19 +5168,19 @@ static void obj_render_object(Object* object, Rect* rect, int light)
 
     switch (object->flags & OBJECT_FLAG_0xFC000) {
     case OBJECT_TRANS_RED:
-        dark_translucent_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, light, redBlendTable, commonGrayTable);
+        dark_translucent_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, light, 128, TINT_RED);
         break;
     case OBJECT_TRANS_WALL:
-        dark_translucent_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, 0x10000, wallBlendTable, commonGrayTable);
+        dark_translucent_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, 0x10000, 128, TINT_WALL);
         break;
     case OBJECT_TRANS_GLASS:
-        dark_translucent_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, light, glassBlendTable, glassGrayTable);
+        dark_translucent_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, light, 128, TINT_GLASS);
         break;
     case OBJECT_TRANS_STEAM:
-        dark_translucent_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, light, steamBlendTable, commonGrayTable);
+        dark_translucent_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, light, 96, TINT_STEAM);
         break;
     case OBJECT_TRANS_ENERGY:
-        dark_translucent_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, light, energyBlendTable, commonGrayTable);
+        dark_translucent_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, light, 128, TINT_ENERGY);
         break;
     default:
         dark_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, light);

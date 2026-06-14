@@ -91,7 +91,7 @@ int display_init()
         disp_curr = 0;
         text_font(oldFont);
 
-        disp_buf = (unsigned char*)mem_malloc(DISPLAY_MONITOR_WIDTH * DISPLAY_MONITOR_HEIGHT);
+        disp_buf = (unsigned char*)mem_malloc(DISPLAY_MONITOR_WIDTH * DISPLAY_MONITOR_HEIGHT * 4);
         if (disp_buf == NULL) {
             return -1;
         }
@@ -106,7 +106,7 @@ int display_init()
 
         unsigned char* backgroundFrmData = art_frame_data(backgroundFrm, 0, 0);
         intface_full_wid = art_frame_width(backgroundFrm, 0, 0);
-        buf_to_buf(backgroundFrmData + intface_full_wid * DISPLAY_MONITOR_Y + DISPLAY_MONITOR_X,
+        buf_to_buf(backgroundFrmData + (intface_full_wid * DISPLAY_MONITOR_Y + DISPLAY_MONITOR_X) * 4,
             DISPLAY_MONITOR_WIDTH,
             DISPLAY_MONITOR_HEIGHT,
             intface_full_wid,
@@ -308,7 +308,7 @@ void display_redraw()
         return;
     }
 
-    buf += intface_full_wid * DISPLAY_MONITOR_Y + DISPLAY_MONITOR_X;
+    buf += (intface_full_wid * DISPLAY_MONITOR_Y + DISPLAY_MONITOR_X) * 4;
     buf_to_buf(disp_buf,
         DISPLAY_MONITOR_WIDTH,
         DISPLAY_MONITOR_HEIGHT,
@@ -321,14 +321,14 @@ void display_redraw()
 
     for (int index = 0; index < max_disp_ptr; index++) {
         int stringIndex = (disp_curr + max_ptr + index - max_disp_ptr) % max_ptr;
-        text_to_buf(buf + index * intface_full_wid * text_height(), disp_str[stringIndex], DISPLAY_MONITOR_WIDTH, intface_full_wid, colorTable[992]);
+        text_to_buf(buf + index * intface_full_wid * text_height() * 4, disp_str[stringIndex], DISPLAY_MONITOR_WIDTH, intface_full_wid, colorTable[992]);
 
         // Even though the display monitor is rectangular, it's graphic is not.
         // To give a feel of depth it's covered by some metal canopy and
         // considered inclined outwards. This way earlier messages appear a
         // little bit far from player's perspective. To implement this small
         // detail the destination buffer is incremented by 1.
-        buf++;
+        buf += 4;
     }
 
     win_draw_rect(interfaceWindow, &disp_rect);

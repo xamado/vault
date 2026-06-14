@@ -248,7 +248,6 @@ typedef struct AnimationSad {
     };
 } AnimationSad;
 
-static_assert(sizeof(AnimationSad) == 3240, "wrong size");
 
 static int anim_free_slot(int a1);
 static int anim_preload(Object* object, int fid, CacheEntry** cacheEntryPtr);

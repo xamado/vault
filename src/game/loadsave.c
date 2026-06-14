@@ -15,6 +15,7 @@
 #include "game/display.h"
 #include "game/editor.h"
 #include "game/game.h"
+#include "game/fontmgr.h"
 #include "game/gconfig.h"
 #include "game/gmouse.h"
 #include "game/gmovie.h"
@@ -280,6 +281,26 @@ static int lsgwin;
 
 static Art* assets[LOAD_SAVE_FRM_COUNT];
 
+// 0x614700
+static unsigned char* lsgbuf;
+
+static void draw_scaled_8_to_32(unsigned char* src, int srcW, int srcH, int srcPitch, int x, int y) {
+    int ui_scale = ui_get_scale();
+    cscale_8_to_32(src,
+        srcW, srcH, srcPitch,
+        lsgbuf + ((LS_WINDOW_WIDTH * ui_scale) * (y * ui_scale) + (x * ui_scale)) * 4,
+        srcW * ui_scale, srcH * ui_scale, LS_WINDOW_WIDTH * ui_scale,
+        getColorPalette());
+}
+
+static void draw_scaled_32(unsigned char* src, int srcW, int srcH, int srcPitch, int x, int y) {
+    int ui_scale = ui_get_scale();
+    cscale(src,
+        srcW, srcH, srcPitch,
+        lsgbuf + ((LS_WINDOW_WIDTH * ui_scale) * (y * ui_scale) + (x * ui_scale)) * 4,
+        srcW * ui_scale, srcH * ui_scale, LS_WINDOW_WIDTH * ui_scale);
+}
+
 // 0x6142EC
 static unsigned char* snapshot;
 
@@ -295,8 +316,7 @@ static char str1[MAX_PATH];
 // 0x6145FC
 static char str[MAX_PATH];
 
-// 0x614700
-static unsigned char* lsgbuf;
+
 
 // 0x614704
 static char gmpath[MAX_PATH];
@@ -446,21 +466,19 @@ int SaveGame(int mode)
     case SLOT_STATE_EMPTY:
     case SLOT_STATE_ERROR:
     case SLOT_STATE_UNSUPPORTED_VERSION:
-        buf_to_buf(thumbnail_image[1],
+        draw_scaled_8_to_32(thumbnail_image[1],
             LS_PREVIEW_WIDTH - 1,
             LS_PREVIEW_HEIGHT - 1,
             LS_PREVIEW_WIDTH,
-            lsgbuf + LS_WINDOW_WIDTH * 58 + 366,
-            LS_WINDOW_WIDTH);
+            366, 58);
         break;
     default:
         LoadTumbSlot(slot_cursor);
-        buf_to_buf(thumbnail_image[0],
+        draw_scaled_8_to_32(thumbnail_image[0],
             LS_PREVIEW_WIDTH - 1,
             LS_PREVIEW_HEIGHT - 1,
             LS_PREVIEW_WIDTH,
-            lsgbuf + LS_WINDOW_WIDTH * 58 + 366,
-            LS_WINDOW_WIDTH);
+            366, 58);
         break;
     }
 
@@ -613,21 +631,19 @@ int SaveGame(int mode)
                     switch (LSstatus[slot_cursor]) {
                     case SLOT_STATE_EMPTY:
                     case SLOT_STATE_ERROR:
-                        buf_to_buf(thumbnail_image[1],
+                        draw_scaled_8_to_32(thumbnail_image[1],
                             LS_PREVIEW_WIDTH - 1,
                             LS_PREVIEW_HEIGHT - 1,
                             LS_PREVIEW_WIDTH,
-                            lsgbuf + LS_WINDOW_WIDTH * 58 + 366,
-                            LS_WINDOW_WIDTH);
+                            366, 58);
                         break;
                     default:
                         LoadTumbSlot(slot_cursor);
-                        buf_to_buf(thumbnail_image[0],
+                        draw_scaled_8_to_32(thumbnail_image[0],
                             LS_PREVIEW_WIDTH - 1,
                             LS_PREVIEW_HEIGHT - 1,
                             LS_PREVIEW_WIDTH,
-                            lsgbuf + LS_WINDOW_WIDTH * 58 + 366,
-                            LS_WINDOW_WIDTH);
+                            366, 58);
                         break;
                     }
 
@@ -650,21 +666,19 @@ int SaveGame(int mode)
                 case SLOT_STATE_EMPTY:
                 case SLOT_STATE_ERROR:
                 case SLOT_STATE_UNSUPPORTED_VERSION:
-                    buf_to_buf(thumbnail_image[1],
+                    draw_scaled_8_to_32(thumbnail_image[1],
                         LS_PREVIEW_WIDTH - 1,
                         LS_PREVIEW_HEIGHT - 1,
                         LS_PREVIEW_WIDTH,
-                        lsgbuf + LS_WINDOW_WIDTH * 58 + 366,
-                        LS_WINDOW_WIDTH);
+                        366, 58);
                     break;
                 default:
                     LoadTumbSlot(slot_cursor);
-                    buf_to_buf(thumbnail_image[0],
+                    draw_scaled_8_to_32(thumbnail_image[0],
                         LS_PREVIEW_WIDTH - 1,
                         LS_PREVIEW_HEIGHT - 1,
                         LS_PREVIEW_WIDTH,
-                        lsgbuf + LS_WINDOW_WIDTH * 58 + 366,
-                        LS_WINDOW_WIDTH);
+                        366, 58);
                     break;
                 }
 
@@ -751,21 +765,19 @@ int SaveGame(int mode)
                     case SLOT_STATE_EMPTY:
                     case SLOT_STATE_ERROR:
                     case SLOT_STATE_UNSUPPORTED_VERSION:
-                        buf_to_buf(thumbnail_image[1],
+                        draw_scaled_8_to_32(thumbnail_image[1],
                             LS_PREVIEW_WIDTH - 1,
                             LS_PREVIEW_HEIGHT - 1,
                             LS_PREVIEW_WIDTH,
-                            lsgbuf + LS_WINDOW_WIDTH * 58 + 366,
-                            LS_WINDOW_WIDTH);
+                            366, 58);
                         break;
                     default:
                         LoadTumbSlot(slot_cursor);
-                        buf_to_buf(thumbnail_image[0],
+                        draw_scaled_8_to_32(thumbnail_image[0],
                             LS_PREVIEW_WIDTH - 1,
                             LS_PREVIEW_HEIGHT - 1,
                             LS_PREVIEW_WIDTH,
-                            lsgbuf + LS_WINDOW_WIDTH * 58 + 366,
-                            LS_WINDOW_WIDTH);
+                            366, 58);
                         break;
                     }
 
@@ -843,7 +855,7 @@ int LoadGame(int mode)
     if (mode == LOAD_SAVE_MODE_QUICK && quick_done) {
         int quickSaveWindowX = 0;
         int quickSaveWindowY = 0;
-        int window = win_add_32(quickSaveWindowX,
+        int window = win_add(quickSaveWindowX,
             quickSaveWindowY,
             LS_WINDOW_WIDTH,
             LS_WINDOW_HEIGHT,
@@ -938,12 +950,11 @@ int LoadGame(int mode)
         break;
     default:
         LoadTumbSlot(slot_cursor);
-        buf_to_buf(thumbnail_image[0],
+        draw_scaled_8_to_32(thumbnail_image[0],
             LS_PREVIEW_WIDTH - 1,
             LS_PREVIEW_HEIGHT - 1,
             LS_PREVIEW_WIDTH,
-            lsgbuf + LS_WINDOW_WIDTH * 58 + 366,
-            LS_WINDOW_WIDTH);
+            366, 58);
         break;
     }
 
@@ -1097,15 +1108,11 @@ int LoadGame(int mode)
                         // buf_to_buf(lsbmp[LOAD_SAVE_FRM_BACKGROUND] + LS_WINDOW_WIDTH * 39 + 340,
                         //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
                         //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].height,
-                        //     LS_WINDOW_WIDTH,
-                        //     lsgbuf + LS_WINDOW_WIDTH * 39 + 340,
-                        //     LS_WINDOW_WIDTH);
-                        // buf_to_buf(thumbnail_image[0],
-                        //     LS_PREVIEW_WIDTH - 1,
-                        //     LS_PREVIEW_HEIGHT - 1,
-                        //     LS_PREVIEW_WIDTH,
-                        //     lsgbuf + LS_WINDOW_WIDTH * 58 + 366,
-                        //     LS_WINDOW_WIDTH);
+                        draw_scaled_8_to_32(thumbnail_image[0],
+                            LS_PREVIEW_WIDTH,
+                            LS_PREVIEW_HEIGHT,
+                            LS_PREVIEW_WIDTH,
+                            366, 58);
                         break;
                     }
 
@@ -1128,27 +1135,19 @@ int LoadGame(int mode)
                 case SLOT_STATE_EMPTY:
                 case SLOT_STATE_ERROR:
                 case SLOT_STATE_UNSUPPORTED_VERSION:
-                    // buf_to_buf(lsbmp[LOAD_SAVE_FRM_PREVIEW_COVER],
-                    //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
-                    //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].height,
-                    //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
-                    //     lsgbuf + LS_WINDOW_WIDTH * 39 + 340,
-                    //     LS_WINDOW_WIDTH);
+                    draw_scaled_32(art_frame_data(assets[LOAD_SAVE_FRM_PREVIEW_COVER], 0, 0),
+                        ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
+                        ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].height,
+                        ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
+                        340, 39);
                     break;
                 default:
                     LoadTumbSlot(slot_cursor);
-                    // buf_to_buf(lsbmp[LOAD_SAVE_FRM_BACKGROUND] + LS_WINDOW_WIDTH * 39 + 340,
-                    //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
-                    //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].height,
-                    //     LS_WINDOW_WIDTH,
-                    //     lsgbuf + LS_WINDOW_WIDTH * 39 + 340,
-                    //     LS_WINDOW_WIDTH);
-                    // buf_to_buf(thumbnail_image[0],
-                    //     LS_PREVIEW_WIDTH - 1,
-                    //     LS_PREVIEW_HEIGHT - 1,
-                    //     LS_PREVIEW_WIDTH,
-                    //     lsgbuf + LS_WINDOW_WIDTH * 58 + 366,
-                    //     LS_WINDOW_WIDTH);
+                    draw_scaled_8_to_32(thumbnail_image[0],
+                        LS_PREVIEW_WIDTH,
+                        LS_PREVIEW_HEIGHT,
+                        LS_PREVIEW_WIDTH,
+                        366, 58);
                     break;
                 }
 
@@ -1340,7 +1339,7 @@ static int LSGameStart(int windowType)
     const int ui_scale = ui_get_scale();
 
     // Add a window for the background
-    win_bg = win_add_32(0, 0, screen_size.width, screen_size.height, 0, 0);
+    win_bg = win_add(0, 0, screen_size.width, screen_size.height, 0, 0);
 
     ui_image_fill_32(assets[MAIN_MENU_FRM_BACKGROUND], win_bg, 0, 0, screen_size.width, screen_size.height);
     win_draw(win_bg);
@@ -1349,7 +1348,7 @@ static int LSGameStart(int windowType)
     int lsWindowX = (screen_size.width - LS_WINDOW_WIDTH * ui_scale) / 2;
     int lsWindowY = (screen_size.height - LS_WINDOW_HEIGHT * ui_scale) / 2;
 
-    lsgwin = win_add_32(
+    lsgwin = win_add(
         lsWindowX, lsWindowY,
         LS_WINDOW_WIDTH * ui_scale, LS_WINDOW_HEIGHT * ui_scale,
         0,
@@ -1926,7 +1925,7 @@ static void ShowSlotList(int a1)
 {
     int ui_scale = ui_get_scale();
 
-    // buf_fill_32(lsgbuf + LS_WINDOW_WIDTH * 87 + 55, 230, 353, LS_WINDOW_WIDTH, lsgbuf[LS_WINDOW_WIDTH * 86 + 55] & 0xFF);
+    // buf_fill(lsgbuf + LS_WINDOW_WIDTH * 87 + 55, 230, 353, LS_WINDOW_WIDTH, lsgbuf[LS_WINDOW_WIDTH * 86 + 55] & 0xFF);
 
     int y = 87 * ui_scale;
 
@@ -2209,8 +2208,8 @@ static int get_input_str2(int win, int doneKeyCode, int cancelKeyCode, char* des
 
     int nameWidth = text_width(text);
 
-    buf_fill(windowBuffer + windowWidth * y + x, nameWidth, lineHeight, windowWidth, backgroundColor);
-    text_to_buf(windowBuffer + windowWidth * y + x, text, windowWidth, windowWidth, textColor);
+    buf_fill(windowBuffer + (windowWidth * y + x) * 4, nameWidth, lineHeight, windowWidth, getColorPalette()[backgroundColor * 3]); // Temporary fake color, since get_input_str2 is actually dead code anyway.
+    text_to_buf(windowBuffer + (windowWidth * y + x) * 4, text, windowWidth, windowWidth, textColor);
 
     win_draw(win);
 
@@ -2234,7 +2233,7 @@ static int get_input_str2(int win, int doneKeyCode, int cancelKeyCode, char* des
             rc = -1;
         } else {
             if ((keyCode == KEY_DELETE || keyCode == KEY_BACKSPACE) && textLength > 0) {
-                buf_fill(windowBuffer + windowWidth * y + x, text_width(text), lineHeight, windowWidth, backgroundColor);
+                buf_fill(windowBuffer + (windowWidth * y + x) * 4, text_width(text), lineHeight, windowWidth, getColorPalette()[backgroundColor * 3]);
 
                 // TODO: Probably incorrect, needs testing.
                 if (v1 == 1) {
@@ -2243,7 +2242,7 @@ static int get_input_str2(int win, int doneKeyCode, int cancelKeyCode, char* des
 
                 text[textLength - 1] = ' ';
                 text[textLength] = '\0';
-                text_to_buf(windowBuffer + windowWidth * y + x, text, windowWidth, windowWidth, textColor);
+                text_to_buf(windowBuffer + (windowWidth * y + x) * 4, text, windowWidth, windowWidth, textColor);
                 textLength--;
             } else if ((keyCode >= KEY_FIRST_INPUT_CHARACTER && keyCode <= KEY_LAST_INPUT_CHARACTER) && textLength < maxLength) {
                 if ((flags & 0x01) != 0) {
@@ -2252,12 +2251,12 @@ static int get_input_str2(int win, int doneKeyCode, int cancelKeyCode, char* des
                     }
                 }
 
-                buf_fill(windowBuffer + windowWidth * y + x, text_width(text), lineHeight, windowWidth, backgroundColor);
+                buf_fill(windowBuffer + (windowWidth * y + x) * 4, text_width(text), lineHeight, windowWidth, getColorPalette()[backgroundColor * 3]);
 
                 text[textLength] = keyCode & 0xFF;
                 text[textLength + 1] = ' ';
                 text[textLength + 2] = '\0';
-                text_to_buf(windowBuffer + windowWidth * y + x, text, windowWidth, windowWidth, textColor);
+                text_to_buf(windowBuffer + (windowWidth * y + x) * 4, text, windowWidth, windowWidth, textColor);
                 textLength++;
 
                 win_draw(win);
@@ -2270,7 +2269,7 @@ static int get_input_str2(int win, int doneKeyCode, int cancelKeyCode, char* des
             blink = !blink;
 
             int color = blink ? backgroundColor : textColor;
-            buf_fill(windowBuffer + windowWidth * y + x + text_width(text) - cursorWidth, cursorWidth, lineHeight - 2, windowWidth, color);
+            buf_fill(windowBuffer + (windowWidth * y + x + text_width(text) - cursorWidth) * 4, cursorWidth, lineHeight - 2, windowWidth, color);
             win_draw(win);
         }
 

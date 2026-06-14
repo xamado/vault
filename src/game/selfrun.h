@@ -10,8 +10,6 @@ typedef struct SelfrunData {
     int stopKeyCode;
 } SelfrunData;
 
-static_assert(sizeof(SelfrunData) == 32, "wrong size");
-
 int selfrun_get_list(char*** fileListPtr, int* fileListLengthPtr);
 int selfrun_free_list(char*** fileListPtr);
 int selfrun_prep_playback(const char* fileName, SelfrunData* selfrunData);

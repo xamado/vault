@@ -9,8 +9,6 @@
 #include "int/sound.h"
 #include "plib/os/os_filesystem.h"
 
-static_assert(sizeof(AudioFile) == 28, "wrong size");
-
 static bool defaultCompressionFunc(char* filePath);
 static int decodeRead(int fileHandle, void* buffer, unsigned int size);
 

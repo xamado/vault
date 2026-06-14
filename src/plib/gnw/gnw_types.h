@@ -12,11 +12,9 @@ typedef enum WindowFlags {
     WINDOW_FLAG_ALWAYS_ON_TOP = 0x04,
     WINDOW_HIDDEN = 0x08,
     WINDOW_FLAG_MODAL = 0x10,
-    WINDOW_FLAG_0x20 = 0x20,
     WINDOW_FLAG_0x40 = 0x40,
     WINDOW_FLAG_0x80 = 0x80,
     WINDOW_FLAG_0x0100 = 0x0100,
-    WINDOW_FLAG_32BIT = 0x1000,
 } WindowFlags;
 
 typedef enum ButtonFlags {
@@ -36,7 +34,6 @@ typedef enum ButtonFlags {
 typedef struct Button Button;
 typedef struct RadioGroup RadioGroup;
 
-typedef void WindowBlitProc(unsigned char* src, int width, int height, int srcPitch, unsigned char* dest, int destPitch);
 typedef void ButtonCallback(int btn, int keyCode);
 
 typedef struct MenuPulldown {
@@ -56,7 +53,6 @@ typedef struct MenuBar {
     int borderColor;
     int backgroundColor;
 } MenuBar;
-static_assert(sizeof(MenuBar) == 572, "wrong size");
 
 typedef struct Window {
     int id;
@@ -64,7 +60,7 @@ typedef struct Window {
     Rect rect;
     int width;
     int height;
-    int field_20;
+    int backgroundColor;
     // rand
     int field_24;
     // rand
@@ -74,9 +70,7 @@ typedef struct Window {
     Button* field_34;
     Button* field_38;
     MenuBar* menuBar;
-    WindowBlitProc* blitProc;
 } Window;
-static_assert(sizeof(Window) == 68, "wrong size");
 
 typedef struct Button {
     int id;
@@ -110,7 +104,6 @@ typedef struct Button {
     Button* prev;
     Button* next;
 } Button;
-static_assert(sizeof(Button) == 132, "wrong size");
 
 typedef struct RadioGroup {
     int field_0;

@@ -329,11 +329,11 @@ bool select_init()
         select_window_buffer,
         CS_WINDOW_WIDTH);
 
-    monitor = (unsigned char*)mem_malloc(CS_WINDOW_BACKGROUND_WIDTH * CS_WINDOW_BACKGROUND_HEIGHT);
+    monitor = (unsigned char*)mem_malloc(CS_WINDOW_BACKGROUND_WIDTH * CS_WINDOW_BACKGROUND_HEIGHT * 4);
     if (monitor == NULL)
         return select_fatal_error(false);
 
-    buf_to_buf(backgroundFrmData + CS_WINDOW_WIDTH * CS_WINDOW_BACKGROUND_Y + CS_WINDOW_BACKGROUND_X,
+    buf_to_buf(backgroundFrmData + (CS_WINDOW_WIDTH * CS_WINDOW_BACKGROUND_Y + CS_WINDOW_BACKGROUND_X) * 4,
         CS_WINDOW_BACKGROUND_WIDTH,
         CS_WINDOW_BACKGROUND_HEIGHT,
         CS_WINDOW_WIDTH,
@@ -706,7 +706,7 @@ static bool select_display_portrait()
         if (data != NULL) {
             int width = art_frame_width(frm, 0, 0);
             int height = art_frame_length(frm, 0, 0);
-            trans_buf_to_buf(data, width, height, width, (select_window_buffer + CS_WINDOW_WIDTH * 23 + 27), CS_WINDOW_WIDTH);
+            trans_buf_to_buf(data, width, height, width, select_window_buffer + CS_WINDOW_WIDTH * 23 + 27, CS_WINDOW_WIDTH);
             success = true;
         }
         art_ptr_unlock(faceFrmHandle);

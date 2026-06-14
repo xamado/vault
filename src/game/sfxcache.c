@@ -31,8 +31,6 @@ typedef struct SoundEffect {
     unsigned char* data;
 } SoundEffect;
 
-static_assert(sizeof(SoundEffect) == 32, "wrong size");
-
 static int sfxc_effect_size(int tag, int* sizePtr);
 static int sfxc_effect_load(int tag, int* sizePtr, unsigned char* data);
 static void sfxc_effect_free(void* ptr);

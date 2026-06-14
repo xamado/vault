@@ -12,6 +12,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
 
 #include "game/amutex.h"
 #include "game/art.h"
@@ -93,6 +94,28 @@ int RealMain(int argc, char** argv)
 
     if (!main_init_system(argc, argv)) {
         return 1;
+    }
+
+    // Check for --map CLI argument to skip intros and load directly into a map.
+    const char* cli_map = NULL;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--map") == 0 && i + 1 < argc) {
+            cli_map = argv[i + 1];
+        }
+    }
+
+    if (cli_map != NULL) {
+        debug_printf("CLI: Loading map '%s' directly.\n", cli_map);
+        gsound_background_stop();
+        proto_dude_init("premade\\combat.gcd");
+        roll_set_seed(-1);
+        main_load_new((char*)cli_map);
+        main_game_loop();
+        palette_fade_to(white_palette);
+        main_unload_new();
+        main_exit_system();
+        autorun_mutex_destroy();
+        return 0;
     }
 
     gmovie_play(MOVIE_IPLOGO, GAME_MOVIE_FADE_IN);

@@ -27,8 +27,6 @@ Rect scr_size;
 
 // 0x6AC9F8 (former w95 RGB-mask globals removed; SDL handles pixel format)
 
-// 0x6ACA18
-ScreenBlitFunc* scr_blit = GNW95_ShowRect;
 
 // 0x6ACA1C
 ZeroMemFunc* zero_mem = NULL;
@@ -60,7 +58,6 @@ int GNW95_init_mode(int width, int height, int bpp)
     scr_size.lry = height - 1;
 
     mouse_blit_trans = NULL;
-    scr_blit = GNW95_ShowRect;
     zero_mem = GNW95_zero_vid_mem;
     mouse_blit = GNW95_ShowRect;
 
@@ -168,62 +165,13 @@ void GNW95_ShowRect(unsigned char* src, int srcPitch, int a3, int srcX, int srcY
 
     if (pixels) {
         unsigned char* dest = (unsigned char*)pixels;
-        unsigned char* pal = GNW95_GetPalette();
-        for (int y = 0; y < srcHeight; y++) {
-            unsigned char* destRow = dest + (destY + y) * pitch + (destX * 4);
-            unsigned char* srcRow = src + (srcY + y) * srcPitch + srcX;
-            for (int x = 0; x < srcWidth; x++) {
-                unsigned char c = srcRow[x];
-                unsigned char r = pal[c * 3] << 2;
-                unsigned char g = pal[c * 3 + 1] << 2;
-                unsigned char b = pal[c * 3 + 2] << 2;
-                
-                uint32_t* outPixel = (uint32_t*)(destRow + x * 4);
-                *outPixel = (0xFF << 24) | (b << 16) | (g << 8) | r;
-            }
-        }
-        os_window_unlock();
-        os_window_present();
-    }
-}
-
-// 0xNEW
-void GNW95_ShowRect32(unsigned char* src, int srcPitch, int a3, int srcX, int srcY, int srcWidth, int srcHeight, int destX, int destY)
-{
-    if (!GNW95_isActive) {
-        return;
-    }
-
-    void* pixels;
-    int pitch;
-    os_window_lock(&pixels, &pitch);
-
-    if (pixels) {
-        unsigned char* dest = (unsigned char*)pixels;
         for (int y = 0; y < srcHeight; y++) {
             uint32_t* destRow = (uint32_t*)(dest + (destY + y) * pitch + (destX * 4));
             uint32_t* srcRow = (uint32_t*)(src + (srcY + y) * srcPitch * 4 + srcX * 4);
-            for (int x = 0; x < srcWidth; x++) {
-                destRow[x] = srcRow[x];
-            }
+            memcpy(destRow, srcRow, srcWidth * 4);
         }
         os_window_unlock();
-        os_window_present();
     }
-}
-
-// 0x4CB93C
-//
-// NOTE: 16bpp paths collapsed — F2 always runs at 8bpp under SDL.
-void GNW95_MouseShowRect16(unsigned char* src, int srcPitch, int a3, int srcX, int srcY, int srcWidth, int srcHeight, int destX, int destY)
-{
-    GNW95_ShowRect(src, srcPitch, a3, srcX, srcY, srcWidth, srcHeight, destX, destY);
-}
-
-// 0x4CBA44
-void GNW95_ShowRect16(unsigned char* src, int srcPitch, int a3, int srcX, int srcY, int srcWidth, int srcHeight, int destX, int destY)
-{
-    GNW95_ShowRect(src, srcPitch, a3, srcX, srcY, srcWidth, srcHeight, destX, destY);
 }
 
 // 0x4CBAB0

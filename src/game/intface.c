@@ -323,7 +323,7 @@ static unsigned char* toggleButtonDown;
 static unsigned char* endTurnButtonDown;
 
 // 0x597154
-static unsigned char itemButtonDown[188 * 67];
+static unsigned char itemButtonDown[188 * 67 * 4];
 
 // 0x59A288
 static unsigned char* endTurnButtonUp;
@@ -359,7 +359,7 @@ static unsigned char* pipboyButtonDown;
 static unsigned char* automapButtonMask;
 
 // 0x59A2B4
-static unsigned char itemButtonUp[188 * 67];
+static unsigned char itemButtonUp[188 * 67 * 4];
 
 // 0x59D3E8
 static unsigned char* automapButtonUp;
@@ -395,7 +395,7 @@ static unsigned char* inventoryButtonDown;
 // This buffer is initialized once and does not change throughout the game.
 //
 // 0x59D40C
-static unsigned char movePointBackground[90 * 5];
+static unsigned char movePointBackground[90 * 5 * 4];
 
 // 0x45D880
 int intface_init()
@@ -677,7 +677,7 @@ int intface_init()
         return intface_fatal_error(-1);
     }
 
-    buf_to_buf(interfaceBuffer + 640 * 14 + 316, 90, 5, 640, movePointBackground, 90);
+    buf_to_buf(interfaceBuffer + (640 * 14 + 316) * 4, 90, 5, 640, movePointBackground, 90);
 
     if (construct_box_bar_win() == -1) {
         // NOTE: Uninline.
@@ -1202,7 +1202,7 @@ void intface_update_move_points(int actionPointsLeft, int bonusActionPoints)
         return;
     }
 
-    buf_to_buf(movePointBackground, 90, 5, 90, interfaceBuffer + 14 * 640 + 316, 640);
+    buf_to_buf(movePointBackground, 90, 5, 90, interfaceBuffer + (14 * 640 + 316) * 4, 640);
 
     if (actionPointsLeft == -1) {
         frmData = moveLightRed;
@@ -1230,11 +1230,11 @@ void intface_update_move_points(int actionPointsLeft, int bonusActionPoints)
 
     int index;
     for (index = 0; index < actionPointsLeft; index++) {
-        buf_to_buf(frmData, 5, 5, 5, interfaceBuffer + 14 * 640 + 316 + index * 9, 640);
+        buf_to_buf(frmData, 5, 5, 5, interfaceBuffer + (14 * 640 + 316 + index * 9) * 4, 640);
     }
 
     for (; index < (actionPointsLeft + bonusActionPoints); index++) {
-        buf_to_buf(moveLightYellow, 5, 5, 5, interfaceBuffer + 14 * 640 + 316 + index * 9, 640);
+        buf_to_buf(moveLightYellow, 5, 5, 5, interfaceBuffer + (14 * 640 + 316 + index * 9) * 4, 640);
     }
 
     if (!insideInit) {
@@ -1660,7 +1660,7 @@ void intface_end_window_open(bool animated)
             if (elapsed_time(time) >= delay) {
                 unsigned char* src = art_frame_data(art, frame, 0);
                 if (src != NULL) {
-                    buf_to_buf(src, 57, 58, 57, interfaceBuffer + 640 * 38 + 580, 640);
+                    buf_to_buf(src, 57, 58, 57, interfaceBuffer + (640 * 38 + 580) * 4, 640);
                     win_draw_rect(interfaceWindow, &endWindowRect);
                 }
 
@@ -1671,7 +1671,7 @@ void intface_end_window_open(bool animated)
         }
     } else {
         unsigned char* src = art_frame_data(art, frameCount - 1, 0);
-        buf_to_buf(src, 57, 58, 57, interfaceBuffer + 640 * 38 + 580, 640);
+        buf_to_buf(src, 57, 58, 57, interfaceBuffer + (640 * 38 + 580) * 4, 640);
         win_draw_rect(interfaceWindow, &endWindowRect);
     }
 
@@ -1713,7 +1713,7 @@ void intface_end_window_close(bool animated)
         while (frame != 0) {
             if (elapsed_time(time) >= delay) {
                 unsigned char* src = art_frame_data(art, frame - 1, 0);
-                unsigned char* dest = interfaceBuffer + 640 * 38 + 580;
+                unsigned char* dest = interfaceBuffer + (640 * 38 + 580) * 4;
                 if (src != NULL) {
                     buf_to_buf(src, 57, 58, 57, dest, 640);
                     win_draw_rect(interfaceWindow, &endWindowRect);
@@ -1725,7 +1725,7 @@ void intface_end_window_close(bool animated)
             gmouse_bk_process();
         }
     } else {
-        unsigned char* dest = interfaceBuffer + 640 * 38 + 580;
+        unsigned char* dest = interfaceBuffer + (640 * 38 + 580) * 4;
         unsigned char* src = art_frame_data(art, 0, 0);
         buf_to_buf(src, 57, 58, 57, dest, 640);
         win_draw_rect(interfaceWindow, &endWindowRect);
@@ -1751,7 +1751,7 @@ void intface_end_buttons_enable()
         }
 
         gsound_play_sfx_file("icombat2");
-        trans_buf_to_buf(lightsFrmData, 57, 58, 57, interfaceBuffer + 38 * 640 + 580, 640);
+        trans_buf_to_buf(lightsFrmData, 57, 58, 57, interfaceBuffer + (38 * 640 + 580) * 4, 640);
         win_draw_rect(interfaceWindow, &endWindowRect);
 
         art_ptr_unlock(lightsFrmHandle);
@@ -1774,7 +1774,7 @@ void intface_end_buttons_disable()
         }
 
         gsound_play_sfx_file("icombat1");
-        trans_buf_to_buf(lightsFrmData, 57, 58, 57, interfaceBuffer + 38 * 640 + 580, 640);
+        trans_buf_to_buf(lightsFrmData, 57, 58, 57, interfaceBuffer + (38 * 640 + 580) * 4, 640);
         win_draw_rect(interfaceWindow, &endWindowRect);
 
         art_ptr_unlock(lightsFrmHandle);
@@ -1829,7 +1829,7 @@ static int intface_redraw_items()
                     int width = art_frame_width(useTextFrm, 0, 0);
                     int height = art_frame_length(useTextFrm, 0, 0);
                     unsigned char* data = art_frame_data(useTextFrm, 0, 0);
-                    trans_buf_to_buf(data, width, height, width, itemButtonUp + 188 * 7 + 181 - width, 188);
+                    trans_buf_to_buf(data, width, height, width, itemButtonUp + (188 * 7 + 181 - width) * 4, 188);
                     dark_trans_buf_to_buf(data, width, height, width, itemButtonDown, 181 - width + 1, 5, 188, 59641);
                     art_ptr_unlock(useTextFrmHandle);
                 }
@@ -1869,7 +1869,7 @@ static int intface_redraw_items()
                     int width = art_frame_width(bullseyeFrm, 0, 0);
                     int height = art_frame_length(bullseyeFrm, 0, 0);
                     unsigned char* data = art_frame_data(bullseyeFrm, 0, 0);
-                    trans_buf_to_buf(data, width, height, width, itemButtonUp + 188 * (60 - height) + (181 - width), 188);
+                    trans_buf_to_buf(data, width, height, width, itemButtonUp + (188 * (60 - height) + (181 - width)) * 4, 188);
 
                     int v9 = 60 - height - 2;
                     if (v9 < 0) {
@@ -1966,7 +1966,7 @@ static int intface_redraw_items()
                     int width = art_frame_width(primaryFrm, 0, 0);
                     int height = art_frame_length(primaryFrm, 0, 0);
                     unsigned char* data = art_frame_data(primaryFrm, 0, 0);
-                    trans_buf_to_buf(data, width, height, width, itemButtonUp + 188 * 7 + 181 - width, 188);
+                    trans_buf_to_buf(data, width, height, width, itemButtonUp + (188 * 7 + 181 - width) * 4, 188);
                     dark_trans_buf_to_buf(data, width, height, width, itemButtonDown, 181 - width + 1, 5, 188, 59641);
                     art_ptr_unlock(primaryFrmHandle);
                 }
@@ -1985,7 +1985,7 @@ static int intface_redraw_items()
             int height = art_frame_length(art, 0, 0);
             unsigned char* data = art_frame_data(art, 0, 0);
 
-            trans_buf_to_buf(data, width, height, width, itemButtonUp + 188 * (60 - height) + 7, 188);
+            trans_buf_to_buf(data, width, height, width, itemButtonUp + (188 * (60 - height) + 7) * 4, 188);
 
             int v29 = 60 - height - 2;
             if (v29 < 0) {
@@ -2006,14 +2006,14 @@ static int intface_redraw_items()
                 height = art_frame_length(art, 0, 0);
                 data = art_frame_data(art, 0, 0);
 
-                trans_buf_to_buf(data + actionPoints * 10, 10, height, width, itemButtonUp + 188 * (60 - height) + 7 + offset, 188);
+                trans_buf_to_buf(data + actionPoints * 10 * 4, 10, height, width, itemButtonUp + (188 * (60 - height) + 7 + offset) * 4, 188);
 
                 int v40 = 60 - height - 2;
                 if (v40 < 0) {
                     v40 = 0;
                     height -= 2;
                 }
-                dark_trans_buf_to_buf(data + actionPoints * 10, 10, height, width, itemButtonDown, offset + 7 + 1, v40, 188, 59641);
+                dark_trans_buf_to_buf(data + actionPoints * 10 * 4, 10, height, width, itemButtonDown, offset + 7 + 1, v40, 188, 59641);
 
                 art_ptr_unlock(handle);
             }
@@ -2034,7 +2034,7 @@ static int intface_redraw_items()
             int v46 = (188 - width) / 2;
             int v47 = (67 - height) / 2 - 2;
 
-            trans_buf_to_buf(data, width, height, width, itemButtonUp + 188 * ((67 - height) / 2) + v46, 188);
+            trans_buf_to_buf(data, width, height, width, itemButtonUp + (188 * ((67 - height) / 2) + v46) * 4, 188);
 
             if (v47 < 0) {
                 v47 = 0;
@@ -2267,18 +2267,29 @@ static void intface_draw_ammo_lights(int x, int ratio)
         ratio -= 1;
     }
 
-    unsigned char* dest = interfaceBuffer + 640 * 26 + x;
+    // Convert palette indices to RGBA
+    unsigned char* pal = getColorPalette();
+    unsigned int color_empty = (0xFFu << 24)
+        | ((pal[14 * 3 + 2] << 2) << 16)
+        | ((pal[14 * 3 + 1] << 2) << 8)
+        | (pal[14 * 3] << 2);
+    unsigned int color_lit = (0xFFu << 24)
+        | ((pal[196 * 3 + 2] << 2) << 16)
+        | ((pal[196 * 3 + 1] << 2) << 8)
+        | (pal[196 * 3] << 2);
+
+    unsigned int* dest = (unsigned int*)(interfaceBuffer + (640 * 26 + x) * 4);
 
     for (int index = 70; index > ratio; index--) {
-        *dest = 14;
+        *dest = color_empty;
         dest += 640;
     }
 
     while (ratio > 0) {
-        *dest = 196;
+        *dest = color_lit;
         dest += 640;
 
-        *dest = 14;
+        *dest = color_empty;
         dest += 640;
 
         ratio -= 2;
@@ -2334,18 +2345,18 @@ static void intface_rotate_numbers(int x, int y, int previousValue, int value, i
         value = -999;
     }
 
-    unsigned char* numbers = numbersBuffer + offset;
-    unsigned char* dest = interfaceBuffer + 640 * y;
+    unsigned char* numbers = numbersBuffer + offset * 4;
+    unsigned char* dest = interfaceBuffer + (640 * y) * 4;
 
-    unsigned char* downSrc = numbers + 90;
-    unsigned char* upSrc = numbers + 99;
-    unsigned char* minusSrc = numbers + 108;
-    unsigned char* plusSrc = numbers + 114;
+    unsigned char* downSrc = numbers + 90 * 4;
+    unsigned char* upSrc = numbers + 99 * 4;
+    unsigned char* minusSrc = numbers + 108 * 4;
+    unsigned char* plusSrc = numbers + 114 * 4;
 
-    unsigned char* signDest = dest + x;
-    unsigned char* hundredsDest = dest + x + 6;
-    unsigned char* tensDest = dest + x + 6 + 9;
-    unsigned char* onesDest = dest + x + 6 + 9 * 2;
+    unsigned char* signDest = dest + x * 4;
+    unsigned char* hundredsDest = dest + (x + 6) * 4;
+    unsigned char* tensDest = dest + (x + 6 + 9) * 4;
+    unsigned char* onesDest = dest + (x + 6 + 9 * 2) * 4;
 
     int normalizedSign;
     int normalizedValue;
@@ -2361,9 +2372,9 @@ static void intface_rotate_numbers(int x, int y, int previousValue, int value, i
     int tens = (normalizedValue / 10) % 10;
     int hundreds = normalizedValue / 100;
 
-    buf_to_buf(numbers + 9 * hundreds, 9, 17, 360, hundredsDest, 640);
-    buf_to_buf(numbers + 9 * tens, 9, 17, 360, tensDest, 640);
-    buf_to_buf(numbers + 9 * ones, 9, 17, 360, onesDest, 640);
+    buf_to_buf(numbers + 9 * hundreds * 4, 9, 17, 360, hundredsDest, 640);
+    buf_to_buf(numbers + 9 * tens * 4, 9, 17, 360, tensDest, 640);
+    buf_to_buf(numbers + 9 * ones * 4, 9, 17, 360, onesDest, 640);
     buf_to_buf(normalizedSign >= 0 ? plusSrc : minusSrc, 6, 17, 360, signDest, 640);
 
     if (!insideInit) {
@@ -2428,9 +2439,9 @@ static void intface_rotate_numbers(int x, int y, int previousValue, int value, i
 
                 previousValue += change;
 
-                buf_to_buf(numbers + 9 * hundreds, 9, 17, 360, hundredsDest, 640);
-                buf_to_buf(numbers + 9 * tens, 9, 17, 360, tensDest, 640);
-                buf_to_buf(numbers + 9 * ones, 9, 17, 360, onesDest, 640);
+                buf_to_buf(numbers + 9 * hundreds * 4, 9, 17, 360, hundredsDest, 640);
+                buf_to_buf(numbers + 9 * tens * 4, 9, 17, 360, tensDest, 640);
+                buf_to_buf(numbers + 9 * ones * 4, 9, 17, 360, onesDest, 640);
 
                 buf_to_buf(previousValue >= 0 ? plusSrc : minusSrc, 6, 17, 360, signDest, 640);
                 mouse_info();
@@ -2496,7 +2507,7 @@ static int construct_box_bar_win()
     for (int index = 0; index < INDICATOR_COUNT; index++) {
         IndicatorDescription* indicatorDescription = &(bbox[index]);
 
-        indicatorDescription->data = (unsigned char*)mem_malloc(INDICATOR_BOX_WIDTH * INDICATOR_BOX_HEIGHT);
+        indicatorDescription->data = (unsigned char*)mem_malloc(INDICATOR_BOX_WIDTH * INDICATOR_BOX_HEIGHT * 4);
         if (indicatorDescription->data == NULL) {
             debug_printf("\nINTRFACE: Error initializing indicator box graphics! **");
 
@@ -2521,7 +2532,7 @@ static int construct_box_bar_win()
 
         int color = indicator->isBad ? colorTable[31744] : colorTable[992];
 
-        memcpy(indicator->data, indicatorBoxFrmData, INDICATOR_BOX_WIDTH * INDICATOR_BOX_HEIGHT);
+        memcpy(indicator->data, indicatorBoxFrmData, INDICATOR_BOX_WIDTH * INDICATOR_BOX_HEIGHT * 4);
 
         // NOTE: For unknown reason it uses 24 as a height of the box to center
         // the title. One explanation is that these boxes were redesigned, but
@@ -2530,7 +2541,7 @@ static int construct_box_bar_win()
         // a coincidence. I guess we'll never find out.
         int y = (24 - text_height()) / 2;
         int x = (INDICATOR_BOX_WIDTH - text_width(text)) / 2;
-        text_to_buf(indicator->data + INDICATOR_BOX_WIDTH * y + x, text, INDICATOR_BOX_WIDTH, INDICATOR_BOX_WIDTH, color);
+        text_to_buf(indicator->data + (INDICATOR_BOX_WIDTH * y + x) * 4, text, INDICATOR_BOX_WIDTH, INDICATOR_BOX_WIDTH, color);
     }
 
     box_status_flag = true;
@@ -2697,11 +2708,11 @@ static void draw_bboxes(int count)
         int indicator = bboxslot[index];
         IndicatorDescription* indicatorDescription = &(bbox[indicator]);
 
-        trans_buf_to_buf(indicatorDescription->data + connectorWidthCompensation,
+        trans_buf_to_buf(indicatorDescription->data + connectorWidthCompensation * 4,
             INDICATOR_BOX_WIDTH - connectorWidthCompensation,
             INDICATOR_BOX_HEIGHT,
             INDICATOR_BOX_WIDTH,
-            windowBuffer + x, windowWidth);
+            windowBuffer + x * 4, windowWidth);
 
         connectorWidthCompensation = 0;
 

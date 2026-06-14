@@ -8,6 +8,7 @@
 #include "plib/gnw/memory.h"
 #include "plib/gnw/mouse.h"
 #include "plib/gnw/text.h"
+#include "game/fontmgr.h"
 
 // 0x51E404
 static int last_button_winID = -1;
@@ -67,63 +68,52 @@ int win_register_text_button(int win, int x, int y, int mouseEnterEventCode, int
 
     int buttonWidth = text_width(title) + 16;
     int buttonHeight = text_height() + 7;
-    unsigned char* normal = (unsigned char*)mem_malloc(buttonWidth * buttonHeight);
+    unsigned char* normal = (unsigned char*)mem_malloc(buttonWidth * buttonHeight * 4);
     if (normal == NULL) {
         return -1;
     }
 
-    unsigned char* pressed = (unsigned char*)mem_malloc(buttonWidth * buttonHeight);
+    unsigned char* pressed = (unsigned char*)mem_malloc(buttonWidth * buttonHeight * 4);
     if (pressed == NULL) {
         mem_free(normal);
         return -1;
     }
 
-    if (w->field_20 == 256 && GNW_texture != NULL) {
+    int clearColor32 = w->backgroundColor;
+
+    if (w->backgroundColor == 256 && GNW_texture != NULL) {
         // TODO: Incomplete.
     } else {
-        buf_fill(normal, buttonWidth, buttonHeight, buttonWidth, w->field_20);
-        buf_fill(pressed, buttonWidth, buttonHeight, buttonWidth, w->field_20);
+        buf_fill(normal, buttonWidth, buttonHeight, buttonWidth, clearColor32);
+        buf_fill(pressed, buttonWidth, buttonHeight, buttonWidth, clearColor32);
     }
 
     lighten_buf(normal, buttonWidth, buttonHeight, buttonWidth);
 
-    text_to_buf(normal + buttonWidth * 3 + 8, title, buttonWidth, buttonWidth, colorTable[GNW_wcolor[3]]);
-    draw_shaded_box(normal,
-        buttonWidth,
-        2,
-        2,
-        buttonWidth - 3,
-        buttonHeight - 3,
-        colorTable[GNW_wcolor[1]],
-        colorTable[GNW_wcolor[2]]);
-    draw_shaded_box(normal,
-        buttonWidth,
-        1,
-        1,
-        buttonWidth - 2,
-        buttonHeight - 2,
-        colorTable[GNW_wcolor[1]],
-        colorTable[GNW_wcolor[2]]);
-    draw_box(normal, buttonWidth, 0, 0, buttonWidth - 1, buttonHeight - 1, colorTable[0]);
+    // colorTable maps RGB555 → palette index, then convert palette index → RGBA
+    unsigned char* pal = getColorPalette();
 
-    text_to_buf(pressed + buttonWidth * 4 + 9, title, buttonWidth, buttonWidth, colorTable[GNW_wcolor[3]]);
-    draw_shaded_box(pressed,
-        buttonWidth,
-        2,
-        2,
-        buttonWidth - 3,
-        buttonHeight - 3,
-        colorTable[GNW_wcolor[2]],
-        colorTable[GNW_wcolor[1]]);
-    draw_shaded_box(pressed,
-        buttonWidth,
-        1,
-        1,
-        buttonWidth - 2,
-        buttonHeight - 2,
-        colorTable[GNW_wcolor[2]],
-        colorTable[GNW_wcolor[1]]);
-    draw_box(pressed, buttonWidth, 0, 0, buttonWidth - 1, buttonHeight - 1, colorTable[0]);
+    int text_palIdx = colorTable[GNW_wcolor[3]];
+    int text_color32 = (0xFF << 24) | ((pal[text_palIdx * 3 + 2] << 2) << 16) | ((pal[text_palIdx * 3 + 1] << 2) << 8) | (pal[text_palIdx * 3] << 2);
+
+    int lt_palIdx = colorTable[GNW_wcolor[1]];
+    int lt_color32 = (0xFF << 24) | ((pal[lt_palIdx * 3 + 2] << 2) << 16) | ((pal[lt_palIdx * 3 + 1] << 2) << 8) | (pal[lt_palIdx * 3] << 2);
+
+    int rb_palIdx = colorTable[GNW_wcolor[2]];
+    int rb_color32 = (0xFF << 24) | ((pal[rb_palIdx * 3 + 2] << 2) << 16) | ((pal[rb_palIdx * 3 + 1] << 2) << 8) | (pal[rb_palIdx * 3] << 2);
+
+    int box_palIdx = colorTable[0];
+    int box_color32 = (0xFF << 24) | ((pal[box_palIdx * 3 + 2] << 2) << 16) | ((pal[box_palIdx * 3 + 1] << 2) << 8) | (pal[box_palIdx * 3] << 2);
+
+    FMtext_to_buf(normal + (buttonWidth * 3 + 8) * 4, title, buttonWidth, buttonWidth, text_color32);
+    draw_shaded_box(normal, buttonWidth, 2, 2, buttonWidth - 3, buttonHeight - 3, lt_color32, rb_color32);
+    draw_shaded_box(normal, buttonWidth, 1, 1, buttonWidth - 2, buttonHeight - 2, lt_color32, rb_color32);
+    draw_box(normal, buttonWidth, 0, 0, buttonWidth - 1, buttonHeight - 1, box_color32);
+
+    FMtext_to_buf(pressed + (buttonWidth * 4 + 9) * 4, title, buttonWidth, buttonWidth, text_color32);
+    draw_shaded_box(pressed, buttonWidth, 2, 2, buttonWidth - 3, buttonHeight - 3, rb_color32, lt_color32);
+    draw_shaded_box(pressed, buttonWidth, 1, 1, buttonWidth - 2, buttonHeight - 2, rb_color32, lt_color32);
+    draw_box(pressed, buttonWidth, 0, 0, buttonWidth - 1, buttonHeight - 1, box_color32);
 
     Button* button = button_create(win,
         x,
@@ -134,7 +124,7 @@ int win_register_text_button(int win, int x, int y, int mouseEnterEventCode, int
         mouseExitEventCode,
         mouseDownEventCode,
         mouseUpEventCode,
-        flags,
+        flags | BUTTON_FLAG_0x010000,
         buttonWidth,
         buttonHeight,
         normal,
@@ -803,7 +793,7 @@ int win_delete_button(int btn)
         button->next->prev = button->prev;
     }
 
-    win_fill(w->id, button->rect.ulx, button->rect.uly, button->rect.lrx - button->rect.ulx + 1, button->rect.lry - button->rect.uly + 1, w->field_20);
+    win_fill(w->id, button->rect.ulx, button->rect.uly, button->rect.lrx - button->rect.ulx + 1, button->rect.lry - button->rect.uly + 1, w->backgroundColor);
 
     if (button == w->field_34) {
         w->field_34 = NULL;
@@ -1161,55 +1151,27 @@ static void button_draw(Button* button, Window* w, unsigned char* data, int a4, 
                 int fullDestWidth = button->rect.lrx - button->rect.ulx + 1;
                 int fullDestHeight = button->rect.lry - button->rect.uly + 1;
                 if ((button->flags & BUTTON_FLAG_TRANSPARENT) != 0) {
-                    if ((w->flags & WINDOW_FLAG_32BIT) != 0) {
-                        trans_cscale_8_to_32(
-                            data,
-                            button->srcWidth,
-                            button->srcHeight,
-                            button->srcWidth,
-                            w->buffer + (w->width * button->rect.uly + button->rect.ulx) * 4,
-                            fullDestWidth,
-                            fullDestHeight,
-                            w->width,
-                            getColorPalette()
-                        );
-                    } else {
-                        trans_cscale(
-                            data,
-                            button->srcWidth,
-                            button->srcHeight,
-                            button->srcWidth,
-                            w->buffer + (w->width * button->rect.uly + button->rect.ulx),
-                            fullDestWidth,
-                            fullDestHeight,
-                            w->width
-                        );
-                    }
+                    trans_cscale(
+                        data,
+                        button->srcWidth,
+                        button->srcHeight,
+                        button->srcWidth,
+                        w->buffer + (w->width * button->rect.uly + button->rect.ulx) * 4,
+                        fullDestWidth,
+                        fullDestHeight,
+                        w->width
+                    );
                 } else {
-                    if ((w->flags & WINDOW_FLAG_32BIT) != 0) {
-                        cscale_8_to_32(
-                            data,
-                            button->srcWidth,
-                            button->srcHeight,
-                            button->srcWidth,
-                            w->buffer + (w->width * button->rect.uly + button->rect.ulx) * 4,
-                            fullDestWidth,
-                            fullDestHeight,
-                            w->width,
-                            getColorPalette()
-                        );
-                    } else {
-                        cscale(
-                            data,
-                            button->srcWidth,
-                            button->srcHeight,
-                            button->srcWidth,
-                            w->buffer + (w->width * button->rect.uly + button->rect.ulx),
-                            fullDestWidth,
-                            fullDestHeight,
-                            w->width
-                        );
-                    }
+                    cscale(
+                        data,
+                        button->srcWidth,
+                        button->srcHeight,
+                        button->srcWidth,
+                        w->buffer + (w->width * button->rect.uly + button->rect.ulx) * 4,
+                        fullDestWidth,
+                        fullDestHeight,
+                        w->width
+                    );
                 }
             }
 

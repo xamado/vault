@@ -309,103 +309,6 @@ void FMtext_to_buf(unsigned char* buf, const char* string, int length, int pitch
         return;
     }
 
-    if ((color & FONT_SHADOW) != 0) {
-        color &= ~FONT_SHADOW;
-        // NOTE: Other font options preserved. This is different from text font
-        // shadows.
-        FMtext_to_buf(buf + pitch + 1, string, length, pitch, (color & ~0xFF) | colorTable[0]);
-    }
-
-    unsigned char* palette = getColorBlendTable(color & 0xFF);
-
-    int monospacedCharacterWidth;
-    if ((color & FONT_MONO) != 0) {
-        // NOTE: Uninline.
-        monospacedCharacterWidth = FMtext_max();
-    }
-
-    unsigned char* ptr = buf;
-    while (*string != '\0') {
-        char ch = *string++;
-
-        int characterWidth;
-        if (ch == ' ') {
-            characterWidth = gCurrentFont->wordSpacing;
-        } else {
-            characterWidth = gCurrentFont->glyphs[ch & 0xFF].width;
-        }
-
-        unsigned char* end;
-        if ((color & FONT_MONO) != 0) {
-            end = ptr + monospacedCharacterWidth;
-            ptr += (monospacedCharacterWidth - characterWidth - gCurrentFont->letterSpacing) / 2;
-        } else {
-            end = ptr + characterWidth + gCurrentFont->letterSpacing;
-        }
-
-        if (end - buf > length) {
-            break;
-        }
-
-        InterfaceFontGlyph* glyph = &(gCurrentFont->glyphs[ch & 0xFF]);
-        unsigned char* glyphDataPtr = gCurrentFont->data + glyph->offset;
-
-        // Skip blank pixels (difference between font's line height and glyph height).
-        ptr += (gCurrentFont->maxHeight - glyph->height) * pitch;
-
-        for (int y = 0; y < glyph->height; y++) {
-            for (int x = 0; x < glyph->width; x++) {
-                unsigned char byte = *glyphDataPtr++;
-
-                *ptr++ = palette[(byte << 8) + *ptr];
-            }
-
-            ptr += pitch - glyph->width;
-        }
-
-        ptr = end;
-    }
-
-    if ((color & FONT_UNDERLINE) != 0) {
-        int length = ptr - buf;
-        unsigned char* underlinePtr = buf + pitch * (gCurrentFont->maxHeight - 1);
-        for (int index = 0; index < length; index++) {
-            *underlinePtr++ = color & 0xFF;
-        }
-    }
-
-    freeColorBlendTable(color & 0xFF);
-}
-
-// NOTE: Inlined.
-//
-// 0x442520
-static void Swap4(unsigned int* value)
-{
-    unsigned int swapped = *value;
-    unsigned short high = swapped >> 16;
-    // NOTE: Uninline.
-    Swap2(&high);
-    unsigned short low = swapped & 0xFFFF;
-    // NOTE: Uninline.
-    Swap2(&low);
-    *value = (low << 16) | high;
-}
-
-// 0x442568
-static void Swap2(unsigned short* value)
-{
-    unsigned short swapped = *value;
-    swapped = (swapped >> 8) | (swapped << 8);
-    *value = swapped;
-}
-
-void FMtext_to_buf_32(unsigned char* buf, const char* string, int length, int pitch, int color)
-{
-    if (!gFMInit) {
-        return;
-    }
-
     int flags = 0;
     unsigned int outPixel = color;
 
@@ -429,7 +332,7 @@ void FMtext_to_buf_32(unsigned char* buf, const char* string, int length, int pi
         unsigned int shadowPixel = (0xFF << 24) | ((pal[shadowIndex * 3 + 2] << 2) << 16) | ((pal[shadowIndex * 3 + 1] << 2) << 8) | (pal[shadowIndex * 3] << 2);
         
         // pitch is in pixels, so moving down 1 row and right 1 pixel means + pitch*4 + 4 bytes
-        FMtext_to_buf_32(buf + pitch * 4 + 4, string, length, pitch, shadowPixel);
+        FMtext_to_buf(buf + pitch * 4 + 4, string, length, pitch, shadowPixel);
     }
 
     int monospacedCharacterWidth;
@@ -463,6 +366,7 @@ void FMtext_to_buf_32(unsigned char* buf, const char* string, int length, int pi
         InterfaceFontGlyph* glyph = &(gCurrentFont->glyphs[ch & 0xFF]);
         unsigned char* glyphDataPtr = gCurrentFont->data + glyph->offset;
 
+        // Skip blank pixels (difference between font's line height and glyph height).
         ptr += (gCurrentFont->maxHeight - glyph->height) * pitch;
 
         for (int y = 0; y < glyph->height; y++) {
@@ -511,3 +415,27 @@ void FMtext_to_buf_32(unsigned char* buf, const char* string, int length, int pi
         }
     }
 }
+
+// NOTE: Inlined.
+//
+// 0x442520
+static void Swap4(unsigned int* value)
+{
+    unsigned int swapped = *value;
+    unsigned short high = swapped >> 16;
+    // NOTE: Uninline.
+    Swap2(&high);
+    unsigned short low = swapped & 0xFFFF;
+    // NOTE: Uninline.
+    Swap2(&low);
+    *value = (low << 16) | high;
+}
+
+// 0x442568
+static void Swap2(unsigned short* value)
+{
+    unsigned short swapped = *value;
+    swapped = (swapped >> 8) | (swapped << 8);
+    *value = swapped;
+}
+

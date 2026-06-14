@@ -2,6 +2,7 @@
 #include "plib/os/os_string.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <string.h>
 
 #define _USE_MATH_DEFINES
@@ -68,7 +69,9 @@ static bool scroll_limiting_on = true;
 static bool show_roof = true;
 
 // 0x51D960
+#ifdef ENABLE_TILE_GRID_DEBUG
 static bool show_grid = false;
+#endif
 
 // 0x51D964
 static TileWindowRefreshElevationProc* tile_refresh = refresh_game;
@@ -174,10 +177,12 @@ static int dir_tile2[2][6];
 static int dir_tile[2][6];
 
 // 0x66B5C4
-static unsigned char tile_grid_blocked[512];
+#ifdef ENABLE_TILE_GRID_DEBUG
+static unsigned char tile_grid_blocked[512 * 4];
 
 // 0x66B7C4
-static unsigned char tile_grid_occupied[512];
+static unsigned char tile_grid_occupied[512 * 4];
+#endif
 
 // 0x66B9C4
 static unsigned char tile_mask[512];
@@ -189,7 +194,9 @@ static Rect tile_border;
 static Rect buf_rect;
 
 // 0x66BBE4
-static unsigned char tile_grid[32 * 16];
+#ifdef ENABLE_TILE_GRID_DEBUG
+static unsigned char tile_grid[32 * 16 * 4];
+#endif
 
 // 0x66BDE4
 static int square_y;
@@ -304,7 +311,9 @@ int tile_init(TileData** a1, int squareGridWidth, int squareGridHeight, int hexG
     buf_rect.uly = 0;
     dir_tile[0][1] = hexGridWidth - 1;
     dir_tile[0][2] = hexGridWidth;
+#ifdef ENABLE_TILE_GRID_DEBUG
     show_grid = 0;
+#endif
     dir_tile[0][3] = hexGridWidth + 1;
     dir_tile[1][2] = hexGridWidth;
     dir_tile2[0][4] = hexGridWidth;
@@ -364,6 +373,7 @@ int tile_init(TileData** a1, int squareGridWidth, int squareGridHeight, int hexG
         v11 += 16;
     } while (v11 != 64);
 
+#ifdef ENABLE_TILE_GRID_DEBUG
     buf_fill(tile_grid, 32, 16, 32, 0);
     draw_line(tile_grid, 32, 16, 0, 31, 4, colorTable[4228]);
     draw_line(tile_grid, 32, 31, 4, 31, 12, colorTable[4228]);
@@ -388,29 +398,31 @@ int tile_init(TileData** a1, int squareGridWidth, int squareGridHeight, int hexG
     draw_line(tile_grid_blocked, 32, 0, 4, 0, 12, colorTable[31744]);
     draw_line(tile_grid_blocked, 32, 16, 0, 0, 4, colorTable[31744]);
 
+    uint32_t* blocked32 = (uint32_t*)tile_grid_blocked;
     for (v20 = 0; v20 < 16; v20++) {
         v21 = v20 * 32;
         v22 = 31;
         v23 = v21 + 31;
 
-        if (tile_grid_blocked[v23] == 0) {
+        if (blocked32[v23] == 0) {
             do {
                 --v22;
                 --v23;
-            } while (v22 > 0 && tile_grid_blocked[v23] == 0);
+            } while (v22 > 0 && blocked32[v23] == 0);
         }
 
         v24 = v21;
         v25 = 0;
-        if (tile_grid_blocked[v21] == 0) {
+        if (blocked32[v21] == 0) {
             do {
                 ++v25;
                 ++v24;
-            } while (v25 < 32 && tile_grid_blocked[v24] == 0);
+            } while (v25 < 32 && blocked32[v24] == 0);
         }
 
         draw_line(tile_grid_blocked, 32, v25, v20, v22, v20, colorTable[31744]);
     }
+#endif
 
     tile_set_center(hexGridWidth * (hexGridHeight / 2) + hexGridWidth / 2, TILE_SET_CENTER_FLAG_IGNORE_SCROLL_RESTRICTIONS);
     tile_set_border(windowWidth, windowHeight, hexGridWidth, hexGridHeight);
@@ -421,13 +433,17 @@ int tile_init(TileData** a1, int squareGridWidth, int squareGridHeight, int hexG
 // 0x4B11E4
 void tile_set_border(int windowWidth, int windowHeight, int hexGridWidth, int hexGridHeight)
 {
-    int v1 = tile_num(-320, -240, 0);
-    int v2 = tile_num(-320, windowHeight + 240, 0);
+    // Compute how many hex tile columns/rows the viewport spans.
+    // Each hex column is 32 pixels wide, each row is 12 pixels tall
+    // (the vertical step in the staggered grid).
+    // Add some padding (+6/+7) to prevent edge artifacts.
+    int tileCols = (windowWidth / 2) / 32 + 6;
+    int tileRows = (windowHeight / 2) / 12 + 7;
 
-    tile_border.ulx = abs(hexGridWidth - 1 - v2 % hexGridWidth - tile_x) + 6;
-    tile_border.uly = abs(tile_y - v1 / hexGridWidth) + 7;
-    tile_border.lrx = hexGridWidth - tile_border.ulx - 1;
-    tile_border.lry = hexGridHeight - tile_border.uly - 1;
+    tile_border.ulx = tileCols;
+    tile_border.uly = tileRows;
+    tile_border.lrx = hexGridWidth - tileCols - 1;
+    tile_border.lry = hexGridHeight - tileRows - 1;
 
     if ((tile_border.ulx & 1) == 0) {
         tile_border.ulx++;
@@ -437,7 +453,14 @@ void tile_set_border(int windowWidth, int windowHeight, int hexGridWidth, int he
         tile_border.ulx--;
     }
 
-    borderInitialized = true;
+    // If the viewport is large enough that the border range inverts
+    // (ulx >= lrx or uly >= lry), the entire map fits on screen
+    // and scroll borders should not restrict movement.
+    if (tile_border.ulx >= tile_border.lrx || tile_border.uly >= tile_border.lry) {
+        borderInitialized = false;
+    } else {
+        borderInitialized = true;
+    }
 }
 
 // NOTE: Uncollapsed 0x4B129C.
@@ -500,11 +523,18 @@ int tile_set_center(int tile, int flags)
             int dx = abs(dudeScreenX - tileScreenX);
             int dy = abs(dudeScreenY - tileScreenY);
 
-            if (dx > abs(dudeScreenX - tile_offx)
-                || dy > abs(dudeScreenY - tile_offy)) {
-                if (dx >= 480 || dy >= 400) {
-                    return -1;
-                }
+            // Cap max scroll distance from the dude at the original
+            // 640x480 design values. These represent a game design decision
+            // (how far the camera can stray from the player), not a
+            // resolution-dependent value.
+            int maxDx = 480;  // original: 640 * 3/4
+            int maxDy = 400;  // original: 480 - 80
+
+            // Check each axis independently: only block if the axis
+            // being scrolled further from the dude exceeds its limit.
+            if ((dx > abs(dudeScreenX - tile_offx) && dx >= maxDx)
+                || (dy > abs(dudeScreenY - tile_offy) && dy >= maxDy)) {
+                return -1;
             }
         }
 
@@ -518,9 +548,11 @@ int tile_set_center(int tile, int flags)
     int new_tile_x = grid_width - 1 - tile % grid_width;
     int new_tile_y = tile / grid_width;
 
-    if (borderInitialized) {
-        if (new_tile_x <= tile_border.ulx || new_tile_x >= tile_border.lrx || new_tile_y <= tile_border.uly || new_tile_y >= tile_border.lry) {
-            return -1;
+    if ((flags & TILE_SET_CENTER_FLAG_IGNORE_SCROLL_RESTRICTIONS) == 0) {
+        if (borderInitialized) {
+            if (new_tile_x <= tile_border.ulx || new_tile_x >= tile_border.lrx || new_tile_y <= tile_border.uly || new_tile_y >= tile_border.lry) {
+                return -1;
+            }
         }
     }
 
@@ -567,6 +599,9 @@ static void refresh_game(Rect* rect, int elevation)
     obj_render_pre_roof(&rectToUpdate, elevation);
     square_render_roof(&rectToUpdate, elevation);
     obj_render_post_roof(&rectToUpdate, elevation);
+#ifdef ENABLE_TILE_GRID_DEBUG
+    grid_render(&rectToUpdate, elevation);
+#endif
     blit(&rectToUpdate);
 }
 
@@ -1289,7 +1324,7 @@ static void roof_draw(int fid, int x, int y, Rect* rect, int light)
 
     if (rect_inside_bound(&tileRect, rect, &tileRect) == 0) {
         unsigned char* tileFrmBuffer = art_frame_data(tileFrm, 0, 0);
-        tileFrmBuffer += tileWidth * (tileRect.uly - y) + (tileRect.ulx - x);
+        tileFrmBuffer += (tileWidth * (tileRect.uly - y) + (tileRect.ulx - x)) * 4;
 
         CacheEntry* eggFrmHandle;
         Art* eggFrm = art_ptr_lock(obj_egg->fid, &eggFrmHandle);
@@ -1346,7 +1381,7 @@ static void roof_draw(int fid, int x, int y, Rect* rect, int light)
                 for (int i = 0; i < 4; i++) {
                     Rect* cr = &(rects[i]);
                     if (cr->ulx <= cr->lrx && cr->uly <= cr->lry) {
-                        dark_trans_buf_to_buf(tileFrmBuffer + tileWidth * (cr->uly - tileRect.uly) + (cr->ulx - tileRect.ulx),
+                        dark_trans_buf_to_buf(tileFrmBuffer + (tileWidth * (cr->uly - tileRect.uly) + (cr->ulx - tileRect.ulx)) * 4,
                             cr->lrx - cr->ulx + 1,
                             cr->lry - cr->uly + 1,
                             tileWidth,
@@ -1359,13 +1394,13 @@ static void roof_draw(int fid, int x, int y, Rect* rect, int light)
                 }
 
                 unsigned char* eggBuf = art_frame_data(eggFrm, 0, 0);
-                intensity_mask_buf_to_buf(tileFrmBuffer + tileWidth * (intersectedRect.uly - tileRect.uly) + (intersectedRect.ulx - tileRect.ulx),
+                intensity_mask_buf_to_buf(tileFrmBuffer + (tileWidth * (intersectedRect.uly - tileRect.uly) + (intersectedRect.ulx - tileRect.ulx)) * 4,
                     intersectedRect.lrx - intersectedRect.ulx + 1,
                     intersectedRect.lry - intersectedRect.uly + 1,
                     tileWidth,
-                    buf + buf_full * intersectedRect.uly + intersectedRect.ulx,
+                    buf + (buf_full * intersectedRect.uly + intersectedRect.ulx) * 4,
                     buf_full,
-                    eggBuf + eggWidth * (intersectedRect.uly - eggRect.uly) + (intersectedRect.ulx - eggRect.ulx),
+                    eggBuf + (eggWidth * (intersectedRect.uly - eggRect.uly) + (intersectedRect.ulx - eggRect.ulx)) * 4,
                     eggWidth,
                     light);
             } else {
@@ -1458,7 +1493,7 @@ bool square_roof_intersect(int x, int y, int elevation)
                     square_coord_roof(idx, &v18, &v17, elevation);
 
                     int width = art_frame_width(art, 0, 0);
-                    if (data[width * (y - v17) + x - v18] != 0) {
+                    if (((uint32_t*)data)[width * (y - v17) + x - v18] != 0) {
                         result = true;
                     }
                 }
@@ -1472,6 +1507,7 @@ bool square_roof_intersect(int x, int y, int elevation)
 
 // NOTE: Unused.
 //
+#ifdef ENABLE_TILE_GRID_DEBUG
 // 0x4B2E60
 void grid_toggle()
 {
@@ -1552,36 +1588,37 @@ void draw_grid(int tile, int elevation, Rect* rect)
     }
 
     if (obj_blocking_at(NULL, tile, elevation) != NULL) {
-        trans_buf_to_buf(tile_grid_blocked + 32 * (r.uly - y) + (r.ulx - x),
+        trans_buf_to_buf(tile_grid_blocked + (32 * (r.uly - y) + (r.ulx - x)) * 4,
             r.lrx - r.ulx + 1,
             r.lry - r.uly + 1,
             32,
-            buf + buf_full * r.uly + r.ulx,
+            buf + (buf_full * r.uly + r.ulx) * 4,
             buf_full);
         return;
     }
 
     if (obj_occupied(tile, elevation)) {
-        trans_buf_to_buf(tile_grid_occupied + 32 * (r.uly - y) + (r.ulx - x),
+        trans_buf_to_buf(tile_grid_occupied + (32 * (r.uly - y) + (r.ulx - x)) * 4,
             r.lrx - r.ulx + 1,
             r.lry - r.uly + 1,
             32,
-            buf + buf_full * r.uly + r.ulx,
+            buf + (buf_full * r.uly + r.ulx) * 4,
             buf_full);
         return;
     }
 
-    translucent_trans_buf_to_buf(tile_grid_occupied + 32 * (r.uly - y) + (r.ulx - x),
+    translucent_trans_buf_to_buf(tile_grid_occupied + (32 * (r.uly - y) + (r.ulx - x)) * 4,
         r.lrx - r.ulx + 1,
         r.lry - r.uly + 1,
         32,
-        buf + buf_full * r.uly + r.ulx,
+        buf + (buf_full * r.uly + r.ulx) * 4,
         0,
         0,
         buf_full,
         wallBlendTable,
         commonGrayTable);
 }
+#endif
 
 // 0x4B30C4
 void floor_draw(int fid, int x, int y, Rect* rect)
@@ -1597,230 +1634,259 @@ void floor_draw(int fid, int x, int y, Rect* rect)
     }
 
     int elev = map_elevation;
-    int left = rect->ulx;
-    int top = rect->uly;
-    int width = rect->lrx - rect->ulx + 1;
-    int height = rect->lry - rect->uly + 1;
+    int clipLeft = rect->ulx;
+    int clipTop = rect->uly;
+    int clipWidth = rect->lrx - rect->ulx + 1;
+    int clipHeight = rect->lry - rect->uly + 1;
     int frameWidth;
     int frameHeight;
-    int v15;
-    int v76;
-    int v77;
-    int v78;
-    int v79;
+    int srcOffsetX;
+    int srcOffsetY;
+    int drawWidth;
+    int drawHeight;
 
     int savedX = x;
     int savedY = y;
 
-    if (left < 0) {
-        left = 0;
+    if (clipLeft < 0) {
+        clipLeft = 0;
     }
 
-    if (top < 0) {
-        top = 0;
+    if (clipTop < 0) {
+        clipTop = 0;
     }
 
-    if (left + width > buf_width) {
-        width = buf_width - left;
+    if (clipLeft + clipWidth > buf_width) {
+        clipWidth = buf_width - clipLeft;
     }
 
-    if (top + height > buf_length) {
-        height = buf_length - top;
+    if (clipTop + clipHeight > buf_length) {
+        clipHeight = buf_length - clipTop;
     }
 
-    if (x >= buf_width || x > rect->lrx || y >= buf_length || y > rect->lry) goto out;
+    if (x >= buf_width || x > rect->lrx || y >= buf_length || y > rect->lry) { goto out; }
 
     frameWidth = art_frame_width(art, 0, 0);
     frameHeight = art_frame_length(art, 0, 0);
 
-    if (left < x) {
-        v79 = 0;
-        int v12 = left + width;
-        v77 = frameWidth + x <= v12 ? frameWidth : v12 - x;
+    // Clip horizontally: compute source X offset and visible width.
+    if (clipLeft < x) {
+        srcOffsetX = 0;
+        int clipRight = clipLeft + clipWidth;
+        drawWidth = frameWidth + x <= clipRight ? frameWidth : clipRight - x;
     } else {
-        v79 = left - x;
-        x = left;
-        v77 = frameWidth - v79;
-        if (v77 > width) {
-            v77 = width;
+        srcOffsetX = clipLeft - x;
+        x = clipLeft;
+        drawWidth = frameWidth - srcOffsetX;
+        if (drawWidth > clipWidth) {
+            drawWidth = clipWidth;
         }
     }
 
-    if (top < y) {
-        int v14 = height + top;
-        v78 = 0;
-        v76 = frameHeight + y <= v14 ? frameHeight : v14 - y;
+    // Clip vertically: compute source Y offset and visible height.
+    if (clipTop < y) {
+        int clipBottom = clipHeight + clipTop;
+        srcOffsetY = 0;
+        drawHeight = frameHeight + y <= clipBottom ? frameHeight : clipBottom - y;
     } else {
-        v78 = top - y;
-        y = top;
-        v76 = frameHeight - v78;
-        if (v76 > height) {
-            v76 = height;
+        srcOffsetY = clipTop - y;
+        y = clipTop;
+        drawHeight = frameHeight - srcOffsetY;
+        if (drawHeight > clipHeight) {
+            drawHeight = clipHeight;
         }
     }
 
-    if (v77 <= 0 || v76 <= 0) goto out;
+    if (drawWidth <= 0 || drawHeight <= 0) goto out;
 
-    v15 = tile_num(savedX, savedY + 13, map_elevation);
-    if (v15 != -1) {
-        int v17 = light_get_ambient();
-        for (int i = v15 & 1; i < 10; i++) {
+    // Determine the hex tile at the center of this floor tile
+    // (offset by 13 pixels down to land on the tile center).
+    int centerTile = tile_num(savedX, savedY + 13, map_elevation);
+    if (centerTile != -1) {
+        // Sample light intensity at each vertex of the tile's lighting mesh.
+        int ambientLight = light_get_ambient();
+        for (int i = centerTile & 1; i < 10; i++) {
             // NOTE: calling light_get_tile two times, probably a result of using __min kind macro
-            int v21 = light_get_tile(elev, v15 + verticies[i].field_4);
-            if (v21 <= v17) {
-                v21 = v17;
+            int tileLight = light_get_tile(elev, centerTile + verticies[i].field_4);
+            if (tileLight <= ambientLight) {
+                tileLight = ambientLight;
             }
 
-            verticies[i].field_C = v21;
+            verticies[i].field_C = tileLight;
         }
 
-        int v23 = 0;
+        // Check if all 10 vertices share the same light intensity.
+        int uniformCount = 0;
         for (int i = 0; i < 9; i++) {
             if (verticies[i + 1].field_C != verticies[i].field_C) {
                 break;
             }
 
-            v23++;
+            uniformCount++;
         }
 
-        if (v23 == 9) {
-            unsigned char* frame_data = art_frame_data(art, 0, 0);
-            dark_trans_buf_to_buf(frame_data + frameWidth * v78 + v79, v77, v76, frameWidth, buf, x, y, buf_full, verticies[0].field_C);
+        // Fast path: uniform lighting across the entire tile.
+        if (uniformCount == 9) {
+            unsigned char* frameData = art_frame_data(art, 0, 0);
+            dark_trans_buf_to_buf(frameData + (frameWidth * srcOffsetY + srcOffsetX) * 4, drawWidth, drawHeight, frameWidth, buf, x, y, buf_full, verticies[0].field_C);
             goto out;
         }
 
+        // Slow path: interpolate light across triangles into intensity_map.
+        // Each floor tile (80x41 pixels) is subdivided into 10 triangles
+        // (5 rightside-up + 5 upside-down). For each triangle, we linearly
+        // interpolate the light intensity across its scanlines.
+
+        // Process the 5 rightside-up triangles.
         for (int i = 0; i < 5; i++) {
-            STRUCT_51DB0C* ptr_51DB0C = &(rightside_up_triangles[i]);
-            int v32 = verticies[ptr_51DB0C->field_8].field_C;
-            int v33 = verticies[ptr_51DB0C->field_8].field_0;
-            int v34 = verticies[ptr_51DB0C->field_4].field_C - verticies[ptr_51DB0C->field_0].field_C;
+            STRUCT_51DB0C* tri = &(rightside_up_triangles[i]);
+            int rowIntensity = verticies[tri->field_8].field_C;
+            int mapOffset = verticies[tri->field_8].field_0;
+            int horizDelta = verticies[tri->field_4].field_C - verticies[tri->field_0].field_C;
             // TODO: Probably wrong.
-            int v35 = v34 / 32;
-            int v36 = (verticies[ptr_51DB0C->field_0].field_C - v32) / 13;
-            int* v37 = &(intensity_map[v33]);
-            if (v35 != 0) {
-                if (v36 != 0) {
-                    for (int i = 0; i < 13; i++) {
-                        int v41 = v32;
-                        int v42 = rightside_up_table[i].field_4;
-                        v37 += rightside_up_table[i].field_0;
-                        for (int j = 0; j < v42; j++) {
-                            *v37++ = v41;
-                            v41 += v35;
+            int horizStep = horizDelta / 32;
+            int vertStep = (verticies[tri->field_0].field_C - rowIntensity) / 13;
+            int* intensityPtr = &(intensity_map[mapOffset]);
+            if (horizStep != 0) {
+                if (vertStep != 0) {
+                    for (int row = 0; row < 13; row++) {
+                        int scanIntensity = rowIntensity;
+                        int spanWidth = rightside_up_table[row].field_4;
+                        intensityPtr += rightside_up_table[row].field_0;
+                        for (int col = 0; col < spanWidth; col++) {
+                            *intensityPtr++ = scanIntensity;
+                            scanIntensity += horizStep;
                         }
-                        v32 += v36;
+                        rowIntensity += vertStep;
                     }
                 } else {
-                    for (int i = 0; i < 13; i++) {
-                        int v38 = v32;
-                        int v39 = rightside_up_table[i].field_4;
-                        v37 += rightside_up_table[i].field_0;
-                        for (int j = 0; j < v39; j++) {
-                            *v37++ = v38;
-                            v38 += v35;
+                    for (int row = 0; row < 13; row++) {
+                        int scanIntensity = rowIntensity;
+                        int spanWidth = rightside_up_table[row].field_4;
+                        intensityPtr += rightside_up_table[row].field_0;
+                        for (int col = 0; col < spanWidth; col++) {
+                            *intensityPtr++ = scanIntensity;
+                            scanIntensity += horizStep;
                         }
                     }
                 }
             } else {
-                if (v36 != 0) {
-                    for (int i = 0; i < 13; i++) {
-                        int v46 = rightside_up_table[i].field_4;
-                        v37 += rightside_up_table[i].field_0;
-                        for (int j = 0; j < v46; j++) {
-                            *v37++ = v32;
+                if (vertStep != 0) {
+                    for (int row = 0; row < 13; row++) {
+                        int spanWidth = rightside_up_table[row].field_4;
+                        intensityPtr += rightside_up_table[row].field_0;
+                        for (int col = 0; col < spanWidth; col++) {
+                            *intensityPtr++ = rowIntensity;
                         }
-                        v32 += v36;
+                        rowIntensity += vertStep;
                     }
                 } else {
-                    for (int i = 0; i < 13; i++) {
-                        int v44 = rightside_up_table[i].field_4;
-                        v37 += rightside_up_table[i].field_0;
-                        for (int j = 0; j < v44; j++) {
-                            *v37++ = v32;
+                    for (int row = 0; row < 13; row++) {
+                        int spanWidth = rightside_up_table[row].field_4;
+                        intensityPtr += rightside_up_table[row].field_0;
+                        for (int col = 0; col < spanWidth; col++) {
+                            *intensityPtr++ = rowIntensity;
                         }
                     }
                 }
             }
         }
 
+        // Process the 5 upside-down triangles.
         for (int i = 0; i < 5; i++) {
-            STRUCT_51DB48* ptr_51DB48 = &(upside_down_triangles[i]);
-            int v50 = verticies[ptr_51DB48->field_0].field_C;
-            int v51 = verticies[ptr_51DB48->field_0].field_0;
-            int v52 = verticies[ptr_51DB48->field_8].field_C - v50;
+            STRUCT_51DB48* tri = &(upside_down_triangles[i]);
+            int rowIntensity = verticies[tri->field_0].field_C;
+            int mapOffset = verticies[tri->field_0].field_0;
+            int horizDelta = verticies[tri->field_8].field_C - rowIntensity;
             // TODO: Probably wrong.
-            int v53 = v52 / 32;
-            int v54 = (verticies[ptr_51DB48->field_4].field_C - v50) / 13;
-            int* v55 = &(intensity_map[v51]);
-            if (v53 != 0) {
-                if (v54 != 0) {
-                    for (int i = 0; i < 13; i++) {
-                        int v59 = v50;
-                        int v60 = upside_down_table[i].field_4;
-                        v55 += upside_down_table[i].field_0;
-                        for (int j = 0; j < v60; j++) {
-                            *v55++ = v59;
-                            v59 += v53;
+            int horizStep = horizDelta / 32;
+            int vertStep = (verticies[tri->field_4].field_C - rowIntensity) / 13;
+            int* intensityPtr = &(intensity_map[mapOffset]);
+            if (horizStep != 0) {
+                if (vertStep != 0) {
+                    for (int row = 0; row < 13; row++) {
+                        int scanIntensity = rowIntensity;
+                        int spanWidth = upside_down_table[row].field_4;
+                        intensityPtr += upside_down_table[row].field_0;
+                        for (int col = 0; col < spanWidth; col++) {
+                            *intensityPtr++ = scanIntensity;
+                            scanIntensity += horizStep;
                         }
-                        v50 += v54;
+                        rowIntensity += vertStep;
                     }
                 } else {
-                    for (int i = 0; i < 13; i++) {
-                        int v56 = v50;
-                        int v57 = upside_down_table[i].field_4;
-                        v55 += upside_down_table[i].field_0;
-                        for (int j = 0; j < v57; j++) {
-                            *v55++ = v56;
-                            v56 += v53;
+                    for (int row = 0; row < 13; row++) {
+                        int scanIntensity = rowIntensity;
+                        int spanWidth = upside_down_table[row].field_4;
+                        intensityPtr += upside_down_table[row].field_0;
+                        for (int col = 0; col < spanWidth; col++) {
+                            *intensityPtr++ = scanIntensity;
+                            scanIntensity += horizStep;
                         }
                     }
                 }
             } else {
-                if (v54 != 0) {
-                    for (int i = 0; i < 13; i++) {
-                        int v64 = upside_down_table[i].field_4;
-                        v55 += upside_down_table[i].field_0;
-                        for (int j = 0; j < v64; j++) {
-                            *v55++ = v50;
+                if (vertStep != 0) {
+                    for (int row = 0; row < 13; row++) {
+                        int spanWidth = upside_down_table[row].field_4;
+                        intensityPtr += upside_down_table[row].field_0;
+                        for (int col = 0; col < spanWidth; col++) {
+                            *intensityPtr++ = rowIntensity;
                         }
-                        v50 += v54;
+                        rowIntensity += vertStep;
                     }
                 } else {
-                    for (int i = 0; i < 13; i++) {
-                        int v62 = upside_down_table[i].field_4;
-                        v55 += upside_down_table[i].field_0;
-                        for (int j = 0; j < v62; j++) {
-                            *v55++ = v50;
+                    for (int row = 0; row < 13; row++) {
+                        int spanWidth = upside_down_table[row].field_4;
+                        intensityPtr += upside_down_table[row].field_0;
+                        for (int col = 0; col < spanWidth; col++) {
+                            *intensityPtr++ = rowIntensity;
                         }
                     }
                 }
             }
         }
 
-        unsigned char* v66 = buf + buf_full * y + x;
-        unsigned char* v67 = art_frame_data(art, 0, 0) + frameWidth * v78 + v79;
-        int* v68 = &(intensity_map[160 + 80 * v78]) + v79;
-        int v86 = frameWidth - v77;
-        int v85 = buf_full - v77;
-        int v87 = 80 - v77;
+        // Blit the clipped tile with per-pixel lighting from intensity_map.
+        uint32_t* destPtr = (uint32_t*)(buf + (buf_full * y + x) * 4);
+        uint32_t* srcPtr = (uint32_t*)(art_frame_data(art, 0, 0) + (frameWidth * srcOffsetY + srcOffsetX) * 4);
+        int* lightPtr = &(intensity_map[160 + 80 * srcOffsetY]) + srcOffsetX;
+        int srcSkip = frameWidth - drawWidth;
+        int destSkip = buf_full - drawWidth;
+        int lightSkip = 80 - drawWidth;
 
-        while (--v76 != -1) {
-            for (int kk = 0; kk < v77; kk++) {
-                if (*v67 != 0) {
-                    *v66 = intensityColorTable[*v67][*v68 >> 9];
+        while (--drawHeight != -1) {
+            for (int col = 0; col < drawWidth; col++) {
+                uint32_t pixel = *srcPtr;
+                if (pixel != 0) {
+                    int lm = *lightPtr >> 9;
+                    unsigned char r = pixel & 0xFF;
+                    unsigned char g = (pixel >> 8) & 0xFF;
+                    unsigned char b = (pixel >> 16) & 0xFF;
+                    if (lm <= 127) {
+                        int f = lm * 512;
+                        r = (r * f) >> 16;
+                        g = (g * f) >> 16;
+                        b = (b * f) >> 16;
+                    } else {
+                        int f = (lm - 128) * 512;
+                        r = r + (((255 - r) * f) >> 16);
+                        g = g + (((255 - g) * f) >> 16);
+                        b = b + (((255 - b) * f) >> 16);
+                    }
+                    *destPtr = (0xFFu << 24) | (b << 16) | (g << 8) | r;
                 }
-                v67++;
-                v68++;
-                v66++;
+                srcPtr++;
+                lightPtr++;
+                destPtr++;
             }
-            v66 += v85;
-            v68 += v87;
-            v67 += v86;
+            destPtr += destSkip;
+            lightPtr += lightSkip;
+            srcPtr += srcSkip;
         }
     }
 
 out:
-
     art_ptr_unlock(cacheEntry);
 }
 

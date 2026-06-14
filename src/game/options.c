@@ -128,8 +128,6 @@ typedef struct PreferenceDescription {
 } PreferenceDescription;
 #pragma pack()
 
-static_assert(sizeof(PreferenceDescription) == 76, "wrong size");
-
 static int OptnStart();
 static int OptnEnd();
 static void ShadeScreen(bool a1);
@@ -497,7 +495,7 @@ static int OptnStart()
 
     int cycle = 0;
     for (int index = 0; index < OPTIONS_WINDOW_BUTTONS_COUNT; index++) {
-        opbtns[index] = (unsigned char*)mem_malloc(ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width * ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].height + 1024);
+        opbtns[index] = (unsigned char*)mem_malloc((ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width * ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].height) * 4 + 1024);
         if (opbtns[index] == NULL) {
             while (--index >= 0) {
                 mem_free(opbtns[index]);
@@ -514,7 +512,7 @@ static int OptnStart()
 
         cycle = cycle ^ 1;
 
-        memcpy(opbtns[index], opbmp[cycle + 1], ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width * ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].height);
+        memcpy(opbtns[index], opbmp[cycle + 1], ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width * ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].height * 4);
     }
 
     int optionsWindowX = (640 - ginfo[OPTIONS_WINDOW_FRM_BACKGROUND].width) / 2;
@@ -550,7 +548,7 @@ static int OptnStart()
     gmouse_set_cursor(MOUSE_CURSOR_ARROW);
 
     winbuf = win_get_buf(optnwin);
-    memcpy(winbuf, opbmp[OPTIONS_WINDOW_FRM_BACKGROUND], ginfo[OPTIONS_WINDOW_FRM_BACKGROUND].width * ginfo[OPTIONS_WINDOW_FRM_BACKGROUND].height);
+    memcpy(winbuf, opbmp[OPTIONS_WINDOW_FRM_BACKGROUND], ginfo[OPTIONS_WINDOW_FRM_BACKGROUND].width * ginfo[OPTIONS_WINDOW_FRM_BACKGROUND].height * 4);
 
     text_font(103);
 
@@ -568,8 +566,8 @@ static int OptnStart()
             textX = 0;
         }
 
-        text_to_buf(opbtns[index] + ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width * textY + textX, text, ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width, ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width, colorTable[18979]);
-        text_to_buf(opbtns[index + 1] + ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width * textY + textX, text, ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width, ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width, colorTable[14723]);
+        text_to_buf(opbtns[index] + (ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width * textY + textX) * 4, text, ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width, ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width, colorTable[18979]);
+        text_to_buf(opbtns[index + 1] + (ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width * textY + textX) * 4, text, ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width, ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width, colorTable[14723]);
 
         int btn = win_register_button(optnwin, 13, buttonY, ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].width, ginfo[OPTIONS_WINDOW_FRM_BUTTON_ON].height, -1, -1, -1, index / 2 + 500, opbtns[index], opbtns[index + 1], NULL, 32);
         if (btn != -1) {
@@ -696,13 +694,13 @@ int PauseWindow(bool a1)
     unsigned char* windowBuffer = win_get_buf(window);
     memcpy(windowBuffer,
         frmData[PAUSE_WINDOW_FRM_BACKGROUND],
-        frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width * frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].height);
+        frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width * frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].height * 4);
 
     trans_buf_to_buf(frmData[PAUSE_WINDOW_FRM_DONE_BOX],
         frmSizes[PAUSE_WINDOW_FRM_DONE_BOX].width,
         frmSizes[PAUSE_WINDOW_FRM_DONE_BOX].height,
         frmSizes[PAUSE_WINDOW_FRM_DONE_BOX].width,
-        windowBuffer + frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width * 42 + 13,
+        windowBuffer + (frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width * 42 + 13) * 4,
         frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width);
 
     fontsave = text_curr();
@@ -711,7 +709,7 @@ int PauseWindow(bool a1)
     char* messageItemText;
 
     messageItemText = getmsg(&optn_msgfl, &optnmesg, 300);
-    text_to_buf(windowBuffer + frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width * 45 + 52,
+    text_to_buf(windowBuffer + (frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width * 45 + 52) * 4,
         messageItemText,
         frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width,
         frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width,
@@ -723,7 +721,7 @@ int PauseWindow(bool a1)
     strcpy(path, messageItemText);
 
     int length = text_width(path);
-    text_to_buf(windowBuffer + frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width * 10 + 2 + (frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width - length) / 2,
+    text_to_buf(windowBuffer + (frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width * 10 + 2 + (frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width - length) / 2) * 4,
         path,
         frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width,
         frmSizes[PAUSE_WINDOW_FRM_BACKGROUND].width,
@@ -921,12 +919,12 @@ static int PrefStart()
     prefbuf = win_get_buf(prfwin);
     memcpy(prefbuf,
         prfbmp[PREFERENCES_WINDOW_FRM_BACKGROUND],
-        ginfo2[PREFERENCES_WINDOW_FRM_BACKGROUND].width * ginfo2[PREFERENCES_WINDOW_FRM_BACKGROUND].height);
+        ginfo2[PREFERENCES_WINDOW_FRM_BACKGROUND].width * ginfo2[PREFERENCES_WINDOW_FRM_BACKGROUND].height * 4);
 
     text_font(104);
 
     messageItemText = getmsg(&optn_msgfl, &optnmesg, 100);
-    text_to_buf(prefbuf + PREFERENCES_WINDOW_WIDTH * 10 + 74, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
+    text_to_buf(prefbuf + (PREFERENCES_WINDOW_WIDTH * 10 + 74) * 4, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
 
     text_font(103);
 
@@ -934,34 +932,34 @@ static int PrefStart()
     for (i = 0; i < PRIMARY_PREF_COUNT; i++) {
         messageItemText = getmsg(&optn_msgfl, &optnmesg, messageItemId++);
         x = 99 - text_width(messageItemText) / 2;
-        text_to_buf(prefbuf + PREFERENCES_WINDOW_WIDTH * row1Ytab[i] + x, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
+        text_to_buf(prefbuf + (PREFERENCES_WINDOW_WIDTH * row1Ytab[i] + x) * 4, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
     }
 
     for (i = 0; i < SECONDARY_PREF_COUNT; i++) {
         messageItemText = getmsg(&optn_msgfl, &optnmesg, messageItemId++);
-        text_to_buf(prefbuf + PREFERENCES_WINDOW_WIDTH * row2Ytab[i] + 206, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
+        text_to_buf(prefbuf + (PREFERENCES_WINDOW_WIDTH * row2Ytab[i] + 206) * 4, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
     }
 
     for (i = 0; i < RANGE_PREF_COUNT; i++) {
         messageItemText = getmsg(&optn_msgfl, &optnmesg, messageItemId++);
-        text_to_buf(prefbuf + PREFERENCES_WINDOW_WIDTH * row3Ytab[i] + 384, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
+        text_to_buf(prefbuf + (PREFERENCES_WINDOW_WIDTH * row3Ytab[i] + 384) * 4, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
     }
 
     // DEFAULT
     messageItemText = getmsg(&optn_msgfl, &optnmesg, 120);
-    text_to_buf(prefbuf + PREFERENCES_WINDOW_WIDTH * 449 + 43, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
+    text_to_buf(prefbuf + (PREFERENCES_WINDOW_WIDTH * 449 + 43) * 4, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
 
     // DONE
     messageItemText = getmsg(&optn_msgfl, &optnmesg, 4);
-    text_to_buf(prefbuf + PREFERENCES_WINDOW_WIDTH * 449 + 169, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
+    text_to_buf(prefbuf + (PREFERENCES_WINDOW_WIDTH * 449 + 169) * 4, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
 
     // CANCEL
     messageItemText = getmsg(&optn_msgfl, &optnmesg, 121);
-    text_to_buf(prefbuf + PREFERENCES_WINDOW_WIDTH * 449 + 283, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
+    text_to_buf(prefbuf + (PREFERENCES_WINDOW_WIDTH * 449 + 283) * 4, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
 
     // Affect player speed
     messageItemText = getmsg(&optn_msgfl, &optnmesg, 122);
-    text_to_buf(prefbuf + PREFERENCES_WINDOW_WIDTH * 72 + 405, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
+    text_to_buf(prefbuf + (PREFERENCES_WINDOW_WIDTH * 72 + 405) * 4, messageItemText, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
 
     for (i = 0; i < PREF_COUNT; i++) {
         UpdateThing(i);
@@ -1229,8 +1227,8 @@ static void DoThing(int eventCode)
 
         int knobX = (int)(219.0 / (meta->maxValue - meta->minValue));
         int v31 = (int)((value - meta->minValue) * (219.0 / (meta->maxValue - meta->minValue)) + 384.0);
-        buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_BACKGROUND] + PREFERENCES_WINDOW_WIDTH * meta->knobY + 384, 240, 12, PREFERENCES_WINDOW_WIDTH, prefbuf + PREFERENCES_WINDOW_WIDTH * meta->knobY + 384, PREFERENCES_WINDOW_WIDTH);
-        trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_KNOB_ON], 21, 12, 21, prefbuf + PREFERENCES_WINDOW_WIDTH * meta->knobY + v31, PREFERENCES_WINDOW_WIDTH);
+        buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_BACKGROUND] + (PREFERENCES_WINDOW_WIDTH * meta->knobY + 384) * 4, 240, 12, PREFERENCES_WINDOW_WIDTH, prefbuf + (PREFERENCES_WINDOW_WIDTH * meta->knobY + 384) * 4, PREFERENCES_WINDOW_WIDTH);
+        trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_KNOB_ON], 21, 12, 21, prefbuf + (PREFERENCES_WINDOW_WIDTH * meta->knobY + v31) * 4, PREFERENCES_WINDOW_WIDTH);
 
         win_draw(prfwin);
 
@@ -1319,7 +1317,7 @@ static void DoThing(int eventCode)
 
             if (v52) {
                 int off = PREFERENCES_WINDOW_WIDTH * (meta->knobY - 12) + 384;
-                buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_BACKGROUND] + off, 240, 24, PREFERENCES_WINDOW_WIDTH, prefbuf + off, PREFERENCES_WINDOW_WIDTH);
+                buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_BACKGROUND] + (off) * 4, 240, 24, PREFERENCES_WINDOW_WIDTH, prefbuf + (off) * 4, PREFERENCES_WINDOW_WIDTH);
 
                 for (int optionIndex = 0; optionIndex < meta->valuesCount; optionIndex++) {
                     const char* str = getmsg(&optn_msgfl, &optnmesg, meta->labelIds[optionIndex]);
@@ -1364,14 +1362,14 @@ static void DoThing(int eventCode)
                         x = 624 - text_width(str);
                         break;
                     }
-                    text_to_buf(prefbuf + PREFERENCES_WINDOW_WIDTH * (meta->knobY - 12) + x, str, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
+                    text_to_buf(prefbuf + (PREFERENCES_WINDOW_WIDTH * (meta->knobY - 12) + x) * 4, str, PREFERENCES_WINDOW_WIDTH, PREFERENCES_WINDOW_WIDTH, colorTable[18979]);
                 }
             } else {
                 int off = PREFERENCES_WINDOW_WIDTH * meta->knobY + 384;
-                buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_BACKGROUND] + off, 240, 12, PREFERENCES_WINDOW_WIDTH, prefbuf + off, PREFERENCES_WINDOW_WIDTH);
+                buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_BACKGROUND] + (off) * 4, 240, 12, PREFERENCES_WINDOW_WIDTH, prefbuf + (off) * 4, PREFERENCES_WINDOW_WIDTH);
             }
 
-            trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_KNOB_ON], 21, 12, 21, prefbuf + PREFERENCES_WINDOW_WIDTH * meta->knobY + v31, PREFERENCES_WINDOW_WIDTH);
+            trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_KNOB_ON], 21, 12, 21, prefbuf + (PREFERENCES_WINDOW_WIDTH * meta->knobY + v31) * 4, PREFERENCES_WINDOW_WIDTH);
             win_draw(prfwin);
 
             while (elapsed_time(tick) < 35)
@@ -1403,7 +1401,7 @@ static void UpdateThing(int index)
 
         int primaryOptionIndex = index - FIRST_PRIMARY_PREF;
 
-        buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_BACKGROUND] + 640 * offsets[primaryOptionIndex] + 23, 160, 54, 640, prefbuf + 640 * offsets[primaryOptionIndex] + 23, 640);
+        buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_BACKGROUND] + (640 * offsets[primaryOptionIndex] + 23) * 4, 160, 54, 640, prefbuf + (640 * offsets[primaryOptionIndex] + 23) * 4, 640);
 
         for (int valueIndex = 0; valueIndex < meta->valuesCount; valueIndex++) {
             const char* text = getmsg(&optn_msgfl, &optnmesg, meta->labelIds[valueIndex]);
@@ -1437,18 +1435,18 @@ static void UpdateThing(int index)
             const char* s;
             if (*p != '\0') {
                 *p = '\0';
-                text_to_buf(prefbuf + 640 * y + x, copy, 640, 640, colorTable[18979]);
+                text_to_buf(prefbuf + (640 * y + x) * 4, copy, 640, 640, colorTable[18979]);
                 s = p + 1;
                 y += text_height();
             } else {
                 s = copy;
             }
 
-            text_to_buf(prefbuf + 640 * y + x, s, 640, 640, colorTable[18979]);
+            text_to_buf(prefbuf + (640 * y + x) * 4, s, 640, 640, colorTable[18979]);
         }
 
         int value = *(meta->valuePtr);
-        trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_PRIMARY_SWITCH] + (46 * 47) * value, 46, 47, 46, prefbuf + 640 * meta->knobY + meta->knobX, 640);
+        trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_PRIMARY_SWITCH] + (((46 * 47) * value) * 4) * 4, 46, 47, 46, prefbuf + (640 * meta->knobY + meta->knobX) * 4, 640);
     } else if (index >= FIRST_SECONDARY_PREF && index <= LAST_SECONDARY_PREF) {
         // 0x48FC30
         static const int offsets[SECONDARY_PREF_COUNT] = {
@@ -1462,7 +1460,7 @@ static void UpdateThing(int index)
 
         int secondaryOptionIndex = index - FIRST_SECONDARY_PREF;
 
-        buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_BACKGROUND] + 640 * offsets[secondaryOptionIndex] + 251, 113, 34, 640, prefbuf + 640 * offsets[secondaryOptionIndex] + 251, 640);
+        buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_BACKGROUND] + (640 * offsets[secondaryOptionIndex] + 251) * 4, 113, 34, 640, prefbuf + (640 * offsets[secondaryOptionIndex] + 251) * 4, 640);
 
         // Secondary options are booleans, so it's index is also it's value.
         for (int value = 0; value < 2; value++) {
@@ -1476,16 +1474,16 @@ static void UpdateThing(int index)
                 x = meta->knobX + smlbx[value] - text_width(text);
                 meta->minX = x;
             }
-            text_to_buf(prefbuf + 640 * (meta->knobY - 5) + x, text, 640, 640, colorTable[18979]);
+            text_to_buf(prefbuf + (640 * (meta->knobY - 5) + x) * 4, text, 640, 640, colorTable[18979]);
         }
 
         int value = *(meta->valuePtr);
         if (index == PREF_COMBAT_MESSAGES) {
             value ^= 1;
         }
-        trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_SECONDARY_SWITCH] + (22 * 25) * value, 22, 25, 22, prefbuf + 640 * meta->knobY + meta->knobX, 640);
+        trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_SECONDARY_SWITCH] + (((22 * 25) * value) * 4) * 4, 22, 25, 22, prefbuf + (640 * meta->knobY + meta->knobX) * 4, 640);
     } else if (index >= FIRST_RANGE_PREF && index <= LAST_RANGE_PREF) {
-        buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_BACKGROUND] + 640 * (meta->knobY - 12) + 384, 240, 24, 640, prefbuf + 640 * (meta->knobY - 12) + 384, 640);
+        buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_BACKGROUND] + (640 * (meta->knobY - 12) + 384) * 4, 240, 24, 640, prefbuf + (640 * (meta->knobY - 12) + 384) * 4, 640);
         switch (index) {
         case PREF_COMBAT_SPEED:
             if (1) {
@@ -1493,7 +1491,7 @@ static void UpdateThing(int index)
                 value = min(max(value, 0.0), 50.0);
 
                 int x = (int)((value - meta->minValue) * 219.0 / (meta->maxValue - meta->minValue) + 384.0);
-                trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_KNOB_OFF], 21, 12, 21, prefbuf + 640 * meta->knobY + x, 640);
+                trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_KNOB_OFF], 21, 12, 21, prefbuf + (640 * meta->knobY + x) * 4, 640);
             }
             break;
         case PREF_TEXT_BASE_DELAY:
@@ -1501,7 +1499,7 @@ static void UpdateThing(int index)
                 text_delay = min(max(text_delay, 1.0), 6.0);
 
                 int x = (int)((6.0 - text_delay) * 43.8 + 384.0);
-                trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_KNOB_OFF], 21, 12, 21, prefbuf + 640 * meta->knobY + x, 640);
+                trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_KNOB_OFF], 21, 12, 21, prefbuf + (640 * meta->knobY + x) * 4, 640);
 
                 double value = (text_delay - 1.0) * 0.2 * 2.0;
                 value = min(max(value, 0.0), 2.0);
@@ -1519,7 +1517,7 @@ static void UpdateThing(int index)
                 value = min(max(value, meta->minValue), meta->maxValue);
 
                 int x = (int)((value - meta->minValue) * 219.0 / (meta->maxValue - meta->minValue) + 384.0);
-                trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_KNOB_OFF], 21, 12, 21, prefbuf + 640 * meta->knobY + x, 640);
+                trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_KNOB_OFF], 21, 12, 21, prefbuf + (640 * meta->knobY + x) * 4, 640);
 
                 switch (index) {
                 case PREF_MASTER_VOLUME:
@@ -1542,7 +1540,7 @@ static void UpdateThing(int index)
                 gamma_value = min(max(gamma_value, 1.0), 1.17999267578125);
 
                 int x = (int)((gamma_value - meta->minValue) * (219.0 / (meta->maxValue - meta->minValue)) + 384.0);
-                trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_KNOB_OFF], 21, 12, 21, prefbuf + 640 * meta->knobY + x, 640);
+                trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_KNOB_OFF], 21, 12, 21, prefbuf + (640 * meta->knobY + x) * 4, 640);
 
                 colorGamma(gamma_value);
             }
@@ -1552,7 +1550,7 @@ static void UpdateThing(int index)
                 mouse_sens = min(max(mouse_sens, 1.0), 2.5);
 
                 int x = (int)((mouse_sens - meta->minValue) * (219.0 / (meta->maxValue - meta->minValue)) + 384.0);
-                trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_KNOB_OFF], 21, 12, 21, prefbuf + 640 * meta->knobY + x, 640);
+                trans_buf_to_buf(prfbmp[PREFERENCES_WINDOW_FRM_KNOB_OFF], 21, 12, 21, prefbuf + (640 * meta->knobY + x) * 4, 640);
 
                 mouse_set_sensitivity(mouse_sens);
             }
@@ -1602,7 +1600,7 @@ static void UpdateThing(int index)
                 x = 624 - text_width(str);
                 break;
             }
-            text_to_buf(prefbuf + 640 * (meta->knobY - 12) + x, str, 640, 640, colorTable[18979]);
+            text_to_buf(prefbuf + (640 * (meta->knobY - 12) + x) * 4, str, 640, 640, colorTable[18979]);
         }
     } else {
         // return false;

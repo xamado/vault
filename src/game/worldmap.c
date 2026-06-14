@@ -5606,8 +5606,9 @@ static int wmInterfaceDrawCircleOverlay(CityInfo* city, CitySizeDescription* cit
         y,
         WM_WINDOW_WIDTH,
         0x10000,
-        circleBlendTable,
-        commonGrayTable);
+        128, // circleBlendTable
+        0xFFFFFFFFu // commonGrayTable
+    );
 
     nameY = y + citySizeDescription->height + 1;
     maxY = 464 - text_height();

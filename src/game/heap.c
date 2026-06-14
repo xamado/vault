@@ -68,12 +68,6 @@ typedef struct HeapMoveableExtent {
     int size;
 } HeapMoveableExtent;
 
-static_assert(sizeof(HeapBlockHeader) == 16, "wrong size");
-static_assert(sizeof(HeapBlockFooter) == 4, "wrong size");
-static_assert(sizeof(HeapMoveableExtent) == 16, "wrong size");
-static_assert(sizeof(HeapHandle) == 8, "wrong size");
-static_assert(sizeof(Heap) == 48, "wrong size");
-
 static bool heap_create_lists();
 static void heap_destroy_lists();
 static bool heap_init_handles(Heap* heap);

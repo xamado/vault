@@ -4327,36 +4327,33 @@ static void op_metarule(Program* program)
     case METARULE_DROP_ALL_INVEN:
         if (1) {
             Object* object = script_handle_to_object(param);
-            if (object != NULL) {
-                result = item_drop_all(object, object->tile);
-                if (obj_dude == object) {
-                    intface_update_items(false, INTERFACE_ITEM_ACTION_DEFAULT, INTERFACE_ITEM_ACTION_DEFAULT);
-                    intface_update_ac(false);
-                }
+            result = item_drop_all(object, object->tile);
+            if (obj_dude == object) {
+                intface_update_items(false, INTERFACE_ITEM_ACTION_DEFAULT, INTERFACE_ITEM_ACTION_DEFAULT);
+                intface_update_ac(false);
             }
         }
         break;
     case METARULE_INVEN_UNWIELD_WHO:
         if (1) {
             Object* object = script_handle_to_object(param);
-            if (object != NULL) {
-                int hand = HAND_RIGHT;
-                if (object == obj_dude) {
-                    if (intface_is_item_right_hand() == HAND_LEFT) {
-                        hand = HAND_LEFT;
-                    }
+
+            int hand = HAND_RIGHT;
+            if (object == obj_dude) {
+                if (intface_is_item_right_hand() == HAND_LEFT) {
+                    hand = HAND_LEFT;
                 }
+            }
 
-                result = invenUnwieldFunc(object, hand, 0);
+            result = invenUnwieldFunc(object, hand, 0);
 
-                if (object == obj_dude) {
-                    bool animated = !game_ui_is_disabled();
-                    intface_update_items(animated, INTERFACE_ITEM_ACTION_DEFAULT, INTERFACE_ITEM_ACTION_DEFAULT);
-                } else {
-                    Object* item = inven_left_hand(object);
-                    if (item != NULL && item_get_type(item) == ITEM_TYPE_WEAPON) {
-                        item->flags &= ~OBJECT_IN_LEFT_HAND;
-                    }
+            if (object == obj_dude) {
+                bool animated = !game_ui_is_disabled();
+                intface_update_items(animated, INTERFACE_ITEM_ACTION_DEFAULT, INTERFACE_ITEM_ACTION_DEFAULT);
+            } else {
+                Object* item = inven_left_hand(object);
+                if (item_get_type(item) == ITEM_TYPE_WEAPON) {
+                    item->flags &= ~OBJECT_IN_LEFT_HAND;
                 }
             }
         }
@@ -4381,17 +4378,15 @@ static void op_metarule(Program* program)
     case METARULE_WEAPON_DAMAGE_TYPE:
         if (1) {
             Object* object = script_handle_to_object(param);
-            if (object != NULL) {
-                if (PID_TYPE(object->pid) == OBJ_TYPE_ITEM) {
-                    if (item_get_type(object) == ITEM_TYPE_WEAPON) {
-                        result = item_w_damage_type(NULL, object);
-                        break;
-                    }
-                } else {
-                    if (art_id(OBJ_TYPE_MISC, 10, 0, 0, 0) == object->fid) {
-                        result = DAMAGE_TYPE_EXPLOSION;
-                        break;
-                    }
+            if (PID_TYPE(object->pid) == OBJ_TYPE_ITEM) {
+                if (item_get_type(object) == ITEM_TYPE_WEAPON) {
+                    result = item_w_damage_type(NULL, object);
+                    break;
+                }
+            } else {
+                if (art_id(OBJ_TYPE_MISC, 10, 0, 0, 0) == object->fid) {
+                    result = DAMAGE_TYPE_EXPLOSION;
+                    break;
                 }
             }
 
@@ -4402,7 +4397,7 @@ static void op_metarule(Program* program)
     case METARULE_CRITTER_BARTERS:
         if (1) {
             Object* object = script_handle_to_object(param);
-            if (object != NULL && PID_TYPE(object->pid) == OBJ_TYPE_CRITTER) {
+            if (PID_TYPE(object->pid) == OBJ_TYPE_CRITTER) {
                 Proto* proto;
                 proto_ptr(object->pid, &proto);
                 if ((proto->critter.data.flags & CRITTER_BARTER) != 0) {
@@ -4412,12 +4407,7 @@ static void op_metarule(Program* program)
         }
         break;
     case METARULE_CRITTER_KILL_TYPE:
-        if (1) {
-            Object* critter = script_handle_to_object(param);
-            if (critter != NULL) {
-                result = critterGetKillType(critter);
-            }
-        }
+        result = critterGetKillType(script_handle_to_object(param));
         break;
     case METARULE_SET_CAR_CARRY_AMOUNT:
         if (1) {
@@ -6167,7 +6157,7 @@ static void op_attack_setup(Program* program)
             return;
         }
 
-        if (defender == NULL || !critter_is_active(defender) || (defender->flags & OBJECT_HIDDEN) != 0) {
+        if (!critter_is_active(defender) || (defender->flags & OBJECT_HIDDEN) != 0) {
             debug_printf("\n   But target is already dead or invisible");
             program->flags &= ~PROGRAM_FLAG_0x20;
             return;

@@ -35,7 +35,7 @@ void ui_scale_art(Art* art, int win, int x, int y, int width, int height)
 {
     unsigned char* dest = win_get_buf(win);
     int pitch = win_width(win);
-    dest = dest + (y * pitch) + x;
+    dest = dest + ((y * pitch) + x) * 4;
 
     if (art == NULL) {
         return;
@@ -53,7 +53,7 @@ void ui_scale_art(Art* art, int win, int x, int y, int width, int height)
                 frameWidth,
                 frameHeight,
                 frameWidth,
-                dest + pitch * ((height - width * frameHeight / frameWidth) / 2),
+                dest + pitch * ((height - width * frameHeight / frameWidth) / 2) * 4,
                 width,
                 width * frameHeight / frameWidth,
                 pitch);
@@ -62,17 +62,19 @@ void ui_scale_art(Art* art, int win, int x, int y, int width, int height)
                 frameWidth,
                 frameHeight,
                 frameWidth,
-                dest + (width - height * frameWidth / frameHeight) / 2,
+                dest + ((width - height * frameWidth / frameHeight) / 2) * 4,
                 height * frameWidth / frameHeight,
                 height,
                 pitch);
         }
     } else {
-        trans_buf_to_buf(frameData,
+        trans_cscale(frameData,
             frameWidth,
             frameHeight,
             frameWidth,
-            dest + pitch * (remainingHeight / 2) + remainingWidth / 2,
+            dest + (pitch * (remainingHeight / 2) + remainingWidth / 2) * 4,
+            frameWidth,
+            frameHeight,
             pitch);
     }
 
@@ -122,8 +124,7 @@ void ui_image_indexed(Art* art, int win, int x, int y, int width, int height, un
         art_frame_width(art, 0, 0),
         art_frame_length(art, 0, 0),
         art_frame_width(art, 0, 0),
-        dest, width, height, pitch,
-        pal
+        dest, width, height, pitch, pal
     );
 }
 
@@ -174,7 +175,6 @@ void ui_image_fill_indexed(Art* art, int win, int x, int y, int width, int heigh
 
     src = src + (cropY * srcPitch) + cropX;
 
-    // cscale(src, cropWidth, cropHeight, srcPitch, dest, width, height, pitch);
     cscale_8_to_32(src, cropWidth, cropHeight, srcPitch, dest, width, height, pitch, pal);
 }
 
@@ -188,7 +188,7 @@ void ui_image_32(Art* art, int win, int x, int y, int width, int height)
         return;
     }
 
-    trans_cscale_32(
+    trans_cscale(
         art_frame_data(art, 0, 0),
         art_frame_width(art, 0, 0),
         art_frame_length(art, 0, 0),
@@ -209,7 +209,7 @@ void ui_image_fill_32(Art* art, int win, int x, int y, int width, int height)
 
     int srcWidth = art_frame_width(art, 0, 0);
     int srcHeight = art_frame_length(art, 0, 0);
-    int srcPitch = srcWidth; // In a 32-bit FRM, the pitch is still srcWidth in pixels! (cscale_32 converts it to bytes internally)
+    int srcPitch = srcWidth; // In a 32-bit FRM, the pitch is still srcWidth in pixels! (cscale converts it to bytes internally)
     unsigned char* src = art_frame_data(art, 0, 0);
 
     float scaleX = (float)width / srcWidth;
@@ -225,7 +225,7 @@ void ui_image_fill_32(Art* art, int win, int x, int y, int width, int height)
 
     src = src + ((cropY * srcPitch) + cropX) * 4; // * 4 for 32-bit pixel offset
 
-    cscale_32(src, cropWidth, cropHeight, srcPitch, dest, width, height, pitch);
+    cscale(src, cropWidth, cropHeight, srcPitch, dest, width, height, pitch);
 }
 
 void ui_scaled_text(int win, const char* str, int x, int y, float scale, int color)
@@ -242,7 +242,7 @@ void ui_scaled_text(int win, const char* str, int x, int y, float scale, int col
     dest = dest + (y * pitch) + x;
 
     if (scale == 1.0f) {
-        FMtext_to_buf_32((unsigned char*)dest, str, base_width, pitch, color);
+        FMtext_to_buf((unsigned char*)dest, str, base_width, pitch, color);
         return;
     }
 
@@ -279,7 +279,7 @@ void ui_scaled_text(int win, const char* str, int x, int y, float scale, int col
         v2 += heightRatio;
     }
 
-    FMtext_to_buf_32((unsigned char*)temp_buf, str, base_width, base_width, color);
+    FMtext_to_buf((unsigned char*)temp_buf, str, base_width, base_width, color);
 
     v2 = heightRatio;
     for (int by = 0; by < base_height; by++) {

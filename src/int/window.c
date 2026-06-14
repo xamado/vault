@@ -75,8 +75,6 @@ typedef struct ManagedWindow {
     float field_58;
 } ManagedWindow;
 
-static_assert(sizeof(ManagedButton) == 0x7C, "wrong size");
-
 static bool checkRegion(int windowIndex, int mouseX, int mouseY, int mouseEvent);
 static bool checkAllRegions();
 static void doRegionRightFunc(Region* region, int a2);

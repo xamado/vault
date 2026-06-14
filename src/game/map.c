@@ -649,29 +649,29 @@ int map_scroll(int dx, int dy)
     int step;
     if (screenDy < 0) {
         r1.lry = r1.uly - screenDy;
-        src = display_buf + pitch * (height - 1);
-        dest = display_buf + pitch * (scr_size.lry - scr_size.uly - 100);
+        src = display_buf + pitch * (height - 1) * 4;
+        dest = display_buf + pitch * (scr_size.lry - scr_size.uly - 100) * 4;
         if (screenDx < 0) {
-            dest -= screenDx;
+            dest -= screenDx * 4;
         } else {
-            src += screenDx;
+            src += screenDx * 4;
         }
-        step = -pitch;
+        step = -pitch * 4;
     } else {
         r1.uly = r1.lry - screenDy;
         dest = display_buf;
-        src = display_buf + pitch * screenDy;
+        src = display_buf + pitch * screenDy * 4;
 
         if (screenDx < 0) {
-            dest -= screenDx;
+            dest -= screenDx * 4;
         } else {
-            src += screenDx;
+            src += screenDx * 4;
         }
-        step = pitch;
+        step = pitch * 4;
     }
 
     for (int y = 0; y < height; y++) {
-        memmove(dest, src, width);
+        memmove(dest, src, width * 4);
         dest += step;
         src += step;
     }
@@ -1003,9 +1003,9 @@ err:
         if (map_state.rotation >= 0) {
             obj_set_rotation(obj_dude, map_state.rotation, NULL);
         }
-    } else {
-        tile_refresh_display();
     }
+
+    tile_refresh_display();
 
     gtime_q_add();
 
@@ -1506,7 +1506,9 @@ static void map_scroll_refresh_game(Rect* rect)
     }
 
     square_render_floor(&clampedDirtyRect, map_elevation);
+#ifdef ENABLE_TILE_GRID_DEBUG
     grid_render(&clampedDirtyRect, map_elevation);
+#endif
     obj_render_pre_roof(&clampedDirtyRect, map_elevation);
     square_render_roof(&clampedDirtyRect, map_elevation);
     obj_render_post_roof(&clampedDirtyRect, map_elevation);

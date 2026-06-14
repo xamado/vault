@@ -266,9 +266,13 @@ target_compile_definitions(${EXECUTABLE_NAME} PUBLIC
 )
 
 target_compile_options(${EXECUTABLE_NAME} PUBLIC
-    "-Dstatic_assert(x,y)="
     -Wno-incompatible-pointer-types
     -Wno-int-conversion
+    -fsanitize=address
+)
+
+target_link_options(${EXECUTABLE_NAME} PUBLIC
+    -fsanitize=address
 )
 
 find_package(PkgConfig REQUIRED)

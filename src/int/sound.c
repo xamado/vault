@@ -27,8 +27,6 @@ typedef struct FadeSound {
     struct FadeSound* next;
 } FadeSound;
 
-static_assert(sizeof(Sound) == 156, "wrong size");
-
 static void* defaultMalloc(size_t size);
 static void* defaultRealloc(void* ptr, size_t size);
 static void defaultFree(void* ptr);

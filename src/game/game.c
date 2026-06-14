@@ -848,6 +848,12 @@ int game_handle_input(int eventCode, bool isInCombatMode)
             display_print(_aDec11199816543);
         }
         break;
+#ifdef ENABLE_TILE_GRID_DEBUG
+    case KEY_F9:
+        grid_toggle();
+        tile_refresh_display();
+        break;
+#endif
     case KEY_ARROW_LEFT:
         map_scroll(-1, 0);
         break;

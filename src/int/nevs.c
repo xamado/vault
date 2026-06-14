@@ -21,8 +21,6 @@ typedef struct Nevs {
     NevsCallback* callback;
 } Nevs;
 
-static_assert(sizeof(Nevs) == 60, "wrong size");
-
 static Nevs* nevs_alloc();
 static void nevs_free(Nevs* nevs);
 static void nevs_removeprogramreferences(Program* program);

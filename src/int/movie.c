@@ -1,5 +1,6 @@
 #include "int/movie.h"
 
+#include <stdint.h>
 #include <string.h>
 
 #include "int/window.h"
@@ -17,6 +18,17 @@
 #include "plib/gnw/gnw.h"
 #include "plib/gnw/svga.h"
 #include "plib/gnw/winmain.h"
+
+// Convert an 8-bit indexed pixel to 32-bit RGBA using the current palette.
+// cmap values are 6-bit (0-63), shifted left by 2 to get 8-bit.
+// Pixel 0 is transparent.
+static inline uint32_t indexed_to_rgba(unsigned char c) {
+    if (c == 0) return 0;
+    unsigned char r = cmap[c * 3] << 2;
+    unsigned char g = cmap[c * 3 + 1] << 2;
+    unsigned char b = cmap[c * 3 + 2] << 2;
+    return (0xFFu << 24) | (b << 16) | (g << 8) | r;
+}
 
 typedef void(MovieCallback)();
 typedef int(MovieBlitFunc)(int win, unsigned char* data, int width, int height, int pitch);
@@ -313,15 +325,11 @@ static void movie_MVE_ShowFrame(unsigned char* surface, int srcWidth, int srcHei
             destRect.lry - destRect.uly);
     }
 
-    if (movieScaleFlag) {
-        lastMovieX = 0;
-        lastMovieY = 0;
-        lastMovieW = rectGetWidth(&scr_size);
-        lastMovieH = rectGetHeight(&scr_size);
-        GNW95_ShowMovieRect(surface, _mveBW, srcX, srcY, srcWidth, srcHeight);
-    } else {
-        GNW95_ShowRect(surface, _mveBW, 0, srcX, srcY, srcWidth, srcHeight, destRect.ulx, destRect.uly);
-    }
+    lastMovieX = 0;
+    lastMovieY = 0;
+    lastMovieW = rectGetWidth(&scr_size);
+    lastMovieH = rectGetHeight(&scr_size);
+    GNW95_ShowMovieRect(surface, _mveBW, srcX, srcY, srcWidth, srcHeight);
 }
 
 // 0x486900
@@ -381,29 +389,28 @@ void movieSetCaptureFrameFunc(MovieCaptureFrameProc* func)
 static int movieScaleSubRect(int win, unsigned char* data, int width, int height, int pitch)
 {
     int windowWidth = win_width(win);
-    unsigned char* windowBuffer = win_get_buf(win) + windowWidth * movieY + movieX;
+    uint32_t* windowBuffer = (uint32_t*)win_get_buf(win) + windowWidth * movieY + movieX;
     if (width * 4 / 3 > movieW) {
         movieFlags |= 0x01;
         return 0;
     }
 
+    // Scale 3 source pixels -> 4 dest pixels, converting to RGBA
     int v1 = width / 3;
     for (int y = 0; y < height; y++) {
         int x;
         for (x = 0; x < v1; x++) {
-            unsigned int value = data[0];
-            value |= data[1] << 8;
-            value |= data[2] << 16;
-            value |= data[2] << 24;
-
-            *(unsigned int*)windowBuffer = value;
+            windowBuffer[0] = indexed_to_rgba(data[0]);
+            windowBuffer[1] = indexed_to_rgba(data[1]);
+            windowBuffer[2] = indexed_to_rgba(data[2]);
+            windowBuffer[3] = indexed_to_rgba(data[2]);
 
             windowBuffer += 4;
             data += 3;
         }
 
         for (x = x * 3; x < width; x++) {
-            *windowBuffer++ = *data++;
+            *windowBuffer++ = indexed_to_rgba(*data++);
         }
 
         data += pitch - width;
@@ -432,7 +439,8 @@ static int blitAlpha(int win, unsigned char* data, int width, int height, int pi
 {
     int windowWidth = win_width(win);
     unsigned char* windowBuffer = win_get_buf(win);
-    alphaBltBuf(data, width, height, pitch, alphaWindowBuf, alphaBuf, windowBuffer + windowWidth * movieY + movieX, windowWidth);
+    // TODO: alphaBltBuf needs 32-bit conversion
+    alphaBltBuf(data, width, height, pitch, alphaWindowBuf, alphaBuf, windowBuffer + (windowWidth * movieY + movieX) * 4, windowWidth);
     return 1;
 }
 
@@ -445,16 +453,15 @@ static int movieScaleWindow(int win, unsigned char* data, int width, int height,
         return 0;
     }
 
-    unsigned char* windowBuffer = win_get_buf(win);
+    uint32_t* windowBuffer = (uint32_t*)win_get_buf(win);
     for (int y = 0; y < height; y++) {
         int scaledWidth = width / 3;
         for (int x = 0; x < scaledWidth; x++) {
-            unsigned int value = data[0];
-            value |= data[1] << 8;
-            value |= data[2] << 16;
-            value |= data[3] << 24;
-
-            *(unsigned int*)windowBuffer = value;
+            // Scale 3 source pixels -> 4 dest pixels, converting to RGBA
+            windowBuffer[0] = indexed_to_rgba(data[0]);
+            windowBuffer[1] = indexed_to_rgba(data[1]);
+            windowBuffer[2] = indexed_to_rgba(data[2]);
+            windowBuffer[3] = indexed_to_rgba(data[2]);
 
             windowBuffer += 4;
             data += 3;
@@ -469,8 +476,35 @@ static int movieScaleWindow(int win, unsigned char* data, int width, int height,
 static int blitNormal(int win, unsigned char* data, int width, int height, int pitch)
 {
     int windowWidth = win_width(win);
-    unsigned char* windowBuffer = win_get_buf(win);
-    drawScaled(windowBuffer + windowWidth * movieY + movieX, movieW, movieH, windowWidth, data, width, height, pitch);
+    uint32_t* windowBuffer = (uint32_t*)win_get_buf(win) + windowWidth * movieY + movieX;
+
+    // drawScaled is 8-bit; convert its output to 32-bit inline.
+    // For the common case (no scaling), do a direct 8->32 blit.
+    if (movieW == width && movieH == height) {
+        unsigned char* src = data;
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                windowBuffer[x] = indexed_to_rgba(src[x]);
+            }
+            src += pitch;
+            windowBuffer += windowWidth;
+        }
+    } else {
+        // Scaled case: use a temp 8-bit buffer, then convert
+        unsigned char* temp = (unsigned char*)mymalloc(movieW * movieH, __FILE__, __LINE__);
+        if (temp != NULL) {
+            drawScaled(temp, movieW, movieH, movieW, data, width, height, pitch);
+            unsigned char* src = temp;
+            for (int y = 0; y < movieH; y++) {
+                for (int x = 0; x < movieW; x++) {
+                    windowBuffer[x] = indexed_to_rgba(src[x]);
+                }
+                src += movieW;
+                windowBuffer += windowWidth;
+            }
+            myfree(temp, __FILE__, __LINE__);
+        }
+    }
     return 1;
 }
 
@@ -521,8 +555,17 @@ static void cleanupMovie(int a1)
     }
 
     if (MVE_lastBuffer != NULL) {
-        lastMovieBuffer = (unsigned char*)mymalloc(lastMovieBH * lastMovieBW, __FILE__, __LINE__);
-        buf_to_buf(MVE_lastBuffer + _mveBW * lastMovieSX + lastMovieSY, lastMovieBW, lastMovieBH, _mveBW, lastMovieBuffer, lastMovieBW);
+        // Save last frame as 32-bit RGBA
+        lastMovieBuffer = (unsigned char*)mymalloc(lastMovieBH * lastMovieBW * 4, __FILE__, __LINE__);
+        unsigned char* src = MVE_lastBuffer + _mveBW * lastMovieSX + lastMovieSY;
+        uint32_t* dst32 = (uint32_t*)lastMovieBuffer;
+        for (int y = 0; y < lastMovieBH; y++) {
+            for (int x = 0; x < lastMovieBW; x++) {
+                dst32[x] = indexed_to_rgba(src[x]);
+            }
+            src += _mveBW;
+            dst32 += lastMovieBW;
+        }
         MVE_lastBuffer = NULL;
     }
 
@@ -535,7 +578,7 @@ static void cleanupMovie(int a1)
     db_fclose(handle);
 
     if (alphaWindowBuf != NULL) {
-        buf_to_buf(alphaWindowBuf, movieW, movieH, movieW, win_get_buf(GNWWin) + movieY * win_width(GNWWin) + movieX, win_width(GNWWin));
+        buf_to_buf(alphaWindowBuf, movieW, movieH, movieW, win_get_buf(GNWWin) + (movieY * win_width(GNWWin) + movieX) * 4, win_width(GNWWin));
         win_draw_rect(GNWWin, &movieRect);
     }
 
@@ -880,10 +923,10 @@ static int movieStart(int win, char* filePath, int (*a3)())
         db_freadShort(alphaHandle, &tmp);
 
         alphaBuf = (unsigned char*)mymalloc(size, __FILE__, __LINE__); // "..\\int\\MOVIE.C", 1178
-        alphaWindowBuf = (unsigned char*)mymalloc(movieH * movieW, __FILE__, __LINE__); // "..\\int\\MOVIE.C", 1179
+        alphaWindowBuf = (unsigned char*)mymalloc(movieH * movieW * 4, __FILE__, __LINE__); // "..\\int\\MOVIE.C", 1179
 
         unsigned char* windowBuffer = win_get_buf(GNWWin);
-        buf_to_buf(windowBuffer + win_width(GNWWin) * movieY + movieX,
+        buf_to_buf(windowBuffer + (win_width(GNWWin) * movieY + movieX) * 4,
             movieW,
             movieH,
             win_width(GNWWin),

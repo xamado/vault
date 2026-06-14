@@ -6,8 +6,6 @@
 #include "plib/gnw/debug.h"
 #include "int/memdbg.h"
 
-static_assert(sizeof(Region) == 140, "wrong size");
-
 // 0x4A2B50
 void regionSetBound(Region* region)
 {

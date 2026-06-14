@@ -1706,11 +1706,11 @@ int gmouse_3d_build_pick_frame(int x, int y, int menuItem, int width, int height
     int shiftY = maxY - height + 2;
 
     if (maxX < width) {
-        menuItemFrmDest += arrowFrmWidth;
+        menuItemFrmDest += arrowFrmWidth * 4;
         if (maxY >= height) {
             gmouse_3d_pick_frame_hot_y = shiftY;
             gmouse_3d_pick_frame->yOffsets[0] -= shiftY;
-            arrowFrmDest += gmouse_3d_pick_frame_width * shiftY;
+            arrowFrmDest += gmouse_3d_pick_frame_width * shiftY * 4;
         }
     } else {
         art_ptr_unlock(arrowFrmHandle);
@@ -1718,7 +1718,7 @@ int gmouse_3d_build_pick_frame(int x, int y, int menuItem, int width, int height
         arrowFid = art_id(OBJ_TYPE_INTERFACE, 285, 0, 0, 0);
         arrowFrm = art_ptr_lock(arrowFid, &arrowFrmHandle);
         arrowFrmData = art_frame_data(arrowFrm, 0, 0);
-        arrowFrmDest += menuItemFrmWidth;
+        arrowFrmDest += menuItemFrmWidth * 4;
 
         gmouse_3d_pick_frame->xOffsets[0] = -gmouse_3d_pick_frame->xOffsets[0];
         gmouse_3d_pick_frame_hot_x += menuItemFrmWidth + arrowFrmWidth;
@@ -1727,11 +1727,11 @@ int gmouse_3d_build_pick_frame(int x, int y, int menuItem, int width, int height
             gmouse_3d_pick_frame_hot_y += shiftY;
             gmouse_3d_pick_frame->yOffsets[0] -= shiftY;
 
-            arrowFrmDest += gmouse_3d_pick_frame_width * shiftY;
+            arrowFrmDest += gmouse_3d_pick_frame_width * shiftY * 4;
         }
     }
 
-    memset(gmouse_3d_pick_frame_data, 0, gmouse_3d_pick_frame_size);
+    memset(gmouse_3d_pick_frame_data, 0, gmouse_3d_pick_frame_size * 4);
 
     buf_to_buf(arrowFrmData, arrowFrmWidth, arrowFrmHeight, arrowFrmWidth, arrowFrmDest, gmouse_3d_pick_frame_width);
     buf_to_buf(menuItemFrmData, menuItemFrmWidth, menuItemFrmHeight, menuItemFrmWidth, menuItemFrmDest, gmouse_3d_pick_frame_width);
@@ -1813,10 +1813,10 @@ int gmouse_3d_build_menu_frame(int x, int y, const int* menuItems, int menuItems
     unsigned char* arrowData;
     if (x + arrowWidth + menuItemWidth - 1 < width) {
         arrowData = art_frame_data(arrowFrm, 0, 0);
-        v58 = v22 + arrowWidth;
+        v58 = v22 + arrowWidth * 4;
         if (height <= v60) {
             gmouse_3d_menu_frame_hot_y += v24;
-            v22 += gmouse_3d_menu_frame_width * v24;
+            v22 += gmouse_3d_menu_frame_width * v24 * 4;
             gmouse_3d_menu_frame->yOffsets[0] -= v24;
         }
     } else {
@@ -1829,18 +1829,18 @@ int gmouse_3d_build_menu_frame(int x, int y, const int* menuItems, int menuItems
         if (v60 >= height) {
             gmouse_3d_menu_frame_hot_y += v24;
             gmouse_3d_menu_frame->yOffsets[0] -= v24;
-            v22 += gmouse_3d_menu_frame_width * v24;
+            v22 += gmouse_3d_menu_frame_width * v24 * 4;
         }
     }
 
-    memset(gmouse_3d_menu_frame_data, 0, gmouse_3d_menu_frame_size);
+    memset(gmouse_3d_menu_frame_data, 0, gmouse_3d_menu_frame_size * 4);
     buf_to_buf(arrowData, arrowWidth, arrowHeight, arrowWidth, v22, gmouse_3d_pick_frame_width);
 
     unsigned char* v38 = v58;
     for (int index = 0; index < menuItemsLength; index++) {
         unsigned char* data = art_frame_data(menuItemFrms[index], 0, 0);
         buf_to_buf(data, menuItemWidth, menuItemHeight, menuItemWidth, v38, gmouse_3d_pick_frame_width);
-        v38 += gmouse_3d_menu_frame_width * menuItemHeight;
+        v38 += gmouse_3d_menu_frame_width * menuItemHeight * 4;
     }
 
     art_ptr_unlock(arrowFrmHandle);
@@ -1888,7 +1888,7 @@ int gmouse_3d_highlight_menu_frame(int menuItemIndex)
     int width = art_frame_width(art, 0, 0);
     int height = art_frame_length(art, 0, 0);
     unsigned char* data = art_frame_data(art, 0, 0);
-    buf_to_buf(data, width, height, width, gmouse_3d_menu_actions_start + gmouse_3d_menu_frame_width * height * gmouse_3d_menu_current_action_index, gmouse_3d_menu_frame_width);
+    buf_to_buf(data, width, height, width, gmouse_3d_menu_actions_start + gmouse_3d_menu_frame_width * height * gmouse_3d_menu_current_action_index * 4, gmouse_3d_menu_frame_width);
     art_ptr_unlock(handle);
 
     fid = art_id(OBJ_TYPE_INTERFACE, gmouse_3d_action_nums[gmouse_3d_menu_frame_actions[menuItemIndex]] - 1, 0, 0, 0);
@@ -1898,7 +1898,7 @@ int gmouse_3d_highlight_menu_frame(int menuItemIndex)
     }
 
     data = art_frame_data(art, 0, 0);
-    buf_to_buf(data, width, height, width, gmouse_3d_menu_actions_start + gmouse_3d_menu_frame_width * height * menuItemIndex, gmouse_3d_menu_frame_width);
+    buf_to_buf(data, width, height, width, gmouse_3d_menu_actions_start + gmouse_3d_menu_frame_width * height * menuItemIndex * 4, gmouse_3d_menu_frame_width);
     art_ptr_unlock(handle);
 
     gmouse_3d_menu_current_action_index = menuItemIndex;
@@ -1916,7 +1916,7 @@ int gmouse_3d_build_to_hit_frame(const char* string, int color)
         return -1;
     }
 
-    memset(gmouse_3d_to_hit_frame_data, 0, gmouse_3d_to_hit_frame_size);
+    memset(gmouse_3d_to_hit_frame_data, 0, gmouse_3d_to_hit_frame_size * 4);
 
     int crosshairFrmWidth = art_frame_width(crosshairFrm, 0, 0);
     int crosshairFrmHeight = art_frame_length(crosshairFrm, 0, 0);
@@ -1931,13 +1931,13 @@ int gmouse_3d_build_to_hit_frame(const char* string, int color)
     int oldFont = text_curr();
     text_font(101);
 
-    text_to_buf(gmouse_3d_to_hit_frame_data + gmouse_3d_to_hit_frame_width + crosshairFrmWidth + 1,
+    text_to_buf(gmouse_3d_to_hit_frame_data + (gmouse_3d_to_hit_frame_width + crosshairFrmWidth + 1) * 4,
         string,
         gmouse_3d_to_hit_frame_width - crosshairFrmWidth,
         gmouse_3d_to_hit_frame_width,
         color);
 
-    buf_outline(gmouse_3d_to_hit_frame_data + crosshairFrmWidth,
+    buf_outline(gmouse_3d_to_hit_frame_data + crosshairFrmWidth * 4,
         gmouse_3d_to_hit_frame_width - crosshairFrmWidth,
         gmouse_3d_to_hit_frame_height,
         gmouse_3d_to_hit_frame_width,
@@ -1953,7 +1953,7 @@ int gmouse_3d_build_to_hit_frame(const char* string, int color)
 // 0x44D878
 int gmouse_3d_build_hex_frame(const char* string, int color)
 {
-    memset(gmouse_3d_hex_frame_data, 0, gmouse_3d_hex_frame_width * gmouse_3d_hex_frame_height);
+    memset(gmouse_3d_hex_frame_data, 0, gmouse_3d_hex_frame_width * gmouse_3d_hex_frame_height * 4);
 
     if (*string == '\0') {
         return 0;
@@ -1963,7 +1963,7 @@ int gmouse_3d_build_hex_frame(const char* string, int color)
     text_font(101);
 
     int length = text_width(string);
-    text_to_buf(gmouse_3d_hex_frame_data + gmouse_3d_hex_frame_width * (gmouse_3d_hex_frame_height - text_height()) / 2 + (gmouse_3d_hex_frame_width - length) / 2, string, gmouse_3d_hex_frame_width, gmouse_3d_hex_frame_width, color);
+    text_to_buf(gmouse_3d_hex_frame_data + (gmouse_3d_hex_frame_width * (gmouse_3d_hex_frame_height - text_height()) / 2 + (gmouse_3d_hex_frame_width - length) / 2) * 4, string, gmouse_3d_hex_frame_width, gmouse_3d_hex_frame_width, color);
 
     buf_outline(gmouse_3d_hex_frame_data, gmouse_3d_hex_frame_width, gmouse_3d_hex_frame_height, gmouse_3d_hex_frame_width, colorTable[0]);
 

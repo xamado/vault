@@ -1,5 +1,7 @@
 #include "plib/gnw/mouse.h"
 
+#include <stdint.h>
+
 #include "plib/color/color.h"
 #include "plib/os/os_input.h"
 #include "plib/gnw/gnw.h"
@@ -14,16 +16,15 @@ static void mouse_clip();
 
 // The default mouse cursor buffer.
 //
-// Initially it contains color codes, which will be replaced at startup
-// according to loaded palette.
-//
 // Available color codes:
 // - 0: transparent
 // - 1: white
-// - 15:  black
+// - 15: black
+//
+// Stored as 32-bit RGBA after mouse_colorize().
 //
 // 0x51E250
-static unsigned char or_mask[MOUSE_DEFAULT_CURSOR_SIZE] = {
+static uint32_t or_mask[MOUSE_DEFAULT_CURSOR_SIZE] = {
     // clang-format off
     1,  1,  1,  1,  1,  1,  1, 0,
     1, 15, 15, 15, 15, 15,  1, 0,
@@ -165,16 +166,23 @@ void GNW_mouse_exit()
 static void mouse_colorize()
 {
     for (int index = 0; index < 64; index++) {
-        switch (or_mask[index]) {
-        case 0:
-            or_mask[index] = colorTable[0];
-            break;
-        case 1:
-            or_mask[index] = colorTable[8456];
-            break;
-        case 15:
-            or_mask[index] = colorTable[32767];
-            break;
+        uint32_t code = or_mask[index];
+        if (code == 0) {
+            or_mask[index] = 0; // transparent
+        } else {
+            // Look up palette index from colorTable, then convert to RGBA
+            unsigned char palIdx;
+            if (code == 1) {
+                palIdx = colorTable[8456];
+            } else if (code == 15) {
+                palIdx = colorTable[32767];
+            } else {
+                palIdx = colorTable[0];
+            }
+            unsigned char r = cmap[palIdx * 3] << 2;
+            unsigned char g = cmap[palIdx * 3 + 1] << 2;
+            unsigned char b = cmap[palIdx * 3 + 2] << 2;
+            or_mask[index] = (0xFFu << 24) | (b << 16) | (g << 8) | r;
         }
     }
 }
@@ -207,7 +215,7 @@ int mouse_set_shape(unsigned char* buf, int width, int length, int full, int hot
 
     if (buf == NULL) {
         // NOTE: Original code looks tail recursion optimization.
-        return mouse_set_shape(or_mask, MOUSE_DEFAULT_CURSOR_WIDTH, MOUSE_DEFAULT_CURSOR_HEIGHT, MOUSE_DEFAULT_CURSOR_WIDTH, 1, 1, colorTable[0]);
+        return mouse_set_shape((unsigned char*)or_mask, MOUSE_DEFAULT_CURSOR_WIDTH, MOUSE_DEFAULT_CURSOR_HEIGHT, MOUSE_DEFAULT_CURSOR_WIDTH, 1, 1, 0);
     }
 
     bool cursorWasHidden = mouse_is_hidden;
@@ -218,7 +226,7 @@ int mouse_set_shape(unsigned char* buf, int width, int length, int full, int hot
     }
 
     if (width != mouse_width || length != mouse_length) {
-        unsigned char* buf = (unsigned char*)mem_malloc(width * length);
+        unsigned char* buf = (unsigned char*)mem_malloc(width * length * 4);
         if (buf == NULL) {
             if (!cursorWasHidden) {
                 mouse_show();
@@ -347,9 +355,10 @@ void mouse_show()
 
             for (i = 0; i < mouse_length; i++) {
                 for (v4 = 0; v4 < mouse_width; v4++) {
-                    v6 = mouse_shape[i * mouse_full + v4];
-                    if (v6 != mouse_trans) {
-                        v2[v3] = v6;
+                    // mouse_shape is 32-bit RGBA pixel data
+                    uint32_t pixel = ((uint32_t*)mouse_shape)[i * mouse_full + v4];
+                    if (pixel != 0) { // non-transparent
+                        ((uint32_t*)v2)[v3] = pixel;
                     }
                     v3++;
                 }

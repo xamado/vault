@@ -9,7 +9,6 @@
 extern UpdatePaletteFunc* update_palette_func;
 
 extern Rect scr_size;
-extern ScreenBlitFunc* scr_blit;
 extern ZeroMemFunc* zero_mem;
 
 void zero_vid_mem();
@@ -22,7 +21,6 @@ void GNW95_SetPaletteEntries(unsigned char* palette, int start, int count);
 void GNW95_SetPalette(unsigned char* palette);
 unsigned char* GNW95_GetPalette();
 void GNW95_ShowRect(unsigned char* src, int srcPitch, int a3, int srcX, int srcY, int srcWidth, int srcHeight, int destX, int destY);
-void GNW95_ShowRect32(unsigned char* src, int srcPitch, int a3, int srcX, int srcY, int srcWidth, int srcHeight, int destX, int destY);
 void GNW95_ShowMovieRect(unsigned char* src, int srcPitch, int srcX, int srcY, int srcWidth, int srcHeight);
 void GNW95_zero_vid_mem();
 

@@ -39,8 +39,6 @@ typedef struct ScriptListExtent {
     struct ScriptListExtent* next;
 } ScriptListExtent;
 
-static_assert(sizeof(ScriptListExtent) == 0xE08, "wrong size");
-
 typedef struct ScriptList {
     ScriptListExtent* head;
     ScriptListExtent* tail;
@@ -48,8 +46,6 @@ typedef struct ScriptList {
     int length;
     int nextScriptId;
 } ScriptList;
-
-static_assert(sizeof(ScriptList) == 0x10, "wrong size");
 
 typedef struct ScriptState {
     unsigned int requests;

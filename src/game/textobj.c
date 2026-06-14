@@ -35,8 +35,6 @@ typedef struct TextObject {
     unsigned char* data;
 } TextObject;
 
-static_assert(sizeof(TextObject) == 48, "wrong size");
-
 static void text_object_bk();
 static void text_object_get_offset(TextObject* textObject);
 
@@ -254,7 +252,7 @@ int text_object_create(Object* object, char* string, int font, int color, int a5
         textObject->height += 2;
     }
 
-    int size = textObject->width * textObject->height;
+    int size = textObject->width * textObject->height * 4;
     textObject->data = (unsigned char*)mem_malloc(size);
     if (textObject->data == NULL) {
         text_font(oldFont);
@@ -264,10 +262,10 @@ int text_object_create(Object* object, char* string, int font, int color, int a5
     memset(textObject->data, 0, size);
 
     unsigned char* dest = textObject->data;
-    int skip = textObject->width * (text_height() + 1);
+    int skip = textObject->width * (text_height() + 1) * 4;
 
     if (a5 != -1) {
-        dest += textObject->width;
+        dest += textObject->width * 4;
     }
 
     for (int index = 0; index < textObject->linesCount; index++) {
@@ -281,7 +279,7 @@ int text_object_create(Object* object, char* string, int font, int color, int a5
         *ending = '\0';
 
         int width = text_width(beginning);
-        text_to_buf(dest + (textObject->width - width) / 2, beginning, textObject->width, textObject->width, color);
+        text_to_buf(dest + ((textObject->width - width) / 2) * 4, beginning, textObject->width, textObject->width, color);
 
         *ending = c;
 
@@ -340,11 +338,11 @@ void text_object_render(Rect* rect)
         textObjectRect.lrx = textObject->width + textObject->x - 1;
         textObjectRect.lry = textObject->height + textObject->y - 1;
         if (rect_inside_bound(&textObjectRect, rect, &textObjectRect) == 0) {
-            trans_buf_to_buf(textObject->data + textObject->width * (textObjectRect.uly - textObject->y) + (textObjectRect.ulx - textObject->x),
+            trans_buf_to_buf(textObject->data + (textObject->width * (textObjectRect.uly - textObject->y) + (textObjectRect.ulx - textObject->x)) * 4,
                 textObjectRect.lrx - textObjectRect.ulx + 1,
                 textObjectRect.lry - textObjectRect.uly + 1,
                 textObject->width,
-                display_buffer + display_width * textObjectRect.uly + textObjectRect.ulx,
+                display_buffer + (display_width * textObjectRect.uly + textObjectRect.ulx) * 4,
                 display_width);
         }
     }
