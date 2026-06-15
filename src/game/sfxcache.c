@@ -41,7 +41,7 @@ static void sfxc_handle_destroy(int handle);
 static bool sfxc_handle_is_legal(int a1);
 static bool sfxc_mode_is_legal(int mode);
 static int sfxc_decode(int handle, void* buf, unsigned int size);
-static int sfxc_ad_reader(int handle, void* buf, unsigned int size);
+static int sfxc_ad_reader(intptr_t handle, void* buf, unsigned int size);
 
 // 0x51C8F0
 static bool sfxc_initialized = false;
@@ -149,7 +149,7 @@ void sfxc_flush()
 }
 
 // 0x4A915C
-int sfxc_cached_open(const char* fname, int mode, ...)
+intptr_t sfxc_cached_open(const char* fname, int mode, ...)
 {
     if (sfxc_files_open >= SOUND_EFFECTS_MAX_COUNT) {
         return -1;
@@ -185,7 +185,7 @@ int sfxc_cached_open(const char* fname, int mode, ...)
 }
 
 // 0x4A9220
-int sfxc_cached_close(int handle)
+int sfxc_cached_close(intptr_t handle)
 {
     if (!sfxc_handle_is_legal(handle)) {
         return -1;
@@ -203,7 +203,7 @@ int sfxc_cached_close(int handle)
 }
 
 // 0x4A9274
-int sfxc_cached_read(int handle, void* buf, unsigned int size)
+int sfxc_cached_read(intptr_t handle, void* buf, unsigned int size)
 {
     if (!sfxc_handle_is_legal(handle)) {
         return -1;
@@ -245,13 +245,13 @@ int sfxc_cached_read(int handle, void* buf, unsigned int size)
 }
 
 // 0x4A9350
-int sfxc_cached_write(int handle, const void* buf, unsigned int size)
+int sfxc_cached_write(intptr_t handle, const void* buf, unsigned int size)
 {
     return -1;
 }
 
 // 0x4A9358
-long sfxc_cached_seek(int handle, long offset, int origin)
+long sfxc_cached_seek(intptr_t handle, long offset, int origin)
 {
     if (!sfxc_handle_is_legal(handle)) {
         return -1;
@@ -296,7 +296,7 @@ long sfxc_cached_seek(int handle, long offset, int origin)
 }
 
 // 0x4A93F4
-long sfxc_cached_tell(int handle)
+long sfxc_cached_tell(intptr_t handle)
 {
     if (!sfxc_handle_is_legal(handle)) {
         return -1;
@@ -307,7 +307,7 @@ long sfxc_cached_tell(int handle)
 }
 
 // 0x4A9418
-long sfxc_cached_file_size(int handle)
+long sfxc_cached_file_size(intptr_t handle)
 {
     if (!sfxc_handle_is_legal(handle)) {
         return 0;
@@ -518,7 +518,7 @@ static int sfxc_decode(int handle, void* buf, unsigned int size)
 }
 
 // 0x4A9774
-static int sfxc_ad_reader(int handle, void* buf, unsigned int size)
+static int sfxc_ad_reader(intptr_t handle, void* buf, unsigned int size)
 {
     if (size == 0) {
         return 0;

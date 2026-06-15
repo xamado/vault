@@ -24,16 +24,17 @@
 #include "game/stat.h"
 #include "plib/gnw/gnw.h"
 #include "game/worldmap.h"
+#include "plib/os/os_filesystem.h"
 
 static void gsound_bkg_proc();
-static int gsound_open(const char* fname, int access, ...);
-static long gsound_compressed_tell(int handle);
-static int gsound_write(int handle, const void* buf, unsigned int size);
-static int gsound_close(int handle);
-static int gsound_read(int handle, void* buf, unsigned int size);
-static long gsound_seek(int handle, long offset, int origin);
-static long gsound_tell(int handle);
-static long gsound_filesize(int handle);
+static intptr_t gsound_open(const char* fname, int access, ...);
+static long gsound_compressed_tell(intptr_t handle);
+static int gsound_write(intptr_t handle, const void* buf, unsigned int size);
+static int gsound_close(intptr_t handle);
+static int gsound_read(intptr_t handle, void* buf, unsigned int size);
+static long gsound_seek(intptr_t handle, long offset, int origin);
+static long gsound_tell(intptr_t handle);
+static long gsound_filesize(intptr_t handle);
 static bool gsound_compressed_query(char* filePath);
 static void gsound_internal_speech_callback(void* userData, int a2);
 static void gsound_internal_background_callback(void* userData, int a2);
@@ -650,7 +651,10 @@ int gsound_background_play(const char* fileName, int a2, int a3, int a4)
     background_storage_requested = a3;
     background_loop_requested = a4;
 
-    strcpy(background_fname_requested, fileName);
+    // NOTE: Use memmove because gsound_background_restart_last passes
+    // background_fname_requested as fileName, causing overlap.
+    size_t len = strlen(fileName) + 1;
+    memmove(background_fname_requested, fileName, len);
 
     if (!gsound_initialized) {
         return -1;
@@ -1660,7 +1664,7 @@ static void gsound_bkg_proc()
 }
 
 // 0x451A08
-static int gsound_open(const char* fname, int flags, ...)
+static intptr_t gsound_open(const char* fname, int flags, ...)
 {
     if ((flags & 2) != 0) {
         return -1;
@@ -1671,23 +1675,23 @@ static int gsound_open(const char* fname, int flags, ...)
         return -1;
     }
 
-    return (int)stream;
+    return (intptr_t)stream;
 }
 
 // 0x451A1C
-static long gsound_compressed_tell(int fileHandle)
+static long gsound_compressed_tell(intptr_t fileHandle)
 {
     return -1;
 }
 
 // NOTE: Uncollapsed 0x451A1C.
-static int gsound_write(int fileHandle, const void* buf, unsigned int size)
+static int gsound_write(intptr_t fileHandle, const void* buf, unsigned int size)
 {
     return -1;
 }
 
 // 0x451A24
-static int gsound_close(int fileHandle)
+static int gsound_close(intptr_t fileHandle)
 {
     if (fileHandle == -1) {
         return -1;
@@ -1697,7 +1701,7 @@ static int gsound_close(int fileHandle)
 }
 
 // 0x451A30
-static int gsound_read(int fileHandle, void* buffer, unsigned int size)
+static int gsound_read(intptr_t fileHandle, void* buffer, unsigned int size)
 {
     if (fileHandle == -1) {
         return -1;
@@ -1707,7 +1711,7 @@ static int gsound_read(int fileHandle, void* buffer, unsigned int size)
 }
 
 // 0x451A4C
-static long gsound_seek(int fileHandle, long offset, int origin)
+static long gsound_seek(intptr_t fileHandle, long offset, int origin)
 {
     if (fileHandle == -1) {
         return -1;
@@ -1721,7 +1725,7 @@ static long gsound_seek(int fileHandle, long offset, int origin)
 }
 
 // 0x451A70
-static long gsound_tell(int handle)
+static long gsound_tell(intptr_t handle)
 {
     if (handle == -1) {
         return -1;
@@ -1731,7 +1735,7 @@ static long gsound_tell(int handle)
 }
 
 // 0x451A7C
-static long gsound_filesize(int handle)
+static long gsound_filesize(intptr_t handle)
 {
     if (handle == -1) {
         return -1;
@@ -2161,7 +2165,7 @@ static Sound* gsound_get_sound_ready_for_effect()
 // 0x4524E0
 static bool gsound_file_exists_f(const char* fname)
 {
-    FILE* f = fopen(fname, "rb");
+    FILE* f = os_fs_fopen(fname, "rb");
     if (f == NULL) {
         return false;
     }

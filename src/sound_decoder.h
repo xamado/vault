@@ -3,14 +3,15 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define SOUND_DECODER_IN_BUFFER_SIZE (512)
 
-typedef int(SoundDecoderReadProc)(int fileHandle, void* buffer, unsigned int size);
+typedef int(SoundDecoderReadProc)(intptr_t fileHandle, void* buffer, unsigned int size);
 
 typedef struct SoundDecoder {
     SoundDecoderReadProc* readProc;
-    int fd;
+    intptr_t fd;
     unsigned char* bufferIn;
     size_t bufferInSize;
 
@@ -51,7 +52,7 @@ extern unsigned short word_6ADA00[128];
 extern unsigned char* _AudioDecoder_scale0;
 extern unsigned char* _AudioDecoder_scale_tbl;
 
-bool soundDecoderPrepare(SoundDecoder* a1, SoundDecoderReadProc* readProc, int fileHandle);
+bool soundDecoderPrepare(SoundDecoder* a1, SoundDecoderReadProc* readProc, intptr_t fileHandle);
 unsigned char soundDecoderReadNextChunk(SoundDecoder* a1);
 void _init_pack_tables();
 
@@ -76,6 +77,6 @@ void _untransform_subband(unsigned char* a1, unsigned char* a2, int a3, int a4);
 void _untransform_all(SoundDecoder* a1);
 size_t soundDecoderDecode(SoundDecoder* soundDecoder, void* buffer, size_t size);
 void soundDecoderFree(SoundDecoder* soundDecoder);
-SoundDecoder* soundDecoderInit(SoundDecoderReadProc* readProc, int fileHandle, int* out_a3, int* out_a4, int* out_a5);
+SoundDecoder* soundDecoderInit(SoundDecoderReadProc* readProc, intptr_t fileHandle, int* out_a3, int* out_a4, int* out_a5);
 
 #endif /* SOUND_DECODER_H */

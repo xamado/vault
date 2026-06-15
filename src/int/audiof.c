@@ -10,7 +10,7 @@
 #include "plib/os/os_filesystem.h"
 
 static bool defaultCompressionFunc(char* filePath);
-static int decodeRead(int fileHandle, void* buffer, unsigned int size);
+static int decodeRead(intptr_t fileHandle, void* buffer, unsigned int size);
 
 // 0x5108C0
 static AudioFileIsCompressedProc* queryCompressedFunc = defaultCompressionFunc;
@@ -33,13 +33,13 @@ static bool defaultCompressionFunc(char* filePath)
 }
 
 // 0x41A870
-static int decodeRead(int fileHandle, void* buffer, unsigned int size)
+static int decodeRead(intptr_t fileHandle, void* buffer, unsigned int size)
 {
     return fread(buffer, 1, size, (FILE*)fileHandle);
 }
 
 // 0x41A88C
-int audiofOpen(const char* fname, int flags, ...)
+intptr_t audiofOpen(const char* fname, int flags, ...)
 {
     char path[MAX_PATH];
     strcpy(path, fname);
@@ -72,7 +72,7 @@ int audiofOpen(const char* fname, int flags, ...)
         *pm++ = 'b';
     }
 
-    FILE* stream = fopen(path, mode);
+    FILE* stream = os_fs_fopen(path, mode);
     if (stream == NULL) {
         return -1;
     }
@@ -95,7 +95,7 @@ int audiofOpen(const char* fname, int flags, ...)
 
     AudioFile* audioFile = &(audiof[index]);
     audioFile->flags = AUDIO_FILE_IN_USE;
-    audioFile->fileHandle = (int)stream;
+    audioFile->fileHandle = (intptr_t)stream;
 
     if (compression == 2) {
         audioFile->flags |= AUDIO_FILE_COMPRESSED;
@@ -111,7 +111,7 @@ int audiofOpen(const char* fname, int flags, ...)
 }
 
 // 0x41AAA0
-int audiofCloseFile(int fileHandle)
+int audiofCloseFile(intptr_t fileHandle)
 {
     AudioFile* audioFile = &(audiof[fileHandle - 1]);
     fclose((FILE*)audioFile->fileHandle);
@@ -127,7 +127,7 @@ int audiofCloseFile(int fileHandle)
 }
 
 // 0x41AB08
-int audiofRead(int fileHandle, void* buffer, unsigned int size)
+int audiofRead(intptr_t fileHandle, void* buffer, unsigned int size)
 {
 
     AudioFile* ptr = &(audiof[fileHandle - 1]);
@@ -145,7 +145,7 @@ int audiofRead(int fileHandle, void* buffer, unsigned int size)
 }
 
 // 0x41AB74
-long audiofSeek(int fileHandle, long offset, int origin)
+long audiofSeek(intptr_t fileHandle, long offset, int origin)
 {
     void* buf;
     int remaining;
@@ -207,21 +207,21 @@ long audiofSeek(int fileHandle, long offset, int origin)
 }
 
 // 0x41AD20
-long audiofFileSize(int fileHandle)
+long audiofFileSize(intptr_t fileHandle)
 {
     AudioFile* audioFile = &(audiof[fileHandle - 1]);
     return audioFile->fileSize;
 }
 
 // 0x41AD3C
-long audiofTell(int fileHandle)
+long audiofTell(intptr_t fileHandle)
 {
     AudioFile* audioFile = &(audiof[fileHandle - 1]);
     return audioFile->position;
 }
 
 // 0x41AD58
-int audiofWrite(int fileHandle, const void* buffer, unsigned int size)
+int audiofWrite(intptr_t fileHandle, const void* buffer, unsigned int size)
 {
     debug_printf("AudiofWrite shouldn't be ever called\n");
     return 0;

@@ -25,7 +25,7 @@ static int sfxl_copy_names(char** fileNameList);
 static int sfxl_get_sizes();
 static int sfxl_sort_by_name();
 static int sfxl_compare_by_name(const void* a1, const void* a2);
-static int sfxl_ad_reader(int fileHandle, void* buf, unsigned int size);
+static int sfxl_ad_reader(intptr_t fileHandle, void* buf, unsigned int size);
 
 // 0x51C8F8
 static bool sfxl_initialized = false;
@@ -94,8 +94,13 @@ int sfxl_init(const char* soundEffectsPath, int a2, int debugLevel)
 
             db_fgets(path, 255, stream);
 
-            // Remove trailing newline.
-            *(path + strlen(path) - 1) = '\0';
+            // Remove trailing newline / carriage return.
+            {
+                int len = strlen(path);
+                while (len > 0 && (path[len - 1] == '\n' || path[len - 1] == '\r')) {
+                    path[--len] = '\0';
+                }
+            }
             entry->name = mem_strdup(path);
 
             db_fgets(path, 255, stream);
@@ -414,7 +419,7 @@ static int sfxl_get_sizes()
                 int v1;
                 int v2;
                 int v3;
-                SoundDecoder* soundDecoder = soundDecoderInit(sfxl_ad_reader, (int)stream, &v1, &v2, &v3);
+                SoundDecoder* soundDecoder = soundDecoderInit(sfxl_ad_reader, (intptr_t)stream, &v1, &v2, &v3);
                 entry->dataSize = 2 * v3;
                 soundDecoderFree(soundDecoder);
                 db_fclose(stream);
@@ -452,7 +457,7 @@ static int sfxl_compare_by_name(const void* a1, const void* a2)
 }
 
 // 0x4AA234
-static int sfxl_ad_reader(int fileHandle, void* buf, unsigned int size)
+static int sfxl_ad_reader(intptr_t fileHandle, void* buf, unsigned int size)
 {
     return db_fread(buf, 1, size, (File*)fileHandle);
 }

@@ -72,7 +72,7 @@ unsigned char* _AudioDecoder_scale0;
 unsigned char* _AudioDecoder_scale_tbl;
 
 // 0x4D3BB0
-bool soundDecoderPrepare(SoundDecoder* soundDecoder, SoundDecoderReadProc* readProc, int fileHandle)
+bool soundDecoderPrepare(SoundDecoder* soundDecoder, SoundDecoderReadProc* readProc, intptr_t fileHandle)
 {
     soundDecoder->readProc = readProc;
     soundDecoder->fd = fileHandle;
@@ -1094,7 +1094,7 @@ void soundDecoderFree(SoundDecoder* soundDecoder)
 }
 
 // 0x4D50A8
-SoundDecoder* soundDecoderInit(SoundDecoderReadProc* readProc, int fileHandle, int* out_a3, int* out_a4, int* out_a5)
+SoundDecoder* soundDecoderInit(SoundDecoderReadProc* readProc, intptr_t fileHandle, int* out_a3, int* out_a4, int* out_a5)
 {
     int v14;
     int v20;

@@ -2,6 +2,7 @@
 #define FALLOUT_INT_SOUND_H_
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "memory_defs.h"
 #include "plib/os/os_audio.h"
@@ -52,13 +53,13 @@ typedef enum SoundError {
 } SoundError;
 
 typedef char*(SoundFileNameMangler)(char*);
-typedef int SoundOpenProc(const char* filePath, int flags, ...);
-typedef int SoundCloseProc(int fileHandle);
-typedef int SoundReadProc(int fileHandle, void* buf, unsigned int size);
-typedef int SoundWriteProc(int fileHandle, const void* buf, unsigned int size);
-typedef long SoundSeekProc(int fileHandle, long offset, int origin);
-typedef long SoundTellProc(int fileHandle);
-typedef long SoundFileLengthProc(int fileHandle);
+typedef intptr_t SoundOpenProc(const char* filePath, int flags, ...);
+typedef int SoundCloseProc(intptr_t fileHandle);
+typedef int SoundReadProc(intptr_t fileHandle, void* buf, unsigned int size);
+typedef int SoundWriteProc(intptr_t fileHandle, const void* buf, unsigned int size);
+typedef long SoundSeekProc(intptr_t fileHandle, long offset, int origin);
+typedef long SoundTellProc(intptr_t fileHandle);
+typedef long SoundFileLengthProc(intptr_t fileHandle);
 
 typedef struct SoundFileIO {
     SoundOpenProc* open;
@@ -68,7 +69,7 @@ typedef struct SoundFileIO {
     SoundSeekProc* seek;
     SoundTellProc* tell;
     SoundFileLengthProc* filelength;
-    int fd;
+    intptr_t fd;
 } SoundFileIO;
 
 typedef void SoundCallback(void* userData, int a2);

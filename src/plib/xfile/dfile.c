@@ -175,12 +175,41 @@ bool dbase_close(DBase* dbase)
     return true;
 }
 
+// On Linux, fpattern treats backslash as an escape/quote character
+// (FPAT_QUOTE = '\\'). DAT archive entries use backslash as a path
+// separator, so we must normalize both the pattern and entry paths to
+// forward slashes before calling fpattern_match.
+#if !defined(_WIN32)
+static bool dbase_fpattern_match(const char* pattern, const char* path)
+{
+    char norm_pattern[FILENAME_MAX];
+    char norm_path[FILENAME_MAX];
+
+    strncpy(norm_pattern, pattern, sizeof(norm_pattern) - 1);
+    norm_pattern[sizeof(norm_pattern) - 1] = '\0';
+
+    strncpy(norm_path, path, sizeof(norm_path) - 1);
+    norm_path[sizeof(norm_path) - 1] = '\0';
+
+    for (char* p = norm_pattern; *p; p++) {
+        if (*p == '\\') *p = '/';
+    }
+    for (char* p = norm_path; *p; p++) {
+        if (*p == '\\') *p = '/';
+    }
+
+    return fpattern_match(norm_pattern, norm_path);
+}
+#else
+#define dbase_fpattern_match fpattern_match
+#endif
+
 // 0x4E5308
 bool dbase_findfirst(DBase* dbase, DFileFindData* findFileData, const char* pattern)
 {
     for (int index = 0; index < dbase->entriesLength; index++) {
         DBaseEntry* entry = &(dbase->entries[index]);
-        if (fpattern_match(pattern, entry->path)) {
+        if (dbase_fpattern_match(pattern, entry->path)) {
             strcpy(findFileData->fileName, entry->path);
             strcpy(findFileData->pattern, pattern);
             findFileData->index = index;
@@ -196,7 +225,7 @@ bool dbase_findnext(DBase* dbase, DFileFindData* findFileData)
 {
     for (int index = findFileData->index + 1; index < dbase->entriesLength; index++) {
         DBaseEntry* entry = &(dbase->entries[index]);
-        if (fpattern_match(findFileData->pattern, entry->path)) {
+        if (dbase_fpattern_match(findFileData->pattern, entry->path)) {
             strcpy(findFileData->fileName, entry->path);
             findFileData->index = index;
             return true;
