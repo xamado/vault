@@ -109,7 +109,6 @@ void GNW95_SetPaletteEntry(int entry, unsigned char r, unsigned char g, unsigned
     current_palette[entry * 3 + 2] = b;
 
     os_window_set_palette(entry, 1, &current_palette[entry * 3]);
-    os_window_present();
 
     if (update_palette_func != NULL) {
         update_palette_func();
@@ -126,7 +125,6 @@ void GNW95_SetPaletteEntries(unsigned char* palette, int start, int count)
     }
 
     os_window_set_palette(start, count, palette);
-    os_window_present();
 
     if (update_palette_func != NULL) {
         update_palette_func();
@@ -139,7 +137,6 @@ void GNW95_SetPalette(unsigned char* palette)
     memcpy(current_palette, palette, 256 * 3);
 
     os_window_set_palette(0, 256, palette);
-    os_window_present();
 
     if (update_palette_func != NULL) {
         update_palette_func();
@@ -205,7 +202,6 @@ void GNW95_MouseShowTransRect16(unsigned char* src, int srcPitch, int a3, int sr
             }
         }
         os_window_unlock();
-        os_window_present();
     }
 }
 
@@ -233,7 +229,6 @@ void GNW95_ShowMovieRect(unsigned char* src, int srcPitch, int srcX, int srcY, i
         );
 
         os_window_unlock();
-        os_window_present();
     }
 }
 
@@ -254,7 +249,6 @@ void GNW95_zero_vid_mem()
         int height = scr_size.lry - scr_size.uly + 1;
         memset(pixels, 0, pitch * height);
         os_window_unlock();
-        os_window_present();
     }
 }
 

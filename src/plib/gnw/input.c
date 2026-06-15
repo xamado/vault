@@ -16,6 +16,7 @@
 #include "plib/gnw/winmain.h"
 #include "plib/os/os_input.h"
 #include "plib/os/os_time.h"
+#include "plib/os/os_window.h"
 
 typedef struct KeyboardEventData {
     int code;
@@ -314,14 +315,14 @@ void process_bk()
     v1 = win_check_all_buttons();
     if (v1 != -1) {
         GNW_add_input_buffer(v1);
-        return;
+    } else {
+        v1 = kb_getch();
+        if (v1 != -1) {
+            GNW_add_input_buffer(v1);
+        }
     }
 
-    v1 = kb_getch();
-    if (v1 != -1) {
-        GNW_add_input_buffer(v1);
-        return;
-    }
+    os_window_present();
 }
 
 // 0x4C8C04

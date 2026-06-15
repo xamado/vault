@@ -885,11 +885,6 @@ void GNW_win_refresh(Window* w, Rect* rect, unsigned char* destBuf)
             rect_free(v26);
         }
     }
-
-    // Present the frame once after all rects have been blitted.
-    if (!doing_refresh_all && destBuf == NULL) {
-        os_window_present();
-    }
 }
 
 // 0x4D759C
