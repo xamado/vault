@@ -78,7 +78,7 @@ char _aGame_0[] = "game\\";
 
 // TODO: Remove.
 // 0x5020B8
-char _aDec11199816543[] = VERSION_BUILD_TIME;
+char _build_date_time[] = VERSION_BUILD_TIME;
 
 // 0x518688
 static FontMgr alias_mgr = {
@@ -843,7 +843,7 @@ int game_handle_input(int eventCode, bool isInCombatMode)
             char version[VERSION_MAX];
             getverstr(version);
             display_print(version);
-            display_print(_aDec11199816543);
+            display_print(_build_date_time);
         }
         break;
 #ifdef ENABLE_TILE_GRID_DEBUG

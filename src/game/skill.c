@@ -548,8 +548,12 @@ int skill_use(Object* obj, Object* a2, int skill, int criticalChanceModifier)
     char text[60];
 
     bool giveExp = true;
-    int currentHp = critterGetStat(a2, STAT_CURRENT_HIT_POINTS);
-    int maximumHp = critterGetStat(a2, STAT_MAXIMUM_HIT_POINTS);
+    int currentHp = 0;
+    int maximumHp = 0;
+    if (PID_TYPE(a2->pid) == OBJ_TYPE_CRITTER) {
+        currentHp = critterGetStat(a2, STAT_CURRENT_HIT_POINTS);
+        maximumHp = critterGetStat(a2, STAT_MAXIMUM_HIT_POINTS);
+    }
 
     int hpToHeal = 0;
     int maximumHpToHeal = 0;

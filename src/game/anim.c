@@ -1674,8 +1674,18 @@ static int anim_set_end(int animationSequenceIndex)
     for (i = 0; i < animationSequence->length; i++) {
         animationDescription = &(animationSequence->animations[i]);
         if (animationDescription->kind == ANIM_KIND_HIDE && ((i < animationSequence->animationIndex) || (animationDescription->extendedFlags & ANIMATION_SEQUENCE_FORCED))) {
-            obj_erase_object(animationDescription->owner, &v27);
-            tile_refresh_rect(&v27, animationDescription->owner->elevation);
+            int elevation = animationDescription->owner->elevation;
+            Object* erasedOwner = animationDescription->owner;
+            obj_erase_object(erasedOwner, &v27);
+            tile_refresh_rect(&v27, elevation);
+
+            // NULL out owner in all animation entries that reference the freed object
+            // to prevent use-after-free in the second cleanup loop.
+            for (int k = 0; k < animationSequence->length; k++) {
+                if (animationSequence->animations[k].owner == erasedOwner) {
+                    animationSequence->animations[k].owner = NULL;
+                }
+            }
         }
     }
 
@@ -1687,9 +1697,9 @@ static int anim_set_end(int animationSequenceIndex)
 
         if (animationDescription->kind != 11 && animationDescription->kind != 12) {
             // TODO: Check.
-            if (animationDescription->kind != ANIM_KIND_26) {
+            if (animationDescription->kind != ANIM_KIND_26 && animationDescription->kind != ANIM_KIND_HIDE) {
                 Object* owner = animationDescription->owner;
-                if (FID_TYPE(owner->fid) == OBJ_TYPE_CRITTER) {
+                if (owner != NULL && FID_TYPE(owner->fid) == OBJ_TYPE_CRITTER) {
                     int j = 0;
                     for (; j < i; j++) {
                         AnimationDescription* ad = &(animationSequence->animations[j]);
