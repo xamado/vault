@@ -1,6 +1,10 @@
 #ifndef FALLOUT_GAME_ART_H_
 #define FALLOUT_GAME_ART_H_
 
+// Maximum size of a filename entry in the art lists (including null terminator).
+// Legacy engine used 13 (12 chars + null). Raised to support longer asset names.
+#define ART_FILENAME_SIZE 65
+
 #include "game/cache.h"
 #include "game/heap.h"
 #include "game/object_types.h"
@@ -171,6 +175,7 @@ int art_data_size(int a1, int* out_size);
 int art_data_load(int a1, int* a2, unsigned char* data);
 void art_data_free(void* ptr);
 int art_id(int objectType, int frmId, int animType, int a4, int rotation);
+int art_fid_by_name(int objectType, const char* name);
 
 static inline bool art_is_32bit(Art* art) {
     return art->version == 5;

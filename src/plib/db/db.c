@@ -550,7 +550,7 @@ int db_get_file_list(const char* pattern, char*** fileNameListPtr, int a3, int a
         for (int index = 0; index < fileNamesLength - 1; index++) {
             if (os_stricmp(xlist->fileNames[index], xlist->fileNames[index + 1]) == 0) {
                 char* temp = xlist->fileNames[index + 1];
-                memmove(&(xlist->fileNames[index + 1]), &(xlist->fileNames[index + 2]), sizeof(*xlist->fileNames) * (xlist->fileNamesLength - index - 1));
+                memmove(&(xlist->fileNames[index + 1]), &(xlist->fileNames[index + 2]), sizeof(*xlist->fileNames) * (xlist->fileNamesLength - index - 2));
                 xlist->fileNames[xlist->fileNamesLength - 1] = temp;
 
                 fileNamesLength--;
@@ -568,19 +568,15 @@ int db_get_file_list(const char* pattern, char*** fileNameListPtr, int a3, int a
             os_filesystem_split_path(name, NULL, dir, fileName, extension);
 
             if (!isWildcard || *dir == '\0' || strchr(dir, '\\') == NULL) {
-                // FIXME: There is a buffer overlow bug in this implementation.
-                // `fileNames` entries are dynamically allocated strings
-                // themselves produced by `strdup` in `xlistenumfunc`.
-                // In some circumstances we can end up placing long file name
-                // in a short buffer (if that shorter buffer is alphabetically
-                // preceding current file name).
-                //
-                // It can be easily spotted by creating `a.txt` in the game
-                // directory and then trying print character data from character
-                // editor. Because of compiler differencies original game will
-                // crash immediately, and RE can crash anytime after closing
-                // file dialog.
-                sprintf(xlist->fileNames[length], "%s%s", fileName, extension);
+                // Build the compacted name (basename + extension).
+                char compacted[_MAX_FNAME + _MAX_EXT];
+                sprintf(compacted, "%s%s", fileName, extension);
+
+                // Replace the entry at [length] with a properly sized copy.
+                // The original strdup'd buffer may be too small for the new
+                // content, so we free it and allocate a fresh one.
+                free(xlist->fileNames[length]);
+                xlist->fileNames[length] = strdup(compacted);
                 length++;
             }
         }

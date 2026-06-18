@@ -120,7 +120,7 @@ int main_menu_create()
 
     // Main menu background
     CacheEntry* background_key = nullptr;
-    int backgroundFid = art_id(OBJ_TYPE_INTERFACE, 469, 0, 0, 0);
+    int backgroundFid = art_fid_by_name(OBJ_TYPE_INTERFACE, "xmmbg.frm");
     Art* bgArt = art_ptr_lock(backgroundFid, &background_key);
     // buf_to_buf(background_data, 640, 480, 640, main_window_buf, 640);
     ui_image_fill_32(bgArt, main_window, 0, 0, screen_size.width, screen_size.height);
@@ -128,7 +128,7 @@ int main_menu_create()
 
     // Logo
     CacheEntry* logo_key = nullptr;
-    int logoFid = art_id(OBJ_TYPE_INTERFACE, 470, 0, 0, 0);
+    int logoFid = art_fid_by_name(OBJ_TYPE_INTERFACE, "xlogo.frm");
     Art* logoArt = art_ptr_lock(logoFid, &logo_key);
     ui_image_32(logoArt, main_window, 20 * ui_scale, 20 * ui_scale, 300 * ui_scale, 103 * ui_scale);
     art_ptr_unlock(logo_key);
@@ -140,7 +140,7 @@ int main_menu_create()
     int panel_height = (int) (280 * ui_scale);
 
     CacheEntry* panel_key = nullptr;
-    int panelFid = art_id(OBJ_TYPE_INTERFACE, 471, 0, 0, 0);
+    int panelFid = art_fid_by_name(OBJ_TYPE_INTERFACE, "xmenubg.frm");
     Art* panelArt = art_ptr_lock(panelFid, &panel_key);
     ui_image_32(panelArt, main_window, panel_x, panel_y, panel_width, panel_height);
     art_ptr_unlock(panel_key);

@@ -1,5 +1,6 @@
 #include "game/art.h"
 #include "plib/os/os_string.h"
+#include "plib/assoc/assoc.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,6 +89,11 @@ int* anon_alias;
 // 0x56CAF0
 int* artCritterFidShouldRunData;
 
+// Name-to-index lookup tables, one per object type.
+// Built at init from LST entries, extended by FRM scanning for interface type.
+static assoc_array art_name_map[OBJ_TYPE_COUNT];
+static bool art_name_map_initialized[OBJ_TYPE_COUNT];
+
 // 0x418840
 int art_init()
 {
@@ -130,6 +136,51 @@ int art_init()
             }
             cache_exit(&art_cache);
             return -1;
+        }
+
+        // Build name-to-index hashtable from LST entries.
+        assoc_init(&art_name_map[objectType], 0, sizeof(int), NULL);
+        art_name_map_initialized[objectType] = true;
+
+        char* names = art[objectType].fileNames;
+        for (int i = 0; i < art[objectType].fileNamesLength; i++) {
+            assoc_insert(&art_name_map[objectType], names + i * ART_FILENAME_SIZE, &i);
+        }
+
+        // For interface art, scan all xbases for FRM files not in the LST.
+        // Other types (critters, heads) have extra metadata in their LSTs
+        // that we can't fabricate, so we only scan interface.
+        if (objectType == OBJ_TYPE_INTERFACE) {
+            char scanPattern[MAX_PATH];
+            sprintf(scanPattern, "%s%s%s\\*.frm", cd_path_base, "art\\", art[objectType].name);
+
+            char** fileList;
+            int fileCount = db_get_file_list(scanPattern, &fileList, 0, 0);
+
+            for (int i = 0; i < fileCount; i++) {
+                // Check if already registered from LST.
+                if (assoc_search(&art_name_map[objectType], fileList[i]) == -1) {
+                    // Not in LST — append dynamically.
+                    int newIndex = art[objectType].fileNamesLength;
+                    char* grown = (char*)mem_realloc(
+                        art[objectType].fileNames,
+                        ART_FILENAME_SIZE * (newIndex + 1));
+                    if (grown != NULL) {
+                        art[objectType].fileNames = grown;
+                        strncpy(grown + newIndex * ART_FILENAME_SIZE, fileList[i], ART_FILENAME_SIZE - 1);
+                        grown[newIndex * ART_FILENAME_SIZE + ART_FILENAME_SIZE - 1] = '\0';
+                        art[objectType].fileNamesLength = newIndex + 1;
+
+                        assoc_insert(&art_name_map[objectType], fileList[i], &newIndex);
+                        debug_printf("art: auto-registered %s/%s at index %d\n",
+                            art[objectType].name, fileList[i], newIndex);
+                    }
+                }
+            }
+
+            if (fileCount > 0) {
+                db_free_file_list(&fileList, 0);
+            }
         }
 
         if (objectType == OBJ_TYPE_CRITTER) {
@@ -182,7 +233,7 @@ int art_init()
             art_vault_person_nums[DUDE_NATIVE_LOOK_TRIBAL][GENDER_FEMALE] = critterIndex;
         }
 
-        critterFileNames += 13;
+        critterFileNames += ART_FILENAME_SIZE;
     }
 
     for (int critterIndex = 0; critterIndex < art[OBJ_TYPE_CRITTER].fileNamesLength; critterIndex++) {
@@ -213,7 +264,7 @@ int art_init()
         if (os_stricmp(tileFileNames, "grid001.frm") == 0) {
             art_mapper_blank_tile = tileIndex;
         }
-        tileFileNames += 13;
+        tileFileNames += ART_FILENAME_SIZE;
     }
 
     head_info = (HeadDescription*)mem_malloc(sizeof(*head_info) * art[OBJ_TYPE_HEAD].fileNamesLength);
@@ -295,6 +346,11 @@ void art_exit()
 
         mem_free(art[index].field_18);
         art[index].field_18 = NULL;
+
+        if (art_name_map_initialized[index]) {
+            assoc_free(&art_name_map[index]);
+            art_name_map_initialized[index] = false;
+        }
     }
 
     mem_free(head_info);
@@ -512,7 +568,7 @@ int art_get_base_name(int objectType, int id, char* dest)
         return -1;
     }
 
-    strcpy(dest, ptr->fileNames + id * 13);
+    strcpy(dest, ptr->fileNames + id * ART_FILENAME_SIZE);
 
     return 0;
 }
@@ -618,7 +674,7 @@ char* art_get_name(int fid)
         return NULL;
     }
 
-    v8 = v3 * 13;
+    v8 = v3 * ART_FILENAME_SIZE;
 
     if (type == 1) {
         if (art_get_code(v4, v5, &v11, &v12) == -1) {
@@ -662,7 +718,7 @@ int art_read_lst(const char* path, char** artListPtr, int* artListSizePtr)
 
     *artListSizePtr = count;
 
-    char* artList = (char*)mem_malloc(13 * count);
+    char* artList = (char*)mem_malloc(ART_FILENAME_SIZE * count);
     *artListPtr = artList;
     if (artList == NULL) {
         db_fclose(stream);
@@ -675,10 +731,10 @@ int art_read_lst(const char* path, char** artListPtr, int* artListSizePtr)
             *brk = '\0';
         }
 
-        strncpy(artList, string, 12);
-        artList[12] = '\0';
+        strncpy(artList, string, ART_FILENAME_SIZE - 1);
+        artList[ART_FILENAME_SIZE - 1] = '\0';
 
-        artList += 13;
+        artList += ART_FILENAME_SIZE;
     }
 
     db_fclose(stream);
@@ -1078,4 +1134,30 @@ zero:
 out:
 
     return ((v10 << 28) & 0x70000000) | (objectType << 24) | ((animType << 16) & 0xFF0000) | ((a3 << 12) & 0xF000) | (frmId & 0xFFF);
+}
+
+// Looks up an art asset by filename and returns a complete FID.
+// The name must match an entry loaded from the LST file or auto-discovered
+// during startup (interface type only). Returns -1 if not found.
+int art_fid_by_name(int objectType, const char* name)
+{
+    if (objectType < 0 || objectType >= OBJ_TYPE_COUNT) {
+        return -1;
+    }
+
+    if (name == NULL) {
+        return -1;
+    }
+
+    if (!art_name_map_initialized[objectType]) {
+        return -1;
+    }
+
+    int pos = assoc_search(&art_name_map[objectType], name);
+    if (pos == -1) {
+        return -1;
+    }
+
+    int index = *(int*)art_name_map[objectType].list[pos].data;
+    return (objectType << 24) | (index & 0xFFF);
 }

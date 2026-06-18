@@ -1221,8 +1221,8 @@ static int game_init_databases()
         return -1;
     }
 
-    for (patch_index = 0; patch_index < 1000; patch_index++) {
-        sprintf(filename, "patch%03d.dat", patch_index);
+    for (patch_index = 0; patch_index < 100; patch_index++) {
+        sprintf(filename, "PATCH%03d.DAT", patch_index);
 
         if (access(filename, 0) == 0) {
             db_init(filename, 0, NULL, 1);
