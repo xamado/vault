@@ -1254,7 +1254,12 @@ int exec_script_proc(int sid, int proc)
 
     executeProcedure(program, v9);
 
-    script->source = NULL;
+    // The script may have been freed during executeProcedure (e.g. a map exit
+    // script that calls destroy_object on its own owner). Re-validate before
+    // touching the pointer.
+    if (scr_ptr(sid, &script) != -1) {
+        script->source = NULL;
+    }
 
     return 0;
 }

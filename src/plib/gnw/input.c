@@ -1100,7 +1100,7 @@ static void GNW95_process_key(KeyboardEventData* data)
     } else {
         if ((key & 0x0100) != 0) {
             kb_simulate_key(224);
-            qwertyKey -= 0x80;
+            qwertyKey = (qwertyKey - 0x80) & 0xFF;
         }
 
         GNW95RepeatStruct* ptr = &(GNW95_key_time_stamps[data->code & 0xFF]);

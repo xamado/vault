@@ -253,8 +253,16 @@ int skill_points(Object* obj, int skill)
         return 0;
     }
 
+    if (PID_TYPE(obj->pid) != OBJ_TYPE_CRITTER) {
+        return 0;
+    }
+
     Proto* proto;
     proto_ptr(obj->pid, &proto);
+
+    if (proto == NULL) {
+        return 0;
+    }
 
     return proto->critter.data.skills[skill];
 }

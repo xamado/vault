@@ -3296,7 +3296,7 @@ bool is_within_perception(Object* a1, Object* a2)
 
     int distance = obj_dist(a2, a1);
     int perception = critterGetStat(a1, STAT_PERCEPTION);
-    int sneak = skill_level(a2, SKILL_SNEAK);
+    int sneak = (a2 == obj_dude) ? skill_level(a2, SKILL_SNEAK) : 0;
     if (can_see(a1, a2)) {
         int maxDistance = perception * 5;
         if ((a2->flags & OBJECT_TRANS_GLASS) != 0) {

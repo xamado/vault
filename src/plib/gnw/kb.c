@@ -340,7 +340,7 @@ void kb_simulate_key(int scan_code)
             keyState = KEY_STATE_DOWN;
         }
 
-        int physicalKey = scan_code | extended_code;
+        int physicalKey = (scan_code | extended_code) & 0xFF;
 
         if (keyState != KEY_STATE_UP && keys[physicalKey] != KEY_STATE_UP) {
             keyState = KEY_STATE_REPEAT;
