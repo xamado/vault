@@ -5,6 +5,7 @@
 
 #include "game/art.h"
 #include "game/editor.h"
+#include "game/ui.h"
 #include "plib/color/color.h"
 #include "plib/gnw/input.h"
 #include "plib/gnw/debug.h"
@@ -15,6 +16,7 @@
 #include "plib/gnw/text.h"
 #include "plib/gnw/button.h"
 #include "plib/gnw/gnw.h"
+#include "plib/gnw/svga.h"
 #include "game/wordwrap.h"
 
 #define FILE_DIALOG_LINE_COUNT 12
@@ -178,7 +180,15 @@ int dialog_out(const char* title, const char** body, int bodyLength, int x, int 
         return -1;
     }
 
-    int win = win_add(x, y, backgroundWidth, backgroundHeight, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
+    int ui_scale = ui_get_scale();
+    int scaledWidth = backgroundWidth * ui_scale;
+    int scaledHeight = backgroundHeight * ui_scale;
+
+    Size screen_size = screen_get_size();
+    int winX = (screen_size.width - scaledWidth) / 2;
+    int winY = (screen_size.height - scaledHeight) / 2;
+
+    int win = win_add(winX, winY, scaledWidth, scaledHeight, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
     if (win == -1) {
         art_ptr_unlock(backgroundHandle);
         text_font(savedFont);
@@ -186,7 +196,7 @@ int dialog_out(const char* title, const char** body, int bodyLength, int x, int 
     }
 
     unsigned char* windowBuf = win_get_buf(win);
-    memcpy(windowBuf, background, backgroundWidth * backgroundHeight);
+    cscale(background, backgroundWidth, backgroundHeight, backgroundWidth, windowBuf, scaledWidth, scaledHeight, scaledWidth);
 
     CacheEntry* doneBoxHandle = NULL;
     unsigned char* doneBox = NULL;
@@ -233,7 +243,9 @@ int dialog_out(const char* title, const char** body, int bodyLength, int x, int 
         }
 
         int v27 = hasTwoButtons ? doneX[dialogType] : (backgroundWidth - doneBoxWidth) / 2;
-        buf_to_buf(doneBox, doneBoxWidth, doneBoxHeight, doneBoxWidth, windowBuf + backgroundWidth * doneY[dialogType] + v27, backgroundWidth);
+        cscale(doneBox, doneBoxWidth, doneBoxHeight, doneBoxWidth,
+            windowBuf + (scaledWidth * doneY[dialogType] * ui_scale + v27 * ui_scale) * 4,
+            doneBoxWidth * ui_scale, doneBoxHeight * ui_scale, scaledWidth);
 
         if (!message_init(&messageList)) {
             art_ptr_unlock(upButtonHandle);
@@ -264,10 +276,10 @@ int dialog_out(const char* title, const char** body, int bodyLength, int x, int 
         // 101 - YES
         messageListItem.num = (flags & DIALOG_BOX_YES_NO) == 0 ? 100 : 101;
         if (message_search(&messageList, &messageListItem)) {
-            text_to_buf(windowBuf + backgroundWidth * (doneY[dialogType] + 3) + v27 + 35, messageListItem.text, backgroundWidth, backgroundWidth, colorTable[18979]);
+            ui_scaled_text(win, messageListItem.text, (v27 + 35) * ui_scale, (doneY[dialogType] + 3) * ui_scale, ui_scale, colorTable[18979]);
         }
 
-        int btn = win_register_button(win, v27 + 13, doneY[dialogType] + 4, downButtonWidth, downButtonHeight, -1, -1, -1, 500, upButton, downButton, NULL, BUTTON_FLAG_TRANSPARENT);
+        int btn = win_register_button_scaled(win, (v27 + 13) * ui_scale, (doneY[dialogType] + 4) * ui_scale, downButtonWidth * ui_scale, downButtonHeight * ui_scale, -1, -1, -1, 500, downButtonWidth, downButtonHeight, upButton, downButton, NULL, BUTTON_FLAG_TRANSPARENT);
         if (btn != -1) {
             win_register_button_sound_func(btn, gsound_red_butt_press, gsound_red_butt_release);
         }
@@ -283,22 +295,21 @@ int dialog_out(const char* title, const char** body, int bodyLength, int x, int 
 
             text_font(103);
 
-            trans_buf_to_buf(doneBox,
+            cscale(doneBox,
                 doneBoxWidth,
                 doneBoxHeight,
                 doneBoxWidth,
-                windowBuf + backgroundWidth * doneY[dialogType] + doneX[dialogType] + doneBoxWidth + 24,
-                backgroundWidth);
+                windowBuf + (scaledWidth * doneY[dialogType] * ui_scale + (doneX[dialogType] + doneBoxWidth + 24) * ui_scale) * 4,
+                doneBoxWidth * ui_scale, doneBoxHeight * ui_scale, scaledWidth);
 
-            text_to_buf(windowBuf + backgroundWidth * (doneY[dialogType] + 3) + doneX[dialogType] + doneBoxWidth + 59,
-                a8, backgroundWidth, backgroundWidth, colorTable[18979]);
+            ui_scaled_text(win, a8, (doneX[dialogType] + doneBoxWidth + 59) * ui_scale, (doneY[dialogType] + 3) * ui_scale, ui_scale, colorTable[18979]);
 
-            int btn = win_register_button(win,
-                doneBoxWidth + doneX[dialogType] + 37,
-                doneY[dialogType] + 4,
-                downButtonWidth,
-                downButtonHeight,
-                -1, -1, -1, 501, upButton, downButton, 0, BUTTON_FLAG_TRANSPARENT);
+            int btn = win_register_button_scaled(win,
+                (doneBoxWidth + doneX[dialogType] + 37) * ui_scale,
+                (doneY[dialogType] + 4) * ui_scale,
+                downButtonWidth * ui_scale,
+                downButtonHeight * ui_scale,
+                -1, -1, -1, 501, downButtonWidth, downButtonHeight, upButton, downButton, 0, BUTTON_FLAG_TRANSPARENT);
             if (btn != -1) {
                 win_register_button_sound_func(btn, gsound_red_butt_press, gsound_red_butt_release);
             }
@@ -356,27 +367,28 @@ int dialog_out(const char* title, const char** body, int bodyLength, int x, int 
                 return -1;
             }
 
-            trans_buf_to_buf(doneBox,
+            cscale(doneBox,
                 doneBoxWidth,
                 doneBoxHeight,
                 doneBoxWidth,
-                windowBuf + backgroundWidth * doneY[dialogType] + doneX[dialogType],
-                backgroundWidth);
+                windowBuf + (scaledWidth * doneY[dialogType] * ui_scale + doneX[dialogType] * ui_scale) * 4,
+                doneBoxWidth * ui_scale, doneBoxHeight * ui_scale, scaledWidth);
 
             text_font(103);
 
-            text_to_buf(windowBuf + backgroundWidth * (doneY[dialogType] + 3) + doneX[dialogType] + 35,
-                a8, backgroundWidth, backgroundWidth, colorTable[18979]);
+            ui_scaled_text(win, a8, (doneX[dialogType] + 35) * ui_scale, (doneY[dialogType] + 3) * ui_scale, ui_scale, colorTable[18979]);
 
-            int btn = win_register_button(win,
-                doneX[dialogType] + 13,
-                doneY[dialogType] + 4,
-                downButtonWidth,
-                downButtonHeight,
+            int btn = win_register_button_scaled(win,
+                (doneX[dialogType] + 13) * ui_scale,
+                (doneY[dialogType] + 4) * ui_scale,
+                downButtonWidth * ui_scale,
+                downButtonHeight * ui_scale,
                 -1,
                 -1,
                 -1,
                 501,
+                downButtonWidth,
+                downButtonHeight,
                 upButton,
                 downButton,
                 NULL,
@@ -400,10 +412,10 @@ int dialog_out(const char* title, const char** body, int bodyLength, int x, int 
 
     if (hasTitle) {
         if ((flags & DIALOG_BOX_NO_HORIZONTAL_CENTERING) != 0) {
-            text_to_buf(windowBuf + backgroundWidth * v23 + xtable[dialogType], title, backgroundWidth, backgroundWidth, titleColor);
+            ui_scaled_text(win, title, xtable[dialogType] * ui_scale, v23 * ui_scale, ui_scale, titleColor);
         } else {
             int length = text_width(title);
-            text_to_buf(windowBuf + backgroundWidth * v23 + (backgroundWidth - length) / 2, title, backgroundWidth, backgroundWidth, titleColor);
+            ui_scaled_text(win, title, ((backgroundWidth - length) / 2) * ui_scale, v23 * ui_scale, ui_scale, titleColor);
         }
         v23 += text_height();
     }
@@ -412,10 +424,10 @@ int dialog_out(const char* title, const char** body, int bodyLength, int x, int 
         int len = text_width(body[v94]);
         if (len <= backgroundWidth - 26) {
             if ((flags & DIALOG_BOX_NO_HORIZONTAL_CENTERING) != 0) {
-                text_to_buf(windowBuf + backgroundWidth * v23 + xtable[dialogType], body[v94], backgroundWidth, backgroundWidth, bodyColor);
+                ui_scaled_text(win, body[v94], xtable[dialogType] * ui_scale, v23 * ui_scale, ui_scale, bodyColor);
             } else {
                 int length = text_width(body[v94]);
-                text_to_buf(windowBuf + backgroundWidth * v23 + (backgroundWidth - length) / 2, body[v94], backgroundWidth, backgroundWidth, bodyColor);
+                ui_scaled_text(win, body[v94], ((backgroundWidth - length) / 2) * ui_scale, v23 * ui_scale, ui_scale, bodyColor);
             }
             v23 += text_height();
         } else {
@@ -436,10 +448,10 @@ int dialog_out(const char* title, const char** body, int bodyLength, int x, int 
                 string[v51] = '\0';
 
                 if ((flags & DIALOG_BOX_NO_HORIZONTAL_CENTERING) != 0) {
-                    text_to_buf(windowBuf + backgroundWidth * v23 + xtable[dialogType], string, backgroundWidth, backgroundWidth, bodyColor);
+                    ui_scaled_text(win, string, xtable[dialogType] * ui_scale, v23 * ui_scale, ui_scale, bodyColor);
                 } else {
                     int length = text_width(string);
-                    text_to_buf(windowBuf + backgroundWidth * v23 + (backgroundWidth - length) / 2, string, backgroundWidth, backgroundWidth, bodyColor);
+                    ui_scaled_text(win, string, ((backgroundWidth - length) / 2) * ui_scale, v23 * ui_scale, ui_scale, bodyColor);
                 }
                 v23 += text_height();
             }

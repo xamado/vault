@@ -1,6 +1,7 @@
 #include "game/loadsave.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -466,7 +467,7 @@ int SaveGame(int mode)
     case SLOT_STATE_EMPTY:
     case SLOT_STATE_ERROR:
     case SLOT_STATE_UNSUPPORTED_VERSION:
-        draw_scaled_8_to_32(thumbnail_image[1],
+        draw_scaled_32(thumbnail_image[1],
             LS_PREVIEW_WIDTH - 1,
             LS_PREVIEW_HEIGHT - 1,
             LS_PREVIEW_WIDTH,
@@ -474,7 +475,7 @@ int SaveGame(int mode)
         break;
     default:
         LoadTumbSlot(slot_cursor);
-        draw_scaled_8_to_32(thumbnail_image[0],
+        draw_scaled_32(thumbnail_image[0],
             LS_PREVIEW_WIDTH - 1,
             LS_PREVIEW_HEIGHT - 1,
             LS_PREVIEW_WIDTH,
@@ -538,7 +539,10 @@ int SaveGame(int mode)
                     int mouseY;
                     mouse_get_position(&mouseX, &mouseY);
 
-                    slot_cursor = (mouseY - 79) / (3 * text_height() + 4);
+                    Rect winRect;
+                    win_get_rect(lsgwin, &winRect);
+                    int ui_scale = ui_get_scale();
+                    slot_cursor = (mouseY - winRect.uly - 87 * ui_scale) / ((3 * text_height() + 4) * ui_scale);
                     if (slot_cursor < 0) {
                         slot_cursor = 0;
                     }
@@ -631,7 +635,7 @@ int SaveGame(int mode)
                     switch (LSstatus[slot_cursor]) {
                     case SLOT_STATE_EMPTY:
                     case SLOT_STATE_ERROR:
-                        draw_scaled_8_to_32(thumbnail_image[1],
+                        draw_scaled_32(thumbnail_image[1],
                             LS_PREVIEW_WIDTH - 1,
                             LS_PREVIEW_HEIGHT - 1,
                             LS_PREVIEW_WIDTH,
@@ -639,7 +643,7 @@ int SaveGame(int mode)
                         break;
                     default:
                         LoadTumbSlot(slot_cursor);
-                        draw_scaled_8_to_32(thumbnail_image[0],
+                        draw_scaled_32(thumbnail_image[0],
                             LS_PREVIEW_WIDTH - 1,
                             LS_PREVIEW_HEIGHT - 1,
                             LS_PREVIEW_WIDTH,
@@ -666,7 +670,7 @@ int SaveGame(int mode)
                 case SLOT_STATE_EMPTY:
                 case SLOT_STATE_ERROR:
                 case SLOT_STATE_UNSUPPORTED_VERSION:
-                    draw_scaled_8_to_32(thumbnail_image[1],
+                    draw_scaled_32(thumbnail_image[1],
                         LS_PREVIEW_WIDTH - 1,
                         LS_PREVIEW_HEIGHT - 1,
                         LS_PREVIEW_WIDTH,
@@ -674,7 +678,7 @@ int SaveGame(int mode)
                     break;
                 default:
                     LoadTumbSlot(slot_cursor);
-                    draw_scaled_8_to_32(thumbnail_image[0],
+                    draw_scaled_32(thumbnail_image[0],
                         LS_PREVIEW_WIDTH - 1,
                         LS_PREVIEW_HEIGHT - 1,
                         LS_PREVIEW_WIDTH,
@@ -765,7 +769,7 @@ int SaveGame(int mode)
                     case SLOT_STATE_EMPTY:
                     case SLOT_STATE_ERROR:
                     case SLOT_STATE_UNSUPPORTED_VERSION:
-                        draw_scaled_8_to_32(thumbnail_image[1],
+                        draw_scaled_32(thumbnail_image[1],
                             LS_PREVIEW_WIDTH - 1,
                             LS_PREVIEW_HEIGHT - 1,
                             LS_PREVIEW_WIDTH,
@@ -773,7 +777,7 @@ int SaveGame(int mode)
                         break;
                     default:
                         LoadTumbSlot(slot_cursor);
-                        draw_scaled_8_to_32(thumbnail_image[0],
+                        draw_scaled_32(thumbnail_image[0],
                             LS_PREVIEW_WIDTH - 1,
                             LS_PREVIEW_HEIGHT - 1,
                             LS_PREVIEW_WIDTH,
@@ -808,7 +812,7 @@ int SaveGame(int mode)
 // 0x47C5B4
 static int QuickSnapShot()
 {
-    snapshot = (unsigned char*)mem_malloc(LS_PREVIEW_SIZE);
+    snapshot = (unsigned char*)mem_malloc(LS_PREVIEW_SIZE * 4);
     if (snapshot == NULL) {
         return -1;
     }
@@ -827,7 +831,9 @@ static int QuickSnapShot()
     }
 
     unsigned char* windowBuffer = win_get_buf(display_win);
-    cscale(windowBuffer, 640, 380, 640, snapshot, LS_PREVIEW_WIDTH, LS_PREVIEW_HEIGHT, LS_PREVIEW_WIDTH);
+    int winW = win_width(display_win);
+    int winH = win_height(display_win);
+    cscale(windowBuffer, winW, winH, winW, snapshot, LS_PREVIEW_WIDTH, LS_PREVIEW_HEIGHT, LS_PREVIEW_WIDTH);
 
     thumbnail_image[1] = snapshot;
 
@@ -950,7 +956,7 @@ int LoadGame(int mode)
         break;
     default:
         LoadTumbSlot(slot_cursor);
-        draw_scaled_8_to_32(thumbnail_image[0],
+        draw_scaled_32(thumbnail_image[0],
             LS_PREVIEW_WIDTH - 1,
             LS_PREVIEW_HEIGHT - 1,
             LS_PREVIEW_WIDTH,
@@ -1011,7 +1017,10 @@ int LoadGame(int mode)
                     int mouseY;
                     mouse_get_position(&mouseX, &mouseY);
 
-                    int clickedSlot = (mouseY - 79) / (3 * text_height() + 4);
+                    Rect winRect;
+                    win_get_rect(lsgwin, &winRect);
+                    int ui_scale = ui_get_scale();
+                    int clickedSlot = (mouseY - winRect.uly - 87 * ui_scale) / ((3 * text_height() + 4) * ui_scale);
                     if (clickedSlot < 0) {
                         clickedSlot = 0;
                     } else if (clickedSlot > 9) {
@@ -1108,7 +1117,7 @@ int LoadGame(int mode)
                         // buf_to_buf(lsbmp[LOAD_SAVE_FRM_BACKGROUND] + LS_WINDOW_WIDTH * 39 + 340,
                         //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].width,
                         //     ginfo[LOAD_SAVE_FRM_PREVIEW_COVER].height,
-                        draw_scaled_8_to_32(thumbnail_image[0],
+                        draw_scaled_32(thumbnail_image[0],
                             LS_PREVIEW_WIDTH,
                             LS_PREVIEW_HEIGHT,
                             LS_PREVIEW_WIDTH,
@@ -1143,7 +1152,7 @@ int LoadGame(int mode)
                     break;
                 default:
                     LoadTumbSlot(slot_cursor);
-                    draw_scaled_8_to_32(thumbnail_image[0],
+                    draw_scaled_32(thumbnail_image[0],
                         LS_PREVIEW_WIDTH,
                         LS_PREVIEW_HEIGHT,
                         LS_PREVIEW_WIDTH,
@@ -1234,7 +1243,12 @@ static int loadsave_load_assets(int windowType)
 {
     for (int index = 0; index < LOAD_SAVE_FRM_COUNT; index++)
     {
-        int fid = art_id(OBJ_TYPE_INTERFACE, lsgrphs[index], 0, 0, 0);
+        int fid;
+        if (index == MAIN_MENU_FRM_BACKGROUND) {
+            fid = art_fid_by_name(OBJ_TYPE_INTERFACE, "xmmbg.frm");
+        } else {
+            fid = art_id(OBJ_TYPE_INTERFACE, lsgrphs[index], 0, 0, 0);
+        }
         assets[index] = art_ptr_lock(fid, &(grphkey[index]));
 
         if (assets[index] == NULL) {
@@ -1296,7 +1310,7 @@ static int LSGameStart(int windowType)
         return -1;
     }
 
-    snapshot = (unsigned char*)mem_malloc(61632);
+    snapshot = (unsigned char*)mem_malloc(LS_PREVIEW_SIZE * 4 * 2);
     if (snapshot == NULL) {
         message_exit(&lsgame_msgfl);
         text_font(fontsave);
@@ -1304,7 +1318,8 @@ static int LSGameStart(int windowType)
     }
 
     thumbnail_image[0] = snapshot;
-    thumbnail_image[1] = snapshot + LS_PREVIEW_SIZE;
+    thumbnail_image[1] = snapshot + LS_PREVIEW_SIZE * 4;
+    memset(snapshot, 0, LS_PREVIEW_SIZE * 4 * 2);
 
     if (windowType != LOAD_SAVE_WINDOW_TYPE_LOAD_GAME_FROM_MAIN_MENU) {
         bk_enable = map_disable_bk_processes();
@@ -1329,11 +1344,15 @@ static int LSGameStart(int windowType)
         }
 
         unsigned char* windowBuf = win_get_buf(display_win);
-        // cscale(windowBuf, 640, 380, 640, thumbnail_image[1], LS_PREVIEW_WIDTH, LS_PREVIEW_HEIGHT, LS_PREVIEW_WIDTH);
+        int winW = win_width(display_win);
+        int winH = win_height(display_win);
+        cscale(windowBuf, winW, winH, winW, thumbnail_image[1], LS_PREVIEW_WIDTH, LS_PREVIEW_HEIGHT, LS_PREVIEW_WIDTH);
     }
 
     // Load all screen assets
-    loadsave_load_assets(windowType);
+    if (loadsave_load_assets(windowType) == -1) {
+        return -1;
+    }
 
     const Size screen_size = screen_get_size();
     const int ui_scale = ui_get_scale();
@@ -1371,7 +1390,7 @@ static int LSGameStart(int windowType)
     }
 
     lsgbuf = win_get_buf(lsgwin);
-    ui_image_indexed(assets[LOAD_SAVE_FRM_BACKGROUND], lsgwin, 0, 0, 640 * ui_scale, 480 * ui_scale, getColorPalette());
+    ui_image(assets[LOAD_SAVE_FRM_BACKGROUND], lsgwin, 0, 0, 640 * ui_scale, 480 * ui_scale);
 
     // Draw the title
     char* msg = nullptr;
@@ -1489,6 +1508,7 @@ static int LSGameStart(int windowType)
 static int LSGameEnd(int windowType)
 {
     win_delete(lsgwin);
+    win_delete(win_bg);
     text_font(fontsave);
     message_exit(&lsgame_msgfl);
 
@@ -1778,7 +1798,7 @@ static int SaveHeader(int slot)
         return -1;
     }
 
-    if (db_fwrite(thumbnail_image[1], LS_PREVIEW_SIZE, 1, flptr) != 1) {
+    if (db_fwrite(thumbnail_image[1], LS_PREVIEW_SIZE * 4, 1, flptr) != 1) {
         return -1;
     }
 
@@ -1821,7 +1841,9 @@ static int LoadHeader(int slot)
         return -1;
     }
 
-    if (ptr->versionMinor != 1 || ptr->versionMajor != 2 || ptr->versionRelease != 'R') {
+    bool isLegacyVersion = (ptr->versionMinor == 1 && ptr->versionMajor == 2 && ptr->versionRelease == 'R');
+    bool isCurrentVersion = (ptr->versionMinor == VERSION_MAJOR && ptr->versionMajor == VERSION_MINOR && ptr->versionRelease == VERSION_RELEASE);
+    if (!isLegacyVersion && !isCurrentVersion) {
         debug_printf("\nLOADSAVE: Load slot #%d Version: %d.%d%c\n", slot, ptr->versionMinor, ptr->versionMajor, ptr->versionRelease);
         ls_error_code = 1;
         return -1;
@@ -1871,7 +1893,8 @@ static int LoadHeader(int slot)
         return -1;
     }
 
-    if (db_fseek(flptr, LS_PREVIEW_SIZE, SEEK_CUR) != 0) {
+    int thumbnailSize = isLegacyVersion ? LS_PREVIEW_SIZE : LS_PREVIEW_SIZE * 4;
+    if (db_fseek(flptr, thumbnailSize, SEEK_CUR) != 0) {
         return -1;
     }
 
@@ -2059,10 +2082,34 @@ static int LoadTumbSlot(int a1)
             return -1;
         }
 
-        if (db_fread(thumbnail_image[0], LS_PREVIEW_SIZE, 1, stream) != 1) {
-            debug_printf("\nLOADSAVE: ** (C) Error reading thumbnail #%d! **\n", a1);
-            db_fclose(stream);
-            return -1;
+        LoadSaveSlotData* slotData = &(LSData[slot_cursor]);
+        bool isLegacy = (slotData->versionMinor == 1 && slotData->versionMajor == 2);
+
+        if (isLegacy) {
+            // Legacy 1.2R: read 8-bit indexed thumbnail, convert to 32-bit in-place
+            if (db_fread(thumbnail_image[0], LS_PREVIEW_SIZE, 1, stream) != 1) {
+                debug_printf("\nLOADSAVE: ** (C) Error reading thumbnail #%d! **\n", a1);
+                db_fclose(stream);
+                return -1;
+            }
+
+            unsigned char* pal = getColorPalette();
+            unsigned char* src = thumbnail_image[0];
+            uint32_t* dst = (uint32_t*)thumbnail_image[0];
+            for (int i = LS_PREVIEW_SIZE - 1; i >= 0; i--) {
+                unsigned char idx = src[i];
+                unsigned char r = pal[idx * 3] << 2;
+                unsigned char g = pal[idx * 3 + 1] << 2;
+                unsigned char b = pal[idx * 3 + 2] << 2;
+                dst[i] = (0xFFu << 24) | (b << 16) | (g << 8) | r;
+            }
+        } else {
+            // Current 2.0R: read 32-bit thumbnail directly
+            if (db_fread(thumbnail_image[0], LS_PREVIEW_SIZE * 4, 1, stream) != 1) {
+                debug_printf("\nLOADSAVE: ** (C) Error reading thumbnail #%d! **\n", a1);
+                db_fclose(stream);
+                return -1;
+            }
         }
 
         db_fclose(stream);
@@ -2074,118 +2121,118 @@ static int LoadTumbSlot(int a1)
 // 0x47ED5C
 static int GetComment(int a1)
 {
-    // int commentWindowX = LS_COMMENT_WINDOW_X;
-    // int commentWindowY = LS_COMMENT_WINDOW_Y;
-    // int window = win_add(commentWindowX,
-    //     commentWindowY,
-    //     ginfo[LOAD_SAVE_FRM_BOX].width,
-    //     ginfo[LOAD_SAVE_FRM_BOX].height,
-    //     256,
-    //     WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
-    // if (window == -1) {
-    //     return -1;
-    // }
-    //
-    // unsigned char* windowBuffer = win_get_buf(window);
-    // memcpy(windowBuffer,
-    //     lsbmp[LOAD_SAVE_FRM_BOX],
-    //     ginfo[LOAD_SAVE_FRM_BOX].height * ginfo[LOAD_SAVE_FRM_BOX].width);
-    //
-    // text_font(103);
-    //
-    // const char* msg;
-    //
-    // // DONE
-    // msg = getmsg(&lsgame_msgfl, &lsgmesg, 104);
-    // text_to_buf(windowBuffer + ginfo[LOAD_SAVE_FRM_BOX].width * 57 + 56,
-    //     msg,
-    //     ginfo[LOAD_SAVE_FRM_BOX].width,
-    //     ginfo[LOAD_SAVE_FRM_BOX].width,
-    //     colorTable[18979]);
-    //
-    // // CANCEL
-    // msg = getmsg(&lsgame_msgfl, &lsgmesg, 105);
-    // text_to_buf(windowBuffer + ginfo[LOAD_SAVE_FRM_BOX].width * 57 + 181,
-    //     msg,
-    //     ginfo[LOAD_SAVE_FRM_BOX].width,
-    //     ginfo[LOAD_SAVE_FRM_BOX].width,
-    //     colorTable[18979]);
-    //
-    // // DESCRIPTION
-    // msg = getmsg(&lsgame_msgfl, &lsgmesg, 130);
-    //
-    // char title[260];
-    // strcpy(title, msg);
-    //
-    // int width = text_width(title);
-    // text_to_buf(windowBuffer + ginfo[LOAD_SAVE_FRM_BOX].width * 7 + (ginfo[LOAD_SAVE_FRM_BOX].width - width) / 2,
-    //     title,
-    //     ginfo[LOAD_SAVE_FRM_BOX].width,
-    //     ginfo[LOAD_SAVE_FRM_BOX].width,
-    //     colorTable[18979]);
-    //
-    // text_font(101);
-    //
-    // int btn;
-    //
-    // // DONE
-    // btn = win_register_button(window,
-    //     34,
-    //     58,
-    //     ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].width,
-    //     ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].height,
-    //     -1,
-    //     -1,
-    //     -1,
-    //     507,
-    //     lsbmp[LOAD_SAVE_FRM_RED_BUTTON_NORMAL],
-    //     lsbmp[LOAD_SAVE_FRM_RED_BUTTON_PRESSED],
-    //     NULL,
-    //     BUTTON_FLAG_TRANSPARENT);
-    // if (btn == -1) {
-    //     win_register_button_sound_func(btn, gsound_red_butt_press, gsound_red_butt_release);
-    // }
-    //
-    // // CANCEL
-    // btn = win_register_button(window,
-    //     160,
-    //     58,
-    //     ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].width,
-    //     ginfo[LOAD_SAVE_FRM_RED_BUTTON_PRESSED].height,
-    //     -1,
-    //     -1,
-    //     -1,
-    //     508,
-    //     lsbmp[LOAD_SAVE_FRM_RED_BUTTON_NORMAL],
-    //     lsbmp[LOAD_SAVE_FRM_RED_BUTTON_PRESSED],
-    //     NULL,
-    //     BUTTON_FLAG_TRANSPARENT);
-    // if (btn == -1) {
-    //     win_register_button_sound_func(btn, gsound_red_butt_press, gsound_red_butt_release);
-    // }
-    //
-    // win_draw(window);
-    //
-    // char description[LOAD_SAVE_DESCRIPTION_LENGTH];
-    // if (LSstatus[slot_cursor] == SLOT_STATE_OCCUPIED) {
-    //     strncpy(description, LSData[a1].description, LOAD_SAVE_DESCRIPTION_LENGTH);
-    // } else {
-    //     memset(description, '\0', LOAD_SAVE_DESCRIPTION_LENGTH);
-    // }
-    //
-    // int rc;
-    //
-    // if (get_input_str2(window, 507, 508, description, LOAD_SAVE_DESCRIPTION_LENGTH - 1, 24, 35, colorTable[992], lsbmp[LOAD_SAVE_FRM_BOX][ginfo[1].width * 35 + 24], 0) == 0) {
-    //     strncpy(LSData[a1].description, description, LOAD_SAVE_DESCRIPTION_LENGTH);
-    //     LSData[a1].description[LOAD_SAVE_DESCRIPTION_LENGTH - 1] = '\0';
-    //     rc = 1;
-    // } else {
-    //     rc = 0;
-    // }
-    //
-    // win_delete(window);
-    //
-    // return rc;
+    int ui_scale = ui_get_scale();
+
+    int boxWidth = art_frame_width(assets[LOAD_SAVE_FRM_BOX], 0, 0);
+    int boxHeight = art_frame_height(assets[LOAD_SAVE_FRM_BOX], 0, 0);
+    int scaledBoxWidth = boxWidth * ui_scale;
+    int scaledBoxHeight = boxHeight * ui_scale;
+
+    // Center the comment window on screen
+    const Size screen_size = screen_get_size();
+    int commentWindowX = (screen_size.width - scaledBoxWidth) / 2;
+    int commentWindowY = (screen_size.height - scaledBoxHeight) / 2;
+
+    int window = win_add(commentWindowX,
+        commentWindowY,
+        scaledBoxWidth,
+        scaledBoxHeight,
+        256,
+        WINDOW_FLAG_MODAL | WINDOW_FLAG_ALWAYS_ON_TOP);
+    if (window == -1) {
+        return -1;
+    }
+
+    // Draw the box background
+    ui_image(assets[LOAD_SAVE_FRM_BOX], window, 0, 0, scaledBoxWidth, scaledBoxHeight);
+
+    text_font(103);
+
+    const char* msg;
+
+    // DESCRIPTION title - centered at top
+    msg = getmsg(&lsgame_msgfl, &lsgmesg, 130);
+    char title[260];
+    strcpy(title, msg);
+    int titleWidth = text_width(title);
+    ui_scaled_text(window, title,
+        (scaledBoxWidth - titleWidth * ui_scale) / 2,
+        7 * ui_scale,
+        ui_scale,
+        colorTable[18979]);
+
+    // DONE label
+    msg = getmsg(&lsgame_msgfl, &lsgmesg, 104);
+    ui_scaled_text(window, msg, 56 * ui_scale, 57 * ui_scale, ui_scale, colorTable[18979]);
+
+    // CANCEL label
+    msg = getmsg(&lsgame_msgfl, &lsgmesg, 105);
+    ui_scaled_text(window, msg, 181 * ui_scale, 57 * ui_scale, ui_scale, colorTable[18979]);
+
+    text_font(101);
+
+    int buttonWidth = art_frame_width(assets[LOAD_SAVE_FRM_RED_BUTTON_NORMAL], 0, 0);
+    int buttonHeight = art_frame_height(assets[LOAD_SAVE_FRM_RED_BUTTON_NORMAL], 0, 0);
+    int btn;
+
+    // DONE button
+    btn = ui_register_button(window,
+        34 * ui_scale,
+        58 * ui_scale,
+        buttonWidth * ui_scale,
+        buttonHeight * ui_scale,
+        -1,
+        -1,
+        -1,
+        507,
+        assets[LOAD_SAVE_FRM_RED_BUTTON_NORMAL],
+        assets[LOAD_SAVE_FRM_RED_BUTTON_PRESSED],
+        NULL,
+        BUTTON_FLAG_TRANSPARENT);
+    if (btn != -1) {
+        win_register_button_sound_func(btn, gsound_red_butt_press, gsound_red_butt_release);
+    }
+
+    // CANCEL button
+    btn = ui_register_button(window,
+        160 * ui_scale,
+        58 * ui_scale,
+        buttonWidth * ui_scale,
+        buttonHeight * ui_scale,
+        -1,
+        -1,
+        -1,
+        508,
+        assets[LOAD_SAVE_FRM_RED_BUTTON_NORMAL],
+        assets[LOAD_SAVE_FRM_RED_BUTTON_PRESSED],
+        NULL,
+        BUTTON_FLAG_TRANSPARENT);
+    if (btn != -1) {
+        win_register_button_sound_func(btn, gsound_red_butt_press, gsound_red_butt_release);
+    }
+
+    win_draw(window);
+
+    char description[LOAD_SAVE_DESCRIPTION_LENGTH];
+    if (LSstatus[slot_cursor] == SLOT_STATE_OCCUPIED) {
+        strncpy(description, LSData[a1].description, LOAD_SAVE_DESCRIPTION_LENGTH);
+    } else {
+        memset(description, '\0', LOAD_SAVE_DESCRIPTION_LENGTH);
+    }
+
+    int rc;
+
+    if (get_input_str2(window, 507, 508, description, LOAD_SAVE_DESCRIPTION_LENGTH - 1, 24 * ui_scale, 35 * ui_scale, colorTable[992], 0, 0) == 0) {
+        strncpy(LSData[a1].description, description, LOAD_SAVE_DESCRIPTION_LENGTH);
+        LSData[a1].description[LOAD_SAVE_DESCRIPTION_LENGTH - 1] = '\0';
+        rc = 1;
+    } else {
+        rc = 0;
+    }
+
+    win_delete(window);
+
+    return rc;
 }
 
 // 0x47F084
@@ -2199,6 +2246,10 @@ static int get_input_str2(int win, int doneKeyCode, int cancelKeyCode, char* des
         maxLength = 255;
     }
 
+    // Sample the background color from the window buffer at the text input position.
+    // This gives us the actual 32-bit RGBA color of the box background at that point.
+    unsigned int bgColor32 = *((unsigned int*)(windowBuffer) + windowWidth * y + x);
+
     char text[256];
     strcpy(text, description);
 
@@ -2208,8 +2259,8 @@ static int get_input_str2(int win, int doneKeyCode, int cancelKeyCode, char* des
 
     int nameWidth = text_width(text);
 
-    buf_fill(windowBuffer + (windowWidth * y + x) * 4, nameWidth, lineHeight, windowWidth, getColorPalette()[backgroundColor * 3]); // Temporary fake color, since get_input_str2 is actually dead code anyway.
-    text_to_buf(windowBuffer + (windowWidth * y + x) * 4, text, windowWidth, windowWidth, textColor);
+    buf_fill(windowBuffer + (windowWidth * y + x) * 4, nameWidth, lineHeight, windowWidth, bgColor32);
+    FMtext_to_buf(windowBuffer + (windowWidth * y + x) * 4, text, windowWidth, windowWidth, textColor);
 
     win_draw(win);
 
@@ -2233,17 +2284,19 @@ static int get_input_str2(int win, int doneKeyCode, int cancelKeyCode, char* des
             rc = -1;
         } else {
             if ((keyCode == KEY_DELETE || keyCode == KEY_BACKSPACE) && textLength > 0) {
-                buf_fill(windowBuffer + (windowWidth * y + x) * 4, text_width(text), lineHeight, windowWidth, getColorPalette()[backgroundColor * 3]);
+                buf_fill(windowBuffer + (windowWidth * y + x) * 4, text_width(text), lineHeight, windowWidth, bgColor32);
 
-                // TODO: Probably incorrect, needs testing.
+                // On first keypress (backspace), clear the entire pre-filled text
                 if (v1 == 1) {
                     textLength = 1;
                 }
 
                 text[textLength - 1] = ' ';
                 text[textLength] = '\0';
-                text_to_buf(windowBuffer + (windowWidth * y + x) * 4, text, windowWidth, windowWidth, textColor);
+                FMtext_to_buf(windowBuffer + (windowWidth * y + x) * 4, text, windowWidth, windowWidth, textColor);
                 textLength--;
+
+                win_draw(win);
             } else if ((keyCode >= KEY_FIRST_INPUT_CHARACTER && keyCode <= KEY_LAST_INPUT_CHARACTER) && textLength < maxLength) {
                 if ((flags & 0x01) != 0) {
                     if (!isdoschar(keyCode)) {
@@ -2251,12 +2304,12 @@ static int get_input_str2(int win, int doneKeyCode, int cancelKeyCode, char* des
                     }
                 }
 
-                buf_fill(windowBuffer + (windowWidth * y + x) * 4, text_width(text), lineHeight, windowWidth, getColorPalette()[backgroundColor * 3]);
+                buf_fill(windowBuffer + (windowWidth * y + x) * 4, text_width(text), lineHeight, windowWidth, bgColor32);
 
                 text[textLength] = keyCode & 0xFF;
                 text[textLength + 1] = ' ';
                 text[textLength + 2] = '\0';
-                text_to_buf(windowBuffer + (windowWidth * y + x) * 4, text, windowWidth, windowWidth, textColor);
+                FMtext_to_buf(windowBuffer + (windowWidth * y + x) * 4, text, windowWidth, windowWidth, textColor);
                 textLength++;
 
                 win_draw(win);
@@ -2268,7 +2321,7 @@ static int get_input_str2(int win, int doneKeyCode, int cancelKeyCode, char* des
             blinkCounter = 3;
             blink = !blink;
 
-            int color = blink ? backgroundColor : textColor;
+            int color = blink ? bgColor32 : textColor;
             buf_fill(windowBuffer + (windowWidth * y + x + text_width(text) - cursorWidth) * 4, cursorWidth, lineHeight - 2, windowWidth, color);
             win_draw(win);
         }
