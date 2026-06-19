@@ -289,3 +289,6 @@ target_include_directories(${EXECUTABLE_NAME} PRIVATE ${ZLIB_INCLUDE_DIRS})
 
 add_executable(png2frm "src/tools/png2frm.c")
 target_link_libraries(png2frm m)
+
+add_executable(ttf2aaf "src/tools/ttf2aaf.c")
+target_link_libraries(ttf2aaf m)
