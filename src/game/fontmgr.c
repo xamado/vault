@@ -314,7 +314,9 @@ void FMtext_to_buf(unsigned char* buf, const char* string, int length, int pitch
 
     // Check if it's an 8-bit index + flags. FONT_SHADOW is 0x10000.
     // 32-bit RGBA colors will have the alpha channel (0xFF000000) set.
-    if ((color & 0xFF000000) == 0) {
+    // Values like colorTable[N] | 0x2000000 have flags in the upper bits
+    // but alpha != 0xFF, so they're palette-indexed.
+    if ((color & 0xFF000000) != (int)0xFF000000) {
         flags = color & 0xFFFF0000;
         int palIndex = color & 0xFF;
         unsigned char* pal = getColorPalette();

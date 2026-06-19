@@ -184,7 +184,7 @@ static int skilldex_start()
     bool cycle = false;
     int buttonDataIndex;
     for (buttonDataIndex = 0; buttonDataIndex < SKILLDEX_SKILL_BUTTON_BUFFER_COUNT; buttonDataIndex++) {
-        skldxbtn[buttonDataIndex] = (unsigned char*)mem_malloc(ginfo[SKILLDEX_FRM_BUTTON_ON].height * ginfo[SKILLDEX_FRM_BUTTON_ON].width + 512);
+        skldxbtn[buttonDataIndex] = (unsigned char*)mem_malloc(ginfo[SKILLDEX_FRM_BUTTON_ON].height * ginfo[SKILLDEX_FRM_BUTTON_ON].width * 4 + 512);
         if (skldxbtn[buttonDataIndex] == NULL) {
             break;
         }
@@ -195,10 +195,10 @@ static int skilldex_start()
         unsigned char* data;
         int size;
         if (cycle) {
-            size = ginfo[SKILLDEX_FRM_BUTTON_OFF].width * ginfo[SKILLDEX_FRM_BUTTON_OFF].height;
+            size = ginfo[SKILLDEX_FRM_BUTTON_OFF].width * ginfo[SKILLDEX_FRM_BUTTON_OFF].height * 4;
             data = skldxbmp[SKILLDEX_FRM_BUTTON_OFF];
         } else {
-            size = ginfo[SKILLDEX_FRM_BUTTON_ON].width * ginfo[SKILLDEX_FRM_BUTTON_ON].height;
+            size = ginfo[SKILLDEX_FRM_BUTTON_ON].width * ginfo[SKILLDEX_FRM_BUTTON_ON].height * 4;
             data = skldxbmp[SKILLDEX_FRM_BUTTON_ON];
         }
 
@@ -249,13 +249,13 @@ static int skilldex_start()
     winbuf = win_get_buf(skldxwin);
     memcpy(winbuf,
         skldxbmp[SKILLDEX_FRM_BACKGROUND],
-        ginfo[SKILLDEX_FRM_BACKGROUND].width * ginfo[SKILLDEX_FRM_BACKGROUND].height);
+        ginfo[SKILLDEX_FRM_BACKGROUND].width * ginfo[SKILLDEX_FRM_BACKGROUND].height * 4);
 
     text_font(103);
 
     // Render "SKILLDEX" title.
     char* title = getmsg(&skldxmsg, &mesg, 100);
-    text_to_buf(winbuf + 14 * ginfo[SKILLDEX_FRM_BACKGROUND].width + 55,
+    text_to_buf(winbuf + (14 * ginfo[SKILLDEX_FRM_BACKGROUND].width + 55) * 4,
         title,
         ginfo[SKILLDEX_FRM_BACKGROUND].width,
         ginfo[SKILLDEX_FRM_BACKGROUND].width,
@@ -270,27 +270,27 @@ static int skilldex_start()
         }
 
         int hundreds = value / 100;
-        buf_to_buf(skldxbmp[SKILLDEX_FRM_BIG_NUMBERS] + 14 * hundreds,
+        buf_to_buf(skldxbmp[SKILLDEX_FRM_BIG_NUMBERS] + 14 * hundreds * 4,
             14,
             24,
             336,
-            winbuf + ginfo[SKILLDEX_FRM_BACKGROUND].width * valueY + 110,
+            winbuf + (ginfo[SKILLDEX_FRM_BACKGROUND].width * valueY + 110) * 4,
             ginfo[SKILLDEX_FRM_BACKGROUND].width);
 
         int tens = (value % 100) / 10;
-        buf_to_buf(skldxbmp[SKILLDEX_FRM_BIG_NUMBERS] + 14 * tens,
+        buf_to_buf(skldxbmp[SKILLDEX_FRM_BIG_NUMBERS] + 14 * tens * 4,
             14,
             24,
             336,
-            winbuf + ginfo[SKILLDEX_FRM_BACKGROUND].width * valueY + 124,
+            winbuf + (ginfo[SKILLDEX_FRM_BACKGROUND].width * valueY + 124) * 4,
             ginfo[SKILLDEX_FRM_BACKGROUND].width);
 
         int ones = (value % 100) % 10;
-        buf_to_buf(skldxbmp[SKILLDEX_FRM_BIG_NUMBERS] + 14 * ones,
+        buf_to_buf(skldxbmp[SKILLDEX_FRM_BIG_NUMBERS] + 14 * ones * 4,
             14,
             24,
             336,
-            winbuf + ginfo[SKILLDEX_FRM_BACKGROUND].width * valueY + 138,
+            winbuf + (ginfo[SKILLDEX_FRM_BACKGROUND].width * valueY + 138) * 4,
             ginfo[SKILLDEX_FRM_BACKGROUND].width);
 
         valueY += 36;
@@ -310,13 +310,13 @@ static int skilldex_start()
             nameX = 0;
         }
 
-        text_to_buf(skldxbtn[index * 2] + ginfo[SKILLDEX_FRM_BUTTON_ON].width * nameY + nameX,
+        text_to_buf(skldxbtn[index * 2] + (ginfo[SKILLDEX_FRM_BUTTON_ON].width * nameY + nameX) * 4,
             name,
             ginfo[SKILLDEX_FRM_BUTTON_ON].width,
             ginfo[SKILLDEX_FRM_BUTTON_ON].width,
             colorTable[18979]);
 
-        text_to_buf(skldxbtn[index * 2 + 1] + ginfo[SKILLDEX_FRM_BUTTON_OFF].width * nameY + nameX,
+        text_to_buf(skldxbtn[index * 2 + 1] + (ginfo[SKILLDEX_FRM_BUTTON_OFF].width * nameY + nameX) * 4,
             name,
             ginfo[SKILLDEX_FRM_BUTTON_OFF].width,
             ginfo[SKILLDEX_FRM_BUTTON_OFF].width,
@@ -344,7 +344,7 @@ static int skilldex_start()
 
     // Render "CANCEL" button.
     char* cancel = getmsg(&skldxmsg, &mesg, 101);
-    text_to_buf(winbuf + ginfo[SKILLDEX_FRM_BACKGROUND].width * 337 + 72,
+    text_to_buf(winbuf + (ginfo[SKILLDEX_FRM_BACKGROUND].width * 337 + 72) * 4,
         cancel,
         ginfo[SKILLDEX_FRM_BACKGROUND].width,
         ginfo[SKILLDEX_FRM_BACKGROUND].width,

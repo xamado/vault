@@ -2,9 +2,11 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
+#include "plib/gnw/svga.h"
 #include "game/anim.h"
 #include "game/art.h"
 #include "game/bmpdlog.h"
@@ -683,6 +685,10 @@ static unsigned char* wmBkWinBuf = NULL;
 
 // 0x51DE28
 static unsigned char* wmBkArtBuf = NULL;
+
+// Window position offset for centering on screen
+static int wmWinOffsetX = 0;
+static int wmWinOffsetY = 0;
 
 // 0x51DE2C
 static int wmWorldOffsetX = 0;
@@ -3063,6 +3069,8 @@ static int wmWorldMapFunc(int a1)
         int mouseX;
         int mouseY;
         mouse_get_position(&mouseX, &mouseY);
+        mouseX -= wmWinOffsetX;
+        mouseY -= wmWinOffsetY;
 
         int v4 = wmWorldOffsetX + mouseX - WM_VIEW_X;
         int v5 = wmWorldOffsetY + mouseY - WM_VIEW_Y;
@@ -3178,7 +3186,7 @@ static int wmWorldMapFunc(int a1)
         }
 
         if ((mouseEvent & MOUSE_EVENT_LEFT_BUTTON_DOWN) != 0 && (mouseEvent & MOUSE_EVENT_LEFT_BUTTON_REPEAT) == 0) {
-            if (mouse_click_in(WM_VIEW_X, WM_VIEW_Y, 472, 465)) {
+            if (mouse_click_in(WM_VIEW_X + wmWinOffsetX, WM_VIEW_Y + wmWinOffsetY, 472 + wmWinOffsetX, 465 + wmWinOffsetY)) {
                 if (!wmGenData.isWalking && !wmGenData.mousePressed && abs(wmGenData.worldPosX - v4) < 5 && abs(wmGenData.worldPosY - v5) < 5) {
                     wmGenData.mousePressed = true;
                     wmInterfaceRefresh();
@@ -3227,7 +3235,7 @@ static int wmWorldMapFunc(int a1)
                     }
                 }
             } else {
-                if (mouse_click_in(WM_VIEW_X, WM_VIEW_Y, 472, 465)) {
+                if (mouse_click_in(WM_VIEW_X + wmWinOffsetX, WM_VIEW_Y + wmWinOffsetY, 472 + wmWinOffsetX, 465 + wmWinOffsetY)) {
                     wmPartyInitWalking(v4, v5);
                 }
 
@@ -4501,9 +4509,13 @@ static int wmInterfaceInit()
     cycle_disable();
     gmouse_set_cursor(MOUSE_CURSOR_ARROW);
 
-    int worldmapWindowX = 0;
-    int worldmapWindowY = 0;
-    wmBkWin = win_add(worldmapWindowX, worldmapWindowY, WM_WINDOW_WIDTH, WM_WINDOW_HEIGHT, colorTable[0], WINDOW_FLAG_ALWAYS_ON_TOP);
+    int screenW = scr_size.lrx - scr_size.ulx + 1;
+    int screenH = scr_size.lry - scr_size.uly + 1;
+    wmWinOffsetX = (screenW - WM_WINDOW_WIDTH) / 2;
+    wmWinOffsetY = (screenH - WM_WINDOW_HEIGHT) / 2;
+    if (wmWinOffsetX < 0) wmWinOffsetX = 0;
+    if (wmWinOffsetY < 0) wmWinOffsetY = 0;
+    wmBkWin = win_add(wmWinOffsetX, wmWinOffsetY, WM_WINDOW_WIDTH, WM_WINDOW_HEIGHT, colorTable[0], WINDOW_FLAG_ALWAYS_ON_TOP);
     if (wmBkWin == -1) {
         return -1;
     }
@@ -4532,6 +4544,18 @@ static int wmInterfaceInit()
     }
 
     buf_to_buf(wmBkArtBuf, wmBkWidth, wmBkHeight, wmBkWidth, wmBkWinBuf, WM_WINDOW_WIDTH);
+
+    // Replace transparent pixels with opaque black in the background layer.
+    // Palette index 0 converts to 0x00000000 (transparent) in 32-bit art data,
+    // but the base window layer must be fully opaque or SDL shows its clear color.
+    {
+        uint32_t* pixels = (uint32_t*)wmBkWinBuf;
+        for (int i = 0; i < WM_WINDOW_WIDTH * WM_WINDOW_HEIGHT; i++) {
+            if (pixels[i] == 0) {
+                pixels[i] = 0xFF000000;
+            }
+        }
+    }
 
     for (int citySize = 0; citySize < CITY_SIZE_COUNT; citySize++) {
         CitySizeDescription* citySizeDescription = &(wmSphereData[citySize]);
@@ -5122,18 +5146,20 @@ static void wmMouseBkProc()
     int x;
     int y;
     mouse_get_position(&x, &y);
+    x -= wmWinOffsetX;
+    y -= wmWinOffsetY;
 
     int dx = 0;
-    if (x == 639) {
+    if (x >= WM_WINDOW_WIDTH - 1) {
         dx = 1;
-    } else if (x == 0) {
+    } else if (x <= 0) {
         dx = -1;
     }
 
     int dy = 0;
-    if (y == 479) {
+    if (y >= WM_WINDOW_HEIGHT - 1) {
         dy = 1;
-    } else if (y == 0) {
+    } else if (y <= 0) {
         dy = -1;
     }
 
@@ -5403,11 +5429,11 @@ static int wmInterfaceRefresh()
             }
 
             TileInfo* tileInfo = &(wmTileInfoList[v0]);
-            buf_to_buf(tileInfo->data + srcX,
+            buf_to_buf(tileInfo->data + srcX * 4,
                 width,
                 height,
                 WM_TILE_WIDTH,
-                wmBkWinBuf + WM_WINDOW_WIDTH * (y + WM_VIEW_Y) + WM_VIEW_X + x,
+                wmBkWinBuf + (WM_WINDOW_WIDTH * (y + WM_VIEW_Y) + WM_VIEW_X + x) * 4,
                 WM_WINDOW_WIDTH);
             v0++;
 
@@ -5522,26 +5548,26 @@ static void wmInterfaceRefreshDate(bool shouldRefreshWindow)
     int numbersFrmHeight = art_frame_length(wmGenData.numbersFrm, 0, 0);
     unsigned char* numbersFrmData = art_frame_data(wmGenData.numbersFrm, 0, 0);
 
-    dest += WM_WINDOW_WIDTH * 12 + 487;
-    buf_to_buf(numbersFrmData + 9 * (day / 10), 9, numbersFrmHeight, numbersFrmWidth, dest, WM_WINDOW_WIDTH);
-    buf_to_buf(numbersFrmData + 9 * (day % 10), 9, numbersFrmHeight, numbersFrmWidth, dest + 9, WM_WINDOW_WIDTH);
+    dest += (WM_WINDOW_WIDTH * 12 + 487) * 4;
+    buf_to_buf(numbersFrmData + 9 * (day / 10) * 4, 9, numbersFrmHeight, numbersFrmWidth, dest, WM_WINDOW_WIDTH);
+    buf_to_buf(numbersFrmData + 9 * (day % 10) * 4, 9, numbersFrmHeight, numbersFrmWidth, dest + 9 * 4, WM_WINDOW_WIDTH);
 
     int monthsFrmWidth = art_frame_width(wmGenData.monthsFrm, 0, 0);
     unsigned char* monthsFrmData = art_frame_data(wmGenData.monthsFrm, 0, 0);
-    buf_to_buf(monthsFrmData + monthsFrmWidth * 15 * month, 29, 14, 29, dest + WM_WINDOW_WIDTH + 26, WM_WINDOW_WIDTH);
+    buf_to_buf(monthsFrmData + monthsFrmWidth * 15 * month * 4, 29, 14, 29, dest + (WM_WINDOW_WIDTH + 26) * 4, WM_WINDOW_WIDTH);
 
-    dest += 98;
+    dest += 98 * 4;
     for (int index = 0; index < 4; index++) {
-        dest -= 9;
-        buf_to_buf(numbersFrmData + 9 * (year % 10), 9, numbersFrmHeight, numbersFrmWidth, dest, WM_WINDOW_WIDTH);
+        dest -= 9 * 4;
+        buf_to_buf(numbersFrmData + 9 * (year % 10) * 4, 9, numbersFrmHeight, numbersFrmWidth, dest, WM_WINDOW_WIDTH);
         year /= 10;
     }
 
     int gameTimeHour = game_time_hour();
-    dest += 72;
+    dest += 72 * 4;
     for (int index = 0; index < 4; index++) {
-        buf_to_buf(numbersFrmData + 9 * (gameTimeHour % 10), 9, numbersFrmHeight, numbersFrmWidth, dest, WM_WINDOW_WIDTH);
-        dest -= 9;
+        buf_to_buf(numbersFrmData + 9 * (gameTimeHour % 10) * 4, 9, numbersFrmHeight, numbersFrmWidth, dest, WM_WINDOW_WIDTH);
+        dest -= 9 * 4;
         gameTimeHour /= 10;
     }
 
@@ -5621,7 +5647,7 @@ static int wmInterfaceDrawCircleOverlay(CityInfo* city, CitySizeDescription* cit
         }
 
         width = text_width(name);
-        text_to_buf(dest + WM_WINDOW_WIDTH * nameY + x + citySizeDescription->width / 2 - width / 2,
+        text_to_buf(dest + (WM_WINDOW_WIDTH * nameY + x + citySizeDescription->width / 2 - width / 2) * 4,
             name,
             width,
             WM_WINDOW_WIDTH,
@@ -5637,14 +5663,18 @@ static int wmInterfaceDrawCircleOverlay(CityInfo* city, CitySizeDescription* cit
 // 0x4C40A8
 static void wmInterfaceDrawSubTileRectFogged(unsigned char* dest, int width, int height, int pitch)
 {
-    int skipY = pitch - width;
+    uint32_t* dest32 = (uint32_t*)dest;
+    int skip = pitch - width;
 
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            unsigned char byte = *dest;
-            *dest++ = intensityColorTable[byte][75];
+            uint32_t p = *dest32;
+            uint32_t r = (p & 0xFF) * 75 / 100;
+            uint32_t g = ((p >> 8) & 0xFF) * 75 / 100;
+            uint32_t b = ((p >> 16) & 0xFF) * 75 / 100;
+            *dest32++ = (0xFFu << 24) | (b << 16) | (g << 8) | r;
         }
-        dest += skipY;
+        dest32 += skip;
     }
 }
 
@@ -5681,10 +5711,10 @@ static int wmInterfaceDrawSubTileList(TileInfo* tileInfo, int column, int row, i
     }
 
     if (width > 0 && height > 0) {
-        unsigned char* dest = wmBkWinBuf + WM_WINDOW_WIDTH * destY + destX;
+        unsigned char* dest = wmBkWinBuf + (WM_WINDOW_WIDTH * destY + destX) * 4;
         switch (subtileInfo->state) {
         case SUBTILE_STATE_UNKNOWN:
-            buf_fill(dest, width, height, WM_WINDOW_WIDTH, colorTable[0]);
+            buf_fill(dest, width, height, WM_WINDOW_WIDTH, 0xFF000000);
             break;
         case SUBTILE_STATE_KNOWN:
             wmInterfaceDrawSubTileRectFogged(dest, width, height, WM_WINDOW_WIDTH);
@@ -5716,12 +5746,12 @@ static int wmDrawCursorStopped()
 
         if (wmGenData.worldPosX >= wmWorldOffsetX && wmGenData.worldPosX < wmWorldOffsetX + WM_VIEW_WIDTH
             && wmGenData.worldPosY >= wmWorldOffsetY && wmGenData.worldPosY < wmWorldOffsetY + WM_VIEW_HEIGHT) {
-            trans_buf_to_buf(src, width, height, width, wmBkWinBuf + WM_WINDOW_WIDTH * (WM_VIEW_Y - wmWorldOffsetY + wmGenData.worldPosY - height / 2) + WM_VIEW_X - wmWorldOffsetX + wmGenData.worldPosX - width / 2, WM_WINDOW_WIDTH);
+            trans_buf_to_buf(src, width, height, width, wmBkWinBuf + (WM_WINDOW_WIDTH * (WM_VIEW_Y - wmWorldOffsetY + wmGenData.worldPosY - height / 2) + WM_VIEW_X - wmWorldOffsetX + wmGenData.worldPosX - width / 2) * 4, WM_WINDOW_WIDTH);
         }
 
         if (wmGenData.walkDestinationX >= wmWorldOffsetX && wmGenData.walkDestinationX < wmWorldOffsetX + WM_VIEW_WIDTH
             && wmGenData.walkDestinationY >= wmWorldOffsetY && wmGenData.walkDestinationY < wmWorldOffsetY + WM_VIEW_HEIGHT) {
-            trans_buf_to_buf(wmGenData.destinationMarkerFrmData, wmGenData.destinationMarkerFrmWidth, wmGenData.destinationMarkerFrmHeight, wmGenData.destinationMarkerFrmWidth, wmBkWinBuf + WM_WINDOW_WIDTH * (WM_VIEW_Y - wmWorldOffsetY + wmGenData.walkDestinationY - wmGenData.destinationMarkerFrmHeight / 2) + WM_VIEW_X - wmWorldOffsetX + wmGenData.walkDestinationX - wmGenData.destinationMarkerFrmWidth / 2, WM_WINDOW_WIDTH);
+            trans_buf_to_buf(wmGenData.destinationMarkerFrmData, wmGenData.destinationMarkerFrmWidth, wmGenData.destinationMarkerFrmHeight, wmGenData.destinationMarkerFrmWidth, wmBkWinBuf + (WM_WINDOW_WIDTH * (WM_VIEW_Y - wmWorldOffsetY + wmGenData.walkDestinationY - wmGenData.destinationMarkerFrmHeight / 2) + WM_VIEW_X - wmWorldOffsetX + wmGenData.walkDestinationX - wmGenData.destinationMarkerFrmWidth / 2) * 4, WM_WINDOW_WIDTH);
         }
     } else {
         if (wmGenData.encounterIconIsVisible == 1) {
@@ -5736,7 +5766,7 @@ static int wmDrawCursorStopped()
 
         if (wmGenData.worldPosX >= wmWorldOffsetX && wmGenData.worldPosX < wmWorldOffsetX + WM_VIEW_WIDTH
             && wmGenData.worldPosY >= wmWorldOffsetY && wmGenData.worldPosY < wmWorldOffsetY + WM_VIEW_HEIGHT) {
-            trans_buf_to_buf(src, width, height, width, wmBkWinBuf + WM_WINDOW_WIDTH * (WM_VIEW_Y - wmWorldOffsetY + wmGenData.worldPosY - height / 2) + WM_VIEW_X - wmWorldOffsetX + wmGenData.worldPosX - width / 2, WM_WINDOW_WIDTH);
+            trans_buf_to_buf(src, width, height, width, wmBkWinBuf + (WM_WINDOW_WIDTH * (WM_VIEW_Y - wmWorldOffsetY + wmGenData.worldPosY - height / 2) + WM_VIEW_X - wmWorldOffsetX + wmGenData.worldPosX - width / 2) * 4, WM_WINDOW_WIDTH);
         }
     }
 
@@ -6116,7 +6146,7 @@ static int wmTownMapRefresh()
         wmTownWidth,
         wmTownHeight,
         wmTownWidth,
-        wmBkWinBuf + WM_WINDOW_WIDTH * WM_VIEW_Y + WM_VIEW_X,
+        wmBkWinBuf + (WM_WINDOW_WIDTH * WM_VIEW_Y + WM_VIEW_X) * 4,
         WM_WINDOW_WIDTH);
 
     wmRefreshInterfaceOverlay(false);
@@ -6383,14 +6413,14 @@ static int wmRefreshInterfaceOverlay(bool shouldRefreshWindow)
             wmGenData.carImageFrmWidth,
             wmGenData.carImageFrmHeight,
             wmGenData.carImageFrmWidth,
-            wmBkWinBuf + WM_WINDOW_WIDTH * WM_WINDOW_CAR_Y + WM_WINDOW_CAR_X,
+            wmBkWinBuf + (WM_WINDOW_WIDTH * WM_WINDOW_CAR_Y + WM_WINDOW_CAR_X) * 4,
             WM_WINDOW_WIDTH);
 
         trans_buf_to_buf(wmGenData.carImageOverlayFrmData,
             wmGenData.carImageOverlayFrmWidth,
             wmGenData.carImageOverlayFrmHeight,
             wmGenData.carImageOverlayFrmWidth,
-            wmBkWinBuf + WM_WINDOW_WIDTH * WM_WINDOW_CAR_OVERLAY_Y + WM_WINDOW_CAR_OVERLAY_X,
+            wmBkWinBuf + (WM_WINDOW_WIDTH * WM_WINDOW_CAR_OVERLAY_Y + WM_WINDOW_CAR_OVERLAY_X) * 4,
             WM_WINDOW_WIDTH);
 
         wmInterfaceRefreshCarFuel();
@@ -6399,7 +6429,7 @@ static int wmRefreshInterfaceOverlay(bool shouldRefreshWindow)
             wmGenData.globeOverlayFrmWidth,
             wmGenData.globeOverlayFrmHeight,
             wmGenData.globeOverlayFrmWidth,
-            wmBkWinBuf + WM_WINDOW_WIDTH * WM_WINDOW_GLOBE_OVERLAY_Y + WM_WINDOW_GLOBE_OVERLAY_X,
+            wmBkWinBuf + (WM_WINDOW_WIDTH * WM_WINDOW_GLOBE_OVERLAY_Y + WM_WINDOW_GLOBE_OVERLAY_X) * 4,
             WM_WINDOW_WIDTH);
     }
 
@@ -6420,18 +6450,22 @@ static void wmInterfaceRefreshCarFuel()
         ratio -= 1;
     }
 
-    unsigned char* dest = wmBkWinBuf + WM_WINDOW_WIDTH * WM_WINDOW_CAR_FUEL_BAR_Y + WM_WINDOW_CAR_FUEL_BAR_X;
+    unsigned char* pal = getColorPalette();
+    uint32_t* dest = (uint32_t*)(wmBkWinBuf + (WM_WINDOW_WIDTH * WM_WINDOW_CAR_FUEL_BAR_Y + WM_WINDOW_CAR_FUEL_BAR_X) * 4);
+
+    uint32_t color14 = (0xFFu << 24) | ((pal[14 * 3 + 2] << 2) << 16) | ((pal[14 * 3 + 1] << 2) << 8) | (pal[14 * 3] << 2);
+    uint32_t color196 = (0xFFu << 24) | ((pal[196 * 3 + 2] << 2) << 16) | ((pal[196 * 3 + 1] << 2) << 8) | (pal[196 * 3] << 2);
 
     for (int index = WM_WINDOW_CAR_FUEL_BAR_HEIGHT; index > ratio; index--) {
-        *dest = 14;
-        dest += 640;
+        *dest = color14;
+        dest += WM_WINDOW_WIDTH;
     }
 
     while (ratio > 0) {
-        *dest = 196;
+        *dest = color196;
         dest += WM_WINDOW_WIDTH;
 
-        *dest = 14;
+        *dest = color14;
         dest += WM_WINDOW_WIDTH;
 
         ratio -= 2;
@@ -6456,10 +6490,10 @@ static int wmRefreshTabs()
     int v32;
     unsigned char* v13;
 
-    trans_buf_to_buf(wmGenData.tabsBackgroundFrmData + wmGenData.tabsBackgroundFrmWidth * wmGenData.tabsOffsetY + 9, 119, 178, wmGenData.tabsBackgroundFrmWidth, wmBkWinBuf + WM_WINDOW_WIDTH * 135 + 501, WM_WINDOW_WIDTH);
+    trans_buf_to_buf(wmGenData.tabsBackgroundFrmData + (wmGenData.tabsBackgroundFrmWidth * wmGenData.tabsOffsetY + 9) * 4, 119, 178, wmGenData.tabsBackgroundFrmWidth, wmBkWinBuf + (WM_WINDOW_WIDTH * 135 + 501) * 4, WM_WINDOW_WIDTH);
 
-    v30 = wmBkWinBuf + WM_WINDOW_WIDTH * 138 + 530;
-    v0 = wmBkWinBuf + WM_WINDOW_WIDTH * 138 + 530 - WM_WINDOW_WIDTH * (wmGenData.tabsOffsetY % 27);
+    v30 = wmBkWinBuf + (WM_WINDOW_WIDTH * 138 + 530) * 4;
+    v0 = wmBkWinBuf + (WM_WINDOW_WIDTH * 138 + 530 - WM_WINDOW_WIDTH * (wmGenData.tabsOffsetY % 27)) * 4;
     v31 = wmGenData.tabsOffsetY / 27;
 
     if (v31 < wmLabelCount) {
@@ -6478,11 +6512,11 @@ static int wmRefreshTabs()
             }
 
             v10 = height - wmGenData.tabsOffsetY % 27;
-            v11 = buf + width * (wmGenData.tabsOffsetY % 27);
+            v11 = buf + width * (wmGenData.tabsOffsetY % 27) * 4;
 
             v12 = v0;
-            if (v0 < v30 - WM_WINDOW_WIDTH) {
-                v12 = v30 - WM_WINDOW_WIDTH;
+            if (v0 < v30 - WM_WINDOW_WIDTH * 4) {
+                v12 = v30 - WM_WINDOW_WIDTH * 4;
             }
 
             buf_to_buf(v11, width, v10, width, v12, WM_WINDOW_WIDTH);
@@ -6491,7 +6525,7 @@ static int wmRefreshTabs()
         }
     }
 
-    v13 = v0 + WM_WINDOW_WIDTH * 27;
+    v13 = v0 + WM_WINDOW_WIDTH * 27 * 4;
     v32 = v31 + 6;
 
     for (int v14 = v31 + 1; v14 < v32; v14++) {
@@ -6516,7 +6550,7 @@ static int wmRefreshTabs()
                 cache_entry = INVALID_CACHE_ENTRY;
             }
         }
-        v13 += WM_WINDOW_WIDTH * 27;
+        v13 += WM_WINDOW_WIDTH * 27 * 4;
     }
 
     if (v31 + 6 < wmLabelCount) {
@@ -6541,7 +6575,7 @@ static int wmRefreshTabs()
         }
     }
 
-    trans_buf_to_buf(wmGenData.tabsBorderFrmData, 119, 178, 119, wmBkWinBuf + WM_WINDOW_WIDTH * 135 + 501, WM_WINDOW_WIDTH);
+    trans_buf_to_buf(wmGenData.tabsBorderFrmData, 119, 178, 119, wmBkWinBuf + (WM_WINDOW_WIDTH * 135 + 501) * 4, WM_WINDOW_WIDTH);
 
     return 0;
 }
@@ -6626,7 +6660,7 @@ static void wmRefreshInterfaceDial(bool shouldRefreshWindow)
         wmGenData.dialFrmWidth,
         wmGenData.dialFrmHeight,
         wmGenData.dialFrmWidth,
-        wmBkWinBuf + WM_WINDOW_WIDTH * WM_WINDOW_DIAL_Y + WM_WINDOW_DIAL_X,
+        wmBkWinBuf + (WM_WINDOW_WIDTH * WM_WINDOW_DIAL_Y + WM_WINDOW_DIAL_X) * 4,
         WM_WINDOW_WIDTH);
 
     if (shouldRefreshWindow) {

@@ -32,6 +32,7 @@
 #include "game/tile.h"
 #include "plib/gnw/button.h"
 #include "plib/gnw/gnw.h"
+#include "plib/gnw/svga.h"
 
 #define INDICATOR_BAR_X 0
 #define INDICATOR_BAR_Y 358
@@ -410,8 +411,9 @@ int intface_init()
 
     insideInit = 1;
 
-    int interfaceBarWindowX = 0;
-    int interfaceBarWindowY = 480 - INTERFACE_BAR_HEIGHT - 1;
+    const Size screenSize = screen_get_size();
+    int interfaceBarWindowX = (screenSize.width - INTERFACE_BAR_WIDTH) / 2;
+    int interfaceBarWindowY = screenSize.height - INTERFACE_BAR_HEIGHT;
 
     interfaceWindow = win_add(interfaceBarWindowX, interfaceBarWindowY, INTERFACE_BAR_WIDTH, INTERFACE_BAR_HEIGHT, colorTable[0], WINDOW_HIDDEN);
     if (interfaceWindow == -1) {
@@ -2636,9 +2638,13 @@ int refresh_box_bar_win()
         }
 
         if (count != 0) {
-            bar_window = win_add(INDICATOR_BAR_X,
-                INDICATOR_BAR_Y,
-                (INDICATOR_BOX_WIDTH - INDICATOR_BOX_CONNECTOR_WIDTH) * count,
+            const Size barScreenSize = screen_get_size();
+            int indicatorWidth = (INDICATOR_BOX_WIDTH - INDICATOR_BOX_CONNECTOR_WIDTH) * count;
+            int indicatorX = (barScreenSize.width - indicatorWidth) / 2;
+            int indicatorY = barScreenSize.height - INTERFACE_BAR_HEIGHT - INDICATOR_BOX_HEIGHT;
+            bar_window = win_add(indicatorX,
+                indicatorY,
+                indicatorWidth,
                 INDICATOR_BOX_HEIGHT,
                 colorTable[0],
                 0);

@@ -1,5 +1,6 @@
 #include "game/editor.h"
 #include "plib/os/os_string.h"
+#include "game/ui.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -36,13 +37,14 @@
 #include "plib/gnw/text.h"
 #include "game/trait.h"
 #include "plib/gnw/gnw.h"
+#include "plib/gnw/svga.h"
 #include "game/wordwrap.h"
 #include "game/worldmap.h"
 
 #define RENDER_ALL_STATS 7
 
-#define EDITOR_WINDOW_X 0
-#define EDITOR_WINDOW_Y 0
+#define EDITOR_WINDOW_X ((scr_size.lrx - scr_size.ulx + 1 - EDITOR_WINDOW_WIDTH * ui_get_scale()) / 2)
+#define EDITOR_WINDOW_Y ((scr_size.lry - scr_size.uly + 1 - EDITOR_WINDOW_HEIGHT * ui_get_scale()) / 2)
 #define EDITOR_WINDOW_WIDTH 640
 #define EDITOR_WINDOW_HEIGHT 480
 
@@ -76,10 +78,12 @@
 
 #define SPECIAL_STATS_BTN_X 149
 
-#define PERK_WINDOW_X 33
-#define PERK_WINDOW_Y 91
-#define PERK_WINDOW_WIDTH 573
-#define PERK_WINDOW_HEIGHT 230
+#define PERK_WINDOW_X (EDITOR_WINDOW_X + 33 * ui_get_scale())
+#define PERK_WINDOW_Y (EDITOR_WINDOW_Y + 91 * ui_get_scale())
+#define PERK_WINDOW_BASE_WIDTH 573
+#define PERK_WINDOW_BASE_HEIGHT 230
+#define PERK_WINDOW_WIDTH (PERK_WINDOW_BASE_WIDTH * ui_get_scale())
+#define PERK_WINDOW_HEIGHT (PERK_WINDOW_BASE_HEIGHT * ui_get_scale())
 
 #define PERK_WINDOW_LIST_X 45
 #define PERK_WINDOW_LIST_Y 43
@@ -215,6 +219,9 @@ typedef struct KillInfo {
 } KillInfo;
 
 static int CharEditStart();
+static void editor_draw();
+static void perk_draw();
+static void editor_draw_rect(Rect* rect);
 static void CharEditEnd();
 static void RstrBckgProc();
 static void DrawFolder();
@@ -630,6 +637,10 @@ static int stat_bids_minus[7];
 // 0x570608
 static unsigned char* win_buf;
 
+// Actual window buffer (scaled) — win_buf points to the 640x480 render buffer
+static unsigned char* editor_actual_win_buf;
+static unsigned char* editor_render_buf;
+
 // 0x57060C
 static int edit_win;
 
@@ -640,6 +651,10 @@ static int stat_bids_plus[7];
 
 // 0x57062C
 static unsigned char* pwin_buf;
+
+// Perk window render buffer (same approach as main editor)
+static unsigned char* perk_actual_win_buf;
+static unsigned char* perk_render_buf;
 
 // 0x570630
 static CritterProtoData dude_data;
@@ -811,7 +826,7 @@ int editor_design(bool isCreationMode)
                     strcpy(line2, messageListItemText);
 
                     dialog_out(line1, lines, 1, 192, 126, colorTable[32328], 0, colorTable[32328], 0);
-                    win_draw(edit_win);
+                    editor_draw();
 
                     rc = -1;
                     continue;
@@ -829,7 +844,7 @@ int editor_design(bool isCreationMode)
                     strcpy(line2, messageListItemText);
 
                     dialog_out(line1, lines, 1, 192, 126, colorTable[32328], 0, colorTable[32328], 0);
-                    win_draw(edit_win);
+                    editor_draw();
 
                     rc = -1;
                     continue;
@@ -847,7 +862,7 @@ int editor_design(bool isCreationMode)
                     strcpy(line2, messageListItemText);
 
                     dialog_out(line1, lines, 1, 192, 126, colorTable[32328], 0, colorTable[32328], 0);
-                    win_draw(edit_win);
+                    editor_draw();
 
                     rc = -1;
                     continue;
@@ -864,7 +879,7 @@ int editor_design(bool isCreationMode)
                     strcpy(line2, messageListItemText);
 
                     if (dialog_out(line1, lines, 1, 192, 126, colorTable[32328], 0, colorTable[32328], DIALOG_BOX_YES_NO) == 0) {
-                        win_draw(edit_win);
+                        editor_draw();
 
                         rc = -1;
                         continue;
@@ -872,33 +887,33 @@ int editor_design(bool isCreationMode)
                 }
             }
 
-            win_draw(edit_win);
+            editor_draw();
             rc = 0;
         } else if (keyCode == KEY_CTRL_Q || keyCode == KEY_CTRL_X || keyCode == KEY_F10) {
             game_quit_with_confirm();
-            win_draw(edit_win);
+            editor_draw();
         } else if (keyCode == 502 || keyCode == KEY_ESCAPE || keyCode == KEY_UPPERCASE_C || keyCode == KEY_LOWERCASE_C || game_user_wants_to_quit != 0) {
-            win_draw(edit_win);
+            editor_draw();
             rc = 1;
         } else if (glblmode && (keyCode == 517 || keyCode == KEY_UPPERCASE_N || keyCode == KEY_LOWERCASE_N)) {
             NameWindow();
-            win_draw(edit_win);
+            editor_draw();
         } else if (glblmode && (keyCode == 519 || keyCode == KEY_UPPERCASE_A || keyCode == KEY_LOWERCASE_A)) {
             AgeWindow();
-            win_draw(edit_win);
+            editor_draw();
         } else if (glblmode && (keyCode == 520 || keyCode == KEY_UPPERCASE_S || keyCode == KEY_LOWERCASE_S)) {
             SexWindow();
-            win_draw(edit_win);
+            editor_draw();
         } else if (glblmode && (keyCode >= 503 && keyCode < 517)) {
             StatButton(keyCode);
-            win_draw(edit_win);
+            editor_draw();
         } else if ((glblmode && (keyCode == 501 || keyCode == KEY_UPPERCASE_O || keyCode == KEY_LOWERCASE_O))
             || (!glblmode && (keyCode == 501 || keyCode == KEY_UPPERCASE_P || keyCode == KEY_LOWERCASE_P))) {
             OptionWindow();
-            win_draw(edit_win);
+            editor_draw();
         } else if (keyCode >= 525 && keyCode < 535) {
             InfoButton(keyCode);
-            win_draw(edit_win);
+            editor_draw();
         } else {
             switch (keyCode) {
             case KEY_TAB:
@@ -941,7 +956,7 @@ int editor_design(bool isCreationMode)
                 DrawFolder();
                 ListDrvdStats();
                 DrawInfoWin();
-                win_draw(edit_win);
+                editor_draw();
                 break;
             case KEY_ARROW_LEFT:
             case KEY_MINUS:
@@ -949,20 +964,20 @@ int editor_design(bool isCreationMode)
                 if (info_line >= 0 && info_line < 7) {
                     if (glblmode) {
                         win_button_press_and_release(stat_bids_minus[info_line]);
-                        win_draw(edit_win);
+                        editor_draw();
                     }
                 } else if (info_line >= 61 && info_line < 79) {
                     if (glblmode) {
                         win_button_press_and_release(tag_bids[glblmode - 61]);
-                        win_draw(edit_win);
+                        editor_draw();
                     } else {
                         SliderBtn(keyCode);
-                        win_draw(edit_win);
+                        editor_draw();
                     }
                 } else if (info_line >= 82 && info_line < 98) {
                     if (glblmode) {
                         win_button_press_and_release(trait_bids[glblmode - 82]);
-                        win_draw(edit_win);
+                        editor_draw();
                     }
                 }
                 break;
@@ -972,20 +987,20 @@ int editor_design(bool isCreationMode)
                 if (info_line >= 0 && info_line < 7) {
                     if (glblmode) {
                         win_button_press_and_release(stat_bids_plus[info_line]);
-                        win_draw(edit_win);
+                        editor_draw();
                     }
                 } else if (info_line >= 61 && info_line < 79) {
                     if (glblmode) {
                         win_button_press_and_release(tag_bids[glblmode - 61]);
-                        win_draw(edit_win);
+                        editor_draw();
                     } else {
                         SliderBtn(keyCode);
-                        win_draw(edit_win);
+                        editor_draw();
                     }
                 } else if (info_line >= 82 && info_line < 98) {
                     if (glblmode) {
                         win_button_press_and_release(trait_bids[glblmode - 82]);
-                        win_draw(edit_win);
+                        editor_draw();
                     }
                 }
                 break;
@@ -1004,7 +1019,7 @@ int editor_design(bool isCreationMode)
                         DrawInfoWin();
                     }
 
-                    win_draw(edit_win);
+                    editor_draw();
                 } else {
                     switch (info_line) {
                     case 0:
@@ -1041,7 +1056,7 @@ int editor_design(bool isCreationMode)
                     DrawFolder();
                     ListDrvdStats();
                     DrawInfoWin();
-                    win_draw(edit_win);
+                    editor_draw();
                 }
                 break;
             case KEY_ARROW_DOWN:
@@ -1057,7 +1072,7 @@ int editor_design(bool isCreationMode)
                         DrawInfoWin();
                     }
 
-                    win_draw(edit_win);
+                    editor_draw();
                 } else {
                     switch (info_line) {
                     case 6:
@@ -1094,35 +1109,35 @@ int editor_design(bool isCreationMode)
                     DrawFolder();
                     ListDrvdStats();
                     DrawInfoWin();
-                    win_draw(edit_win);
+                    editor_draw();
                 }
                 break;
             case 521:
             case 523:
                 SliderBtn(keyCode);
-                win_draw(edit_win);
+                editor_draw();
                 break;
             case 535:
                 FldrButton();
-                win_draw(edit_win);
+                editor_draw();
                 break;
             case 17000:
                 folder_scroll(-1);
-                win_draw(edit_win);
+                editor_draw();
                 break;
             case 17001:
                 folder_scroll(1);
-                win_draw(edit_win);
+                editor_draw();
                 break;
             default:
                 if (glblmode && (keyCode >= 536 && keyCode < 554)) {
                     TagSkillSelect(keyCode - 536);
-                    win_draw(edit_win);
+                    editor_draw();
                 } else if (glblmode && (keyCode >= 555 && keyCode < 571)) {
                     TraitSelect(keyCode - 555);
-                    win_draw(edit_win);
+                    editor_draw();
                 } else {
-                    win_draw(edit_win);
+                    editor_draw();
                 }
             }
         }
@@ -1148,6 +1163,42 @@ int editor_design(bool isCreationMode)
     intface_update_hit_points(false);
 
     return rc;
+}
+
+// Upscale the 640x480 render buffer to the actual window buffer and draw.
+static void editor_draw()
+{
+    if (ui_get_scale() > 1) {
+        cscale(editor_render_buf, 640, 480, 640,
+               editor_actual_win_buf,
+               640 * ui_get_scale(), 480 * ui_get_scale(),
+               640 * ui_get_scale());
+    }
+    win_draw(edit_win);
+}
+
+// Same but uses win_draw_rect for partial updates.
+static void editor_draw_rect(Rect* rect)
+{
+    if (ui_get_scale() > 1) {
+        cscale(editor_render_buf, 640, 480, 640,
+               editor_actual_win_buf,
+               640 * ui_get_scale(), 480 * ui_get_scale(),
+               640 * ui_get_scale());
+    }
+    win_draw_rect(edit_win, rect);
+}
+
+// Upscale the perk render buffer to its actual window buffer and draw.
+static void perk_draw()
+{
+    if (ui_get_scale() > 1) {
+        cscale(perk_render_buf, PERK_WINDOW_BASE_WIDTH, PERK_WINDOW_BASE_HEIGHT, PERK_WINDOW_BASE_WIDTH,
+               perk_actual_win_buf,
+               PERK_WINDOW_WIDTH, PERK_WINDOW_HEIGHT,
+               PERK_WINDOW_WIDTH);
+    }
+    win_draw(pwin);
 }
 
 // 0x4329EC
@@ -1254,11 +1305,11 @@ static int CharEditStart()
 
     for (i = 0; i < EDITOR_GRAPHIC_COUNT; i++) {
         if (copyflag[i]) {
-            grphcpy[i] = (unsigned char*)mem_malloc(GInfo[i].width * GInfo[i].height);
+            grphcpy[i] = (unsigned char*)mem_malloc(GInfo[i].width * GInfo[i].height * 4);
             if (grphcpy[i] == NULL) {
                 break;
             }
-            memcpy(grphcpy[i], grphbmp[i], GInfo[i].width * GInfo[i].height);
+            memcpy(grphcpy[i], grphbmp[i], GInfo[i].width * GInfo[i].height * 4);
         } else {
             grphcpy[i] = (unsigned char*)-1;
         }
@@ -1285,12 +1336,15 @@ static int CharEditStart()
         return -1;
     }
 
-    int editorWindowX = EDITOR_WINDOW_X;
-    int editorWindowY = EDITOR_WINDOW_Y;
+
+    int scaledW = 640 * ui_get_scale();
+    int scaledH = 480 * ui_get_scale();
+    int editorWindowX = (scr_size.lrx - scr_size.ulx + 1 - scaledW) / 2;
+    int editorWindowY = (scr_size.lry - scr_size.uly + 1 - scaledH) / 2;
     edit_win = win_add(editorWindowX,
         editorWindowY,
-        EDITOR_WINDOW_WIDTH,
-        EDITOR_WINDOW_HEIGHT,
+        scaledW,
+        scaledH,
         256,
         WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
     if (edit_win == -1) {
@@ -1311,29 +1365,51 @@ static int CharEditStart()
         return -1;
     }
 
-    win_buf = win_get_buf(edit_win);
-    memcpy(win_buf, bckgnd, 640 * 480);
+    editor_actual_win_buf = win_get_buf(edit_win);
+
+    if (ui_get_scale() > 1) {
+        editor_render_buf = (unsigned char*)mem_malloc(640 * 480 * 4);
+        if (editor_render_buf == NULL) {
+            win_delete(edit_win);
+            for (i = 0; i < EDITOR_GRAPHIC_COUNT; i++) {
+                if (copyflag[i]) {
+                    mem_free(grphcpy[i]);
+                }
+                art_ptr_unlock(grph_key[i]);
+            }
+            art_ptr_unlock(bck_key);
+            message_exit(&editor_message_file);
+            RstrBckgProc();
+            return -1;
+        }
+        win_buf = editor_render_buf;
+    } else {
+        editor_render_buf = NULL;
+        win_buf = editor_actual_win_buf;
+    }
+
+    memcpy(win_buf, bckgnd, 640 * 480 * 4);
 
     if (glblmode) {
         text_font(103);
 
         // CHAR POINTS
         str = getmsg(&editor_message_file, &mesg, 116);
-        text_to_buf(win_buf + (286 * 640) + 14, str, 640, 640, colorTable[18979]);
+        text_to_buf(win_buf + ((286 * 640) + 14) * 4, str, 640, 640, colorTable[18979]);
         PrintBigNum(126, 282, 0, character_points, 0, edit_win);
 
         // OPTIONS
         str = getmsg(&editor_message_file, &mesg, 101);
-        text_to_buf(win_buf + (454 * 640) + 363, str, 640, 640, colorTable[18979]);
+        text_to_buf(win_buf + ((454 * 640) + 363) * 4, str, 640, 640, colorTable[18979]);
 
         // OPTIONAL TRAITS
         str = getmsg(&editor_message_file, &mesg, 139);
-        text_to_buf(win_buf + (326 * 640) + 52, str, 640, 640, colorTable[18979]);
+        text_to_buf(win_buf + ((326 * 640) + 52) * 4, str, 640, 640, colorTable[18979]);
         PrintBigNum(522, 228, 0, optrt_count, 0, edit_win);
 
         // TAG SKILLS
         str = getmsg(&editor_message_file, &mesg, 138);
-        text_to_buf(win_buf + (233 * 640) + 422, str, 640, 640, colorTable[18979]);
+        text_to_buf(win_buf + ((233 * 640) + 422) * 4, str, 640, 640, colorTable[18979]);
         PrintBigNum(522, 228, 0, tagskill_count, 0, edit_win);
     } else {
         text_font(103);
@@ -1350,21 +1426,21 @@ static int CharEditStart()
         // perks selected
         len = text_width(perks);
         text_to_buf(
-            grphcpy[46] + 5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 61 - len / 2,
+            grphcpy[46] + (5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 61 - len / 2) * 4,
             perks,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
             colorTable[18979]);
 
         len = text_width(karma);
-        text_to_buf(grphcpy[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED] + 5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 159 - len / 2,
+        text_to_buf(grphcpy[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED] + (5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 159 - len / 2) * 4,
             karma,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
             colorTable[14723]);
 
         len = text_width(kills);
-        text_to_buf(grphcpy[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED] + 5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 257 - len / 2,
+        text_to_buf(grphcpy[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED] + (5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 257 - len / 2) * 4,
             kills,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
@@ -1372,21 +1448,21 @@ static int CharEditStart()
 
         // karma selected
         len = text_width(perks);
-        text_to_buf(grphcpy[EDITOR_GRAPHIC_KARMA_FOLDER_SELECTED] + 5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 61 - len / 2,
+        text_to_buf(grphcpy[EDITOR_GRAPHIC_KARMA_FOLDER_SELECTED] + (5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 61 - len / 2) * 4,
             perks,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
             colorTable[14723]);
 
         len = text_width(karma);
-        text_to_buf(grphcpy[EDITOR_GRAPHIC_KARMA_FOLDER_SELECTED] + 5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 159 - len / 2,
+        text_to_buf(grphcpy[EDITOR_GRAPHIC_KARMA_FOLDER_SELECTED] + (5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 159 - len / 2) * 4,
             karma,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
             colorTable[18979]);
 
         len = text_width(kills);
-        text_to_buf(grphcpy[EDITOR_GRAPHIC_KARMA_FOLDER_SELECTED] + 5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 257 - len / 2,
+        text_to_buf(grphcpy[EDITOR_GRAPHIC_KARMA_FOLDER_SELECTED] + (5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 257 - len / 2) * 4,
             kills,
             GInfo[46].width,
             GInfo[46].width,
@@ -1394,21 +1470,21 @@ static int CharEditStart()
 
         // kills selected
         len = text_width(perks);
-        text_to_buf(grphcpy[EDITOR_GRAPHIC_KILLS_FOLDER_SELECTED] + 5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 61 - len / 2,
+        text_to_buf(grphcpy[EDITOR_GRAPHIC_KILLS_FOLDER_SELECTED] + (5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 61 - len / 2) * 4,
             perks,
             GInfo[46].width,
             GInfo[46].width,
             colorTable[14723]);
 
         len = text_width(karma);
-        text_to_buf(grphcpy[EDITOR_GRAPHIC_KILLS_FOLDER_SELECTED] + 5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 159 - len / 2,
+        text_to_buf(grphcpy[EDITOR_GRAPHIC_KILLS_FOLDER_SELECTED] + (5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 159 - len / 2) * 4,
             karma,
             GInfo[46].width,
             GInfo[46].width,
             colorTable[14723]);
 
         len = text_width(kills);
-        text_to_buf(grphcpy[EDITOR_GRAPHIC_KILLS_FOLDER_SELECTED] + 5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 257 - len / 2,
+        text_to_buf(grphcpy[EDITOR_GRAPHIC_KILLS_FOLDER_SELECTED] + (5 * GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width + 257 - len / 2) * 4,
             kills,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
@@ -1420,7 +1496,7 @@ static int CharEditStart()
 
         // PRINT
         str = getmsg(&editor_message_file, &mesg, 103);
-        text_to_buf(win_buf + (EDITOR_WINDOW_WIDTH * PRINT_BTN_Y) + PRINT_BTN_X, str, EDITOR_WINDOW_WIDTH, EDITOR_WINDOW_WIDTH, colorTable[18979]);
+        text_to_buf(win_buf + ((EDITOR_WINDOW_WIDTH * PRINT_BTN_Y) + PRINT_BTN_X) * 4, str, EDITOR_WINDOW_WIDTH, EDITOR_WINDOW_WIDTH, colorTable[18979]);
 
         PrintLevelWin();
         folder_init();
@@ -1430,22 +1506,23 @@ static int CharEditStart()
 
     // CANCEL
     str = getmsg(&editor_message_file, &mesg, 102);
-    text_to_buf(win_buf + (EDITOR_WINDOW_WIDTH * CANCEL_BTN_Y) + CANCEL_BTN_X, str, EDITOR_WINDOW_WIDTH, EDITOR_WINDOW_WIDTH, colorTable[18979]);
+    text_to_buf(win_buf + ((EDITOR_WINDOW_WIDTH * CANCEL_BTN_Y) + CANCEL_BTN_X) * 4, str, EDITOR_WINDOW_WIDTH, EDITOR_WINDOW_WIDTH, colorTable[18979]);
 
     // DONE
     str = getmsg(&editor_message_file, &mesg, 100);
-    text_to_buf(win_buf + (EDITOR_WINDOW_WIDTH * DONE_BTN_Y) + DONE_BTN_X, str, EDITOR_WINDOW_WIDTH, EDITOR_WINDOW_WIDTH, colorTable[18979]);
+    text_to_buf(win_buf + ((EDITOR_WINDOW_WIDTH * DONE_BTN_Y) + DONE_BTN_X) * 4, str, EDITOR_WINDOW_WIDTH, EDITOR_WINDOW_WIDTH, colorTable[18979]);
 
     PrintBasicStat(RENDER_ALL_STATS, 0, 0);
     ListDrvdStats();
 
     if (!glblmode) {
+        int S = ui_get_scale();
         SliderPlusID = win_register_button(
             edit_win,
-            614,
-            20,
-            GInfo[EDITOR_GRAPHIC_SLIDER_PLUS_ON].width,
-            GInfo[EDITOR_GRAPHIC_SLIDER_PLUS_ON].height,
+            614 * S,
+            20 * S,
+            GInfo[EDITOR_GRAPHIC_SLIDER_PLUS_ON].width * S,
+            GInfo[EDITOR_GRAPHIC_SLIDER_PLUS_ON].height * S,
             -1,
             522,
             521,
@@ -1456,10 +1533,10 @@ static int CharEditStart()
             96);
         SliderNegID = win_register_button(
             edit_win,
-            614,
-            20 + GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_ON].height - 1,
-            GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_ON].width,
-            GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_OFF].height,
+            614 * S,
+            (20 + GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_ON].height - 1) * S,
+            GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_ON].width * S,
+            GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_OFF].height * S,
             -1,
             524,
             523,
@@ -1480,19 +1557,20 @@ static int CharEditStart()
     PrintGender();
 
     if (glblmode) {
+        int S = ui_get_scale();
         x = NAME_BUTTON_X;
         btn = win_register_button(
             edit_win,
-            x,
-            NAME_BUTTON_Y,
-            GInfo[EDITOR_GRAPHIC_NAME_ON].width,
-            GInfo[EDITOR_GRAPHIC_NAME_ON].height,
+            x * S,
+            NAME_BUTTON_Y * S,
+            GInfo[EDITOR_GRAPHIC_NAME_ON].width * S,
+            GInfo[EDITOR_GRAPHIC_NAME_ON].height * S,
             -1,
             -1,
             -1,
             NAME_BTN_CODE,
-            grphcpy[EDITOR_GRAPHIC_NAME_OFF],
-            grphcpy[EDITOR_GRAPHIC_NAME_ON],
+            NULL,
+            NULL,
             0,
             32);
         if (btn != -1) {
@@ -1503,16 +1581,16 @@ static int CharEditStart()
         x += GInfo[EDITOR_GRAPHIC_NAME_ON].width;
         btn = win_register_button(
             edit_win,
-            x,
-            NAME_BUTTON_Y,
-            GInfo[EDITOR_GRAPHIC_AGE_ON].width,
-            GInfo[EDITOR_GRAPHIC_AGE_ON].height,
+            x * S,
+            NAME_BUTTON_Y * S,
+            GInfo[EDITOR_GRAPHIC_AGE_ON].width * S,
+            GInfo[EDITOR_GRAPHIC_AGE_ON].height * S,
             -1,
             -1,
             -1,
             AGE_BTN_CODE,
-            grphcpy[EDITOR_GRAPHIC_AGE_OFF],
-            grphcpy[EDITOR_GRAPHIC_AGE_ON],
+            NULL,
+            NULL,
             0,
             32);
         if (btn != -1) {
@@ -1523,16 +1601,16 @@ static int CharEditStart()
         x += GInfo[EDITOR_GRAPHIC_AGE_ON].width;
         btn = win_register_button(
             edit_win,
-            x,
-            NAME_BUTTON_Y,
-            GInfo[EDITOR_GRAPHIC_SEX_ON].width,
-            GInfo[EDITOR_GRAPHIC_SEX_ON].height,
+            x * S,
+            NAME_BUTTON_Y * S,
+            GInfo[EDITOR_GRAPHIC_SEX_ON].width * S,
+            GInfo[EDITOR_GRAPHIC_SEX_ON].height * S,
             -1,
             -1,
             -1,
             SEX_BTN_CODE,
-            grphcpy[EDITOR_GRAPHIC_SEX_OFF],
-            grphcpy[EDITOR_GRAPHIC_SEX_ON],
+            NULL,
+            NULL,
             0,
             32);
         if (btn != -1) {
@@ -1544,16 +1622,16 @@ static int CharEditStart()
         for (i = 0; i < SKILL_COUNT; i++) {
             tag_bids[i] = win_register_button(
                 edit_win,
-                TAG_SKILLS_BUTTON_X,
-                y,
-                GInfo[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON].width,
-                GInfo[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON].height,
+                TAG_SKILLS_BUTTON_X * S,
+                y * S,
+                GInfo[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON].width * S,
+                GInfo[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON].height * S,
                 -1,
                 -1,
                 -1,
                 TAG_SKILLS_BUTTON_CODE + i,
-                grphbmp[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_OFF],
-                grphbmp[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON],
+                NULL,
+                NULL,
                 NULL,
                 32);
             y += GInfo[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON].height;
@@ -1563,16 +1641,16 @@ static int CharEditStart()
         for (i = 0; i < TRAIT_COUNT / 2; i++) {
             trait_bids[i] = win_register_button(
                 edit_win,
-                OPTIONAL_TRAITS_LEFT_BTN_X,
-                y,
-                GInfo[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON].width,
-                GInfo[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON].height,
+                OPTIONAL_TRAITS_LEFT_BTN_X * S,
+                y * S,
+                GInfo[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON].width * S,
+                GInfo[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON].height * S,
                 -1,
                 -1,
                 -1,
                 OPTIONAL_TRAITS_BTN_CODE + i,
-                grphbmp[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_OFF],
-                grphbmp[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON],
+                NULL,
+                NULL,
                 NULL,
                 32);
             y += GInfo[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON].height + OPTIONAL_TRAITS_BTN_SPACE;
@@ -1582,16 +1660,16 @@ static int CharEditStart()
         for (i = TRAIT_COUNT / 2; i < TRAIT_COUNT; i++) {
             trait_bids[i] = win_register_button(
                 edit_win,
-                OPTIONAL_TRAITS_RIGHT_BTN_X,
-                y,
-                GInfo[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON].width,
-                GInfo[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON].height,
+                OPTIONAL_TRAITS_RIGHT_BTN_X * S,
+                y * S,
+                GInfo[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON].width * S,
+                GInfo[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON].height * S,
                 -1,
                 -1,
                 -1,
                 OPTIONAL_TRAITS_BTN_CODE + i,
-                grphbmp[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_OFF],
-                grphbmp[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON],
+                NULL,
+                NULL,
                 NULL,
                 32);
             y += GInfo[EDITOR_GRAPHIC_TAG_SKILL_BUTTON_ON].height + OPTIONAL_TRAITS_BTN_SPACE;
@@ -1604,7 +1682,7 @@ static int CharEditStart()
             GInfo[EDITOR_GRAPHIC_NAME_ON].width,
             GInfo[EDITOR_GRAPHIC_NAME_ON].height,
             GInfo[EDITOR_GRAPHIC_NAME_ON].width,
-            win_buf + (EDITOR_WINDOW_WIDTH * NAME_BUTTON_Y) + x,
+            win_buf + ((EDITOR_WINDOW_WIDTH * NAME_BUTTON_Y) + x) * 4,
             EDITOR_WINDOW_WIDTH);
 
         x += GInfo[EDITOR_GRAPHIC_NAME_ON].width;
@@ -1612,7 +1690,7 @@ static int CharEditStart()
             GInfo[EDITOR_GRAPHIC_AGE_ON].width,
             GInfo[EDITOR_GRAPHIC_AGE_ON].height,
             GInfo[EDITOR_GRAPHIC_AGE_ON].width,
-            win_buf + (EDITOR_WINDOW_WIDTH * NAME_BUTTON_Y) + x,
+            win_buf + ((EDITOR_WINDOW_WIDTH * NAME_BUTTON_Y) + x) * 4,
             EDITOR_WINDOW_WIDTH);
 
         x += GInfo[EDITOR_GRAPHIC_AGE_ON].width;
@@ -1620,15 +1698,10 @@ static int CharEditStart()
             GInfo[EDITOR_GRAPHIC_SEX_ON].width,
             GInfo[EDITOR_GRAPHIC_SEX_ON].height,
             GInfo[EDITOR_GRAPHIC_SEX_ON].width,
-            win_buf + (EDITOR_WINDOW_WIDTH * NAME_BUTTON_Y) + x,
+            win_buf + ((EDITOR_WINDOW_WIDTH * NAME_BUTTON_Y) + x) * 4,
             EDITOR_WINDOW_WIDTH);
 
-        btn = win_register_button(edit_win,
-            11,
-            327,
-            GInfo[EDITOR_GRAPHIC_FOLDER_MASK].width,
-            GInfo[EDITOR_GRAPHIC_FOLDER_MASK].height,
-            -1,
+        btn = win_register_button(edit_win, 11 * ui_get_scale(), 327 * ui_get_scale(), GInfo[EDITOR_GRAPHIC_FOLDER_MASK].width * ui_get_scale(), GInfo[EDITOR_GRAPHIC_FOLDER_MASK].height * ui_get_scale(), -1,
             -1,
             -1,
             535,
@@ -1644,12 +1717,7 @@ static int CharEditStart()
     if (glblmode) {
         // +/- buttons for stats
         for (i = 0; i < 7; i++) {
-            stat_bids_plus[i] = win_register_button(edit_win,
-                SPECIAL_STATS_BTN_X,
-                StatYpos[i],
-                GInfo[EDITOR_GRAPHIC_SLIDER_PLUS_ON].width,
-                GInfo[EDITOR_GRAPHIC_SLIDER_PLUS_ON].height,
-                -1,
+            stat_bids_plus[i] = win_register_button(edit_win, SPECIAL_STATS_BTN_X * ui_get_scale(), StatYpos[i] * ui_get_scale(), GInfo[EDITOR_GRAPHIC_SLIDER_PLUS_ON].width * ui_get_scale(), GInfo[EDITOR_GRAPHIC_SLIDER_PLUS_ON].height * ui_get_scale(), -1,
                 518,
                 503 + i,
                 518,
@@ -1661,12 +1729,7 @@ static int CharEditStart()
                 win_register_button_sound_func(stat_bids_plus[i], gsound_red_butt_press, NULL);
             }
 
-            stat_bids_minus[i] = win_register_button(edit_win,
-                SPECIAL_STATS_BTN_X,
-                StatYpos[i] + GInfo[EDITOR_GRAPHIC_SLIDER_PLUS_ON].height - 1,
-                GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_ON].width,
-                GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_ON].height,
-                -1,
+            stat_bids_minus[i] = win_register_button(edit_win, SPECIAL_STATS_BTN_X * ui_get_scale(), (StatYpos[i] + GInfo[EDITOR_GRAPHIC_SLIDER_PLUS_ON].height - 1) * ui_get_scale(), GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_ON].width * ui_get_scale(), GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_ON].height * ui_get_scale(), -1,
                 518,
                 510 + i,
                 518,
@@ -1685,16 +1748,16 @@ static int CharEditStart()
 
     btn = win_register_button(
         edit_win,
-        343,
-        454,
-        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].width,
-        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].height,
+        343 * ui_get_scale(),
+        454 * ui_get_scale(),
+        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].width * ui_get_scale(),
+        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].height * ui_get_scale(),
         -1,
         -1,
         -1,
         501,
-        grphbmp[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP],
-        grphbmp[EDITOR_GRAPHIC_LILTTLE_RED_BUTTON_DOWN],
+        NULL,
+        NULL,
         NULL,
         BUTTON_FLAG_TRANSPARENT);
     if (btn != -1) {
@@ -1703,16 +1766,16 @@ static int CharEditStart()
 
     btn = win_register_button(
         edit_win,
-        552,
-        454,
-        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].width,
-        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].height,
+        552 * ui_get_scale(),
+        454 * ui_get_scale(),
+        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].width * ui_get_scale(),
+        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].height * ui_get_scale(),
         -1,
         -1,
         -1,
         502,
-        grphbmp[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP],
-        grphbmp[EDITOR_GRAPHIC_LILTTLE_RED_BUTTON_DOWN],
+        NULL,
+        NULL,
         0,
         BUTTON_FLAG_TRANSPARENT);
     if (btn != -1) {
@@ -1721,23 +1784,23 @@ static int CharEditStart()
 
     btn = win_register_button(
         edit_win,
-        455,
-        454,
-        GInfo[23].width,
-        GInfo[23].height,
+        455 * ui_get_scale(),
+        454 * ui_get_scale(),
+        GInfo[23].width * ui_get_scale(),
+        GInfo[23].height * ui_get_scale(),
         -1,
         -1,
         -1,
         500,
-        grphbmp[23],
-        grphbmp[24],
+        NULL,
+        NULL,
         0,
         BUTTON_FLAG_TRANSPARENT);
     if (btn != -1) {
         win_register_button_sound_func(btn, gsound_red_butt_press, gsound_red_butt_release);
     }
 
-    win_draw(edit_win);
+    editor_draw();
     disable_box_bar_win();
 
     return 0;
@@ -1748,6 +1811,11 @@ static void CharEditEnd()
 {
     // NOTE: Uninline.
     folder_exit();
+
+    if (editor_render_buf != NULL) {
+        mem_free(editor_render_buf);
+        editor_render_buf = NULL;
+    }
 
     win_delete(edit_win);
 
@@ -1841,8 +1909,8 @@ int get_input_str(int win, int cancelKeyCode, char* text, int maxLength, int x, 
 
     int nameWidth = text_width(copy);
 
-    buf_fill(windowBuffer + windowWidth * y + x, nameWidth, text_height(), windowWidth, backgroundColor);
-    text_to_buf(windowBuffer + windowWidth * y + x, copy, windowWidth, windowWidth, textColor);
+    buf_fill(windowBuffer + (windowWidth * y + x) * 4, nameWidth, text_height(), windowWidth, backgroundColor);
+    text_to_buf(windowBuffer + (windowWidth * y + x) * 4, copy, windowWidth, windowWidth, textColor);
 
     win_draw(win);
 
@@ -1863,10 +1931,10 @@ int get_input_str(int win, int cancelKeyCode, char* text, int maxLength, int x, 
             rc = -1;
         } else {
             if ((keyCode == KEY_DELETE || keyCode == KEY_BACKSPACE) && nameLength >= 1) {
-                buf_fill(windowBuffer + windowWidth * y + x, text_width(copy), v60, windowWidth, backgroundColor);
+                buf_fill(windowBuffer + (windowWidth * y + x) * 4, text_width(copy), v60, windowWidth, backgroundColor);
                 copy[nameLength - 1] = ' ';
                 copy[nameLength] = '\0';
-                text_to_buf(windowBuffer + windowWidth * y + x, copy, windowWidth, windowWidth, textColor);
+                text_to_buf(windowBuffer + (windowWidth * y + x) * 4, copy, windowWidth, windowWidth, textColor);
                 nameLength--;
 
                 win_draw(win);
@@ -1877,12 +1945,12 @@ int get_input_str(int win, int cancelKeyCode, char* text, int maxLength, int x, 
                     }
                 }
 
-                buf_fill(windowBuffer + windowWidth * y + x, text_width(copy), v60, windowWidth, backgroundColor);
+                buf_fill(windowBuffer + (windowWidth * y + x) * 4, text_width(copy), v60, windowWidth, backgroundColor);
 
                 copy[nameLength] = keyCode & 0xFF;
                 copy[nameLength + 1] = ' ';
                 copy[nameLength + 2] = '\0';
-                text_to_buf(windowBuffer + windowWidth * y + x, copy, windowWidth, windowWidth, textColor);
+                text_to_buf(windowBuffer + (windowWidth * y + x) * 4, copy, windowWidth, windowWidth, textColor);
                 nameLength++;
 
                 win_draw(win);
@@ -1896,7 +1964,7 @@ int get_input_str(int win, int cancelKeyCode, char* text, int maxLength, int x, 
             int color = blink ? backgroundColor : textColor;
             blink = !blink;
 
-            buf_fill(windowBuffer + windowWidth * y + x + text_width(copy) - cursorWidth, cursorWidth, v60 - 2, windowWidth, color);
+            buf_fill(windowBuffer + (windowWidth * y + x + text_width(copy) - cursorWidth) * 4, cursorWidth, v60 - 2, windowWidth, color);
         }
 
         win_draw(win);
@@ -1956,7 +2024,7 @@ static void DrawFolder()
         return;
     }
 
-    buf_to_buf(bckgnd + (360 * 640) + 34, 280, 120, 640, win_buf + (360 * 640) + 34, 640);
+    buf_to_buf(bckgnd + ((360 * 640) + 34) * 4, 280, 120, 640, win_buf + ((360 * 640) + 34) * 4, 640);
 
     text_font(101);
 
@@ -1966,7 +2034,7 @@ static void DrawFolder()
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].height,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
-            win_buf + (327 * 640) + 11,
+            win_buf + ((327 * 640) + 11) * 4,
             640);
         list_perks();
         break;
@@ -1975,7 +2043,7 @@ static void DrawFolder()
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].height,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
-            win_buf + (327 * 640) + 11,
+            win_buf + ((327 * 640) + 11) * 4,
             640);
         list_karma();
         break;
@@ -1984,7 +2052,7 @@ static void DrawFolder()
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].height,
             GInfo[EDITOR_GRAPHIC_PERKS_FOLDER_SELECTED].width,
-            win_buf + (327 * 640) + 11,
+            win_buf + ((327 * 640) + 11) * 4,
             640);
         kills_count = ListKills();
         break;
@@ -2152,8 +2220,8 @@ static void PrintBigNum(int x, int y, int flags, int value, int previousValue, i
     unsigned char* onesBufferPtr;
     unsigned char* numbersGraphicBufferPtr;
 
-    windowWidth = win_width(windowHandle);
-    windowBuf = win_get_buf(windowHandle);
+    windowWidth = EDITOR_WINDOW_WIDTH;
+    windowBuf = win_buf;
 
     rect.ulx = x;
     rect.uly = y;
@@ -2165,11 +2233,11 @@ static void PrintBigNum(int x, int y, int flags, int value, int previousValue, i
     if (flags & RED_NUMBERS) {
         // First half of the bignum.frm is white,
         // second half is red.
-        numbersGraphicBufferPtr += GInfo[EDITOR_GRAPHIC_BIG_NUMBERS].width / 2;
+        numbersGraphicBufferPtr += (GInfo[EDITOR_GRAPHIC_BIG_NUMBERS].width / 2) * 4;
     }
 
-    tensBufferPtr = windowBuf + windowWidth * y + x;
-    onesBufferPtr = tensBufferPtr + BIG_NUM_WIDTH;
+    tensBufferPtr = windowBuf + (windowWidth * y + x) * 4;
+    onesBufferPtr = tensBufferPtr + BIG_NUM_WIDTH * 4;
 
     if (value >= 0 && value <= 99 && previousValue >= 0 && previousValue <= 99) {
         tens = value / 10;
@@ -2178,53 +2246,53 @@ static void PrintBigNum(int x, int y, int flags, int value, int previousValue, i
         if (flags & ANIMATE) {
             if (previousValue % 10 != ones) {
                 _frame_time = get_time();
-                buf_to_buf(numbersGraphicBufferPtr + BIG_NUM_WIDTH * 11,
+                buf_to_buf(numbersGraphicBufferPtr + (BIG_NUM_WIDTH * 11) * 4,
                     BIG_NUM_WIDTH,
                     BIG_NUM_HEIGHT,
                     GInfo[EDITOR_GRAPHIC_BIG_NUMBERS].width,
                     onesBufferPtr,
                     windowWidth);
-                win_draw_rect(windowHandle, &rect);
+                editor_draw_rect(&rect);
                 while (elapsed_time(_frame_time) < BIG_NUM_ANIMATION_DELAY)
                     ;
             }
 
-            buf_to_buf(numbersGraphicBufferPtr + BIG_NUM_WIDTH * ones,
+            buf_to_buf(numbersGraphicBufferPtr + (BIG_NUM_WIDTH * ones) * 4,
                 BIG_NUM_WIDTH,
                 BIG_NUM_HEIGHT,
                 GInfo[EDITOR_GRAPHIC_BIG_NUMBERS].width,
                 onesBufferPtr,
                 windowWidth);
-            win_draw_rect(windowHandle, &rect);
+            editor_draw_rect(&rect);
 
             if (previousValue / 10 != tens) {
                 _frame_time = get_time();
-                buf_to_buf(numbersGraphicBufferPtr + BIG_NUM_WIDTH * 11,
+                buf_to_buf(numbersGraphicBufferPtr + (BIG_NUM_WIDTH * 11) * 4,
                     BIG_NUM_WIDTH,
                     BIG_NUM_HEIGHT,
                     GInfo[EDITOR_GRAPHIC_BIG_NUMBERS].width,
                     tensBufferPtr,
                     windowWidth);
-                win_draw_rect(windowHandle, &rect);
+                editor_draw_rect(&rect);
                 while (elapsed_time(_frame_time) < BIG_NUM_ANIMATION_DELAY)
                     ;
             }
 
-            buf_to_buf(numbersGraphicBufferPtr + BIG_NUM_WIDTH * tens,
+            buf_to_buf(numbersGraphicBufferPtr + (BIG_NUM_WIDTH * tens) * 4,
                 BIG_NUM_WIDTH,
                 BIG_NUM_HEIGHT,
                 GInfo[EDITOR_GRAPHIC_BIG_NUMBERS].width,
                 tensBufferPtr,
                 windowWidth);
-            win_draw_rect(windowHandle, &rect);
+            editor_draw_rect(&rect);
         } else {
-            buf_to_buf(numbersGraphicBufferPtr + BIG_NUM_WIDTH * tens,
+            buf_to_buf(numbersGraphicBufferPtr + (BIG_NUM_WIDTH * tens) * 4,
                 BIG_NUM_WIDTH,
                 BIG_NUM_HEIGHT,
                 GInfo[EDITOR_GRAPHIC_BIG_NUMBERS].width,
                 tensBufferPtr,
                 windowWidth);
-            buf_to_buf(numbersGraphicBufferPtr + BIG_NUM_WIDTH * ones,
+            buf_to_buf(numbersGraphicBufferPtr + (BIG_NUM_WIDTH * ones) * 4,
                 BIG_NUM_WIDTH,
                 BIG_NUM_HEIGHT,
                 GInfo[EDITOR_GRAPHIC_BIG_NUMBERS].width,
@@ -2233,13 +2301,13 @@ static void PrintBigNum(int x, int y, int flags, int value, int previousValue, i
         }
     } else {
 
-        buf_to_buf(numbersGraphicBufferPtr + BIG_NUM_WIDTH * 9,
+        buf_to_buf(numbersGraphicBufferPtr + (BIG_NUM_WIDTH * 9) * 4,
             BIG_NUM_WIDTH,
             BIG_NUM_HEIGHT,
             GInfo[EDITOR_GRAPHIC_BIG_NUMBERS].width,
             tensBufferPtr,
             windowWidth);
-        buf_to_buf(numbersGraphicBufferPtr + BIG_NUM_WIDTH * 9,
+        buf_to_buf(numbersGraphicBufferPtr + (BIG_NUM_WIDTH * 9) * 4,
             BIG_NUM_WIDTH,
             BIG_NUM_HEIGHT,
             GInfo[EDITOR_GRAPHIC_BIG_NUMBERS].width,
@@ -2274,7 +2342,7 @@ static void PrintLevelWin()
 
     text_font(101);
 
-    buf_to_buf(bckgnd + 640 * 280 + 32, 124, 32, 640, win_buf + 640 * 280 + 32, 640);
+    buf_to_buf(bckgnd + (640 * 280 + 32) * 4, 124, 32, 640, win_buf + (640 * 280 + 32) * 4, 640);
 
     // LEVEL
     y = 280;
@@ -2288,7 +2356,7 @@ static void PrintLevelWin()
     sprintf(stringBuffer, "%s %d",
         getmsg(&editor_message_file, &mesg, 113),
         level);
-    text_to_buf(win_buf + 640 * y + 32, stringBuffer, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 32) * 4, stringBuffer, 640, 640, color);
 
     // EXPERIENCE
     y += text_height() + 1;
@@ -2302,7 +2370,7 @@ static void PrintLevelWin()
     sprintf(stringBuffer, "%s %s",
         getmsg(&editor_message_file, &mesg, 114),
         itostndn(exp, formattedValueBuffer));
-    text_to_buf(win_buf + 640 * y + 32, stringBuffer, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 32) * 4, stringBuffer, 640, 640, color);
 
     // EXP NEEDED TO NEXT LEVEL
     y += text_height() + 1;
@@ -2328,7 +2396,7 @@ static void PrintLevelWin()
     sprintf(stringBuffer, "%s %s",
         getmsg(&editor_message_file, &mesg, expMsgId),
         formattedValue);
-    text_to_buf(win_buf + 640 * y + 32, stringBuffer, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 32) * 4, stringBuffer, 640, 640, color);
 }
 
 // 0x434B38
@@ -2376,7 +2444,7 @@ static void PrintBasicStat(int stat, bool animate, int previousValue)
 
         PrintBigNum(58, StatYpos[stat], flags, value, previousValue, edit_win);
 
-        buf_to_buf(bckgnd + off, 40, text_height(), 640, win_buf + off, 640);
+        buf_to_buf(bckgnd + (off) * 4, 40, text_height(), 640, win_buf + (off) * 4, 640);
 
         messageListItemId = critterGetStat(obj_dude, stat) + 199;
         if (messageListItemId > 210) {
@@ -2384,11 +2452,11 @@ static void PrintBasicStat(int stat, bool animate, int previousValue)
         }
 
         description = getmsg(&editor_message_file, &mesg, messageListItemId);
-        text_to_buf(win_buf + 640 * (StatYpos[stat] + 8) + 103, description, 640, 640, color);
+        text_to_buf(win_buf + (640 * (StatYpos[stat] + 8) + 103) * 4, description, 640, 640, color);
     } else {
         value = critterGetStat(obj_dude, stat);
         PrintBigNum(58, StatYpos[stat], 0, value, 0, edit_win);
-        buf_to_buf(bckgnd + off, 40, text_height(), 640, win_buf + off, 640);
+        buf_to_buf(bckgnd + (off) * 4, 40, text_height(), 640, win_buf + (off) * 4, 640);
 
         value = critterGetStat(obj_dude, stat);
         if (value > 10) {
@@ -2396,7 +2464,7 @@ static void PrintBasicStat(int stat, bool animate, int previousValue)
         }
 
         description = stat_level_description(value);
-        text_to_buf(win_buf + off, description, 640, 640, color);
+        text_to_buf(win_buf + (off) * 4, description, 640, 640, color);
     }
 }
 
@@ -2420,14 +2488,14 @@ static void PrintGender()
 
     memcpy(grphcpy[11],
         grphbmp[EDITOR_GRAPHIC_SEX_ON],
-        width * GInfo[EDITOR_GRAPHIC_SEX_ON].height);
+        width * GInfo[EDITOR_GRAPHIC_SEX_ON].height * 4);
     memcpy(grphcpy[EDITOR_GRAPHIC_SEX_OFF],
         grphbmp[10],
-        width * GInfo[EDITOR_GRAPHIC_SEX_OFF].height);
+        width * GInfo[EDITOR_GRAPHIC_SEX_OFF].height * 4);
 
     x += 6 * width;
-    text_to_buf(grphcpy[EDITOR_GRAPHIC_SEX_ON] + x, text, width, width, colorTable[14723]);
-    text_to_buf(grphcpy[EDITOR_GRAPHIC_SEX_OFF] + x, text, width, width, colorTable[18979]);
+    text_to_buf(grphcpy[EDITOR_GRAPHIC_SEX_ON] + (x) * 4, text, width, width, colorTable[14723]);
+    text_to_buf(grphcpy[EDITOR_GRAPHIC_SEX_OFF] + (x) * 4, text, width, width, colorTable[18979]);
 }
 
 // 0x43501C
@@ -2450,14 +2518,14 @@ static void PrintAgeBig()
 
     memcpy(grphcpy[EDITOR_GRAPHIC_AGE_ON],
         grphbmp[EDITOR_GRAPHIC_AGE_ON],
-        width * GInfo[EDITOR_GRAPHIC_AGE_ON].height);
+        width * GInfo[EDITOR_GRAPHIC_AGE_ON].height * 4);
     memcpy(grphcpy[EDITOR_GRAPHIC_AGE_OFF],
         grphbmp[EDITOR_GRAPHIC_AGE_OFF],
-        width * GInfo[EDITOR_GRAPHIC_AGE_ON].height);
+        width * GInfo[EDITOR_GRAPHIC_AGE_ON].height * 4);
 
     x += 6 * width;
-    text_to_buf(grphcpy[EDITOR_GRAPHIC_AGE_ON] + x, text, width, width, colorTable[14723]);
-    text_to_buf(grphcpy[EDITOR_GRAPHIC_AGE_OFF] + x, text, width, width, colorTable[18979]);
+    text_to_buf(grphcpy[EDITOR_GRAPHIC_AGE_ON] + (x) * 4, text, width, width, colorTable[14723]);
+    text_to_buf(grphcpy[EDITOR_GRAPHIC_AGE_OFF] + (x) * 4, text, width, width, colorTable[18979]);
 }
 
 // 0x435118
@@ -2506,14 +2574,14 @@ static void PrintBigname()
 
     memcpy(grphcpy[EDITOR_GRAPHIC_NAME_ON],
         grphbmp[EDITOR_GRAPHIC_NAME_ON],
-        GInfo[EDITOR_GRAPHIC_NAME_ON].width * GInfo[EDITOR_GRAPHIC_NAME_ON].height);
+        GInfo[EDITOR_GRAPHIC_NAME_ON].width * GInfo[EDITOR_GRAPHIC_NAME_ON].height * 4);
     memcpy(grphcpy[EDITOR_GRAPHIC_NAME_OFF],
         grphbmp[EDITOR_GRAPHIC_NAME_OFF],
-        GInfo[EDITOR_GRAPHIC_NAME_OFF].width * GInfo[EDITOR_GRAPHIC_NAME_OFF].height);
+        GInfo[EDITOR_GRAPHIC_NAME_OFF].width * GInfo[EDITOR_GRAPHIC_NAME_OFF].height * 4);
 
     x += 6 * width;
-    text_to_buf(grphcpy[EDITOR_GRAPHIC_NAME_ON] + x, text, width, width, colorTable[14723]);
-    text_to_buf(grphcpy[EDITOR_GRAPHIC_NAME_OFF] + x, text, width, width, colorTable[18979]);
+    text_to_buf(grphcpy[EDITOR_GRAPHIC_NAME_ON] + (x) * 4, text, width, width, colorTable[14723]);
+    text_to_buf(grphcpy[EDITOR_GRAPHIC_NAME_OFF] + (x) * 4, text, width, width, colorTable[18979]);
 }
 
 // 0x43527C
@@ -2531,7 +2599,7 @@ static void ListDrvdStats()
 
     y = 46;
 
-    buf_to_buf(bckgnd + 640 * y + 194, 118, 108, 640, win_buf + 640 * y + 194, 640);
+    buf_to_buf(bckgnd + (640 * y + 194) * 4, 118, 108, 640, win_buf + (640 * y + 194) * 4, 640);
 
     // Hit Points
     if (info_line == EDITOR_HIT_POINTS) {
@@ -2552,10 +2620,10 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 300);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     sprintf(t, "%d/%d", currHp, maxHp);
-    text_to_buf(win_buf + 640 * y + 263, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 263) * 4, t, 640, 640, color);
 
     // Poisoned
     y += text_height() + 3;
@@ -2568,7 +2636,7 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 312);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     // Radiated
     y += text_height() + 3;
@@ -2581,7 +2649,7 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 313);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     // Eye Damage
     y += text_height() + 3;
@@ -2594,7 +2662,7 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 314);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     // Crippled Right Arm
     y += text_height() + 3;
@@ -2607,7 +2675,7 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 315);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     // Crippled Left Arm
     y += text_height() + 3;
@@ -2620,7 +2688,7 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 316);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     // Crippled Right Leg
     y += text_height() + 3;
@@ -2633,7 +2701,7 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 317);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     // Crippled Left Leg
     y += text_height() + 3;
@@ -2646,11 +2714,11 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 318);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     y = 179;
 
-    buf_to_buf(bckgnd + 640 * y + 194, 116, 130, 640, win_buf + 640 * y + 194, 640);
+    buf_to_buf(bckgnd + (640 * y + 194) * 4, 116, 130, 640, win_buf + (640 * y + 194) * 4, 640);
 
     // Armor Class
     if (info_line == EDITOR_FIRST_DERIVED_STAT + EDITOR_DERIVED_STAT_ARMOR_CLASS) {
@@ -2661,10 +2729,10 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 302);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     sprintf(t, "%d", critterGetStat(obj_dude, STAT_ARMOR_CLASS));
-    text_to_buf(win_buf + 640 * y + 288, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 288) * 4, t, 640, 640, color);
 
     // Action Points
     y += text_height() + 3;
@@ -2677,10 +2745,10 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 301);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     sprintf(t, "%d", critterGetStat(obj_dude, STAT_MAXIMUM_ACTION_POINTS));
-    text_to_buf(win_buf + 640 * y + 288, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 288) * 4, t, 640, 640, color);
 
     // Carry Weight
     y += text_height() + 3;
@@ -2693,10 +2761,10 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 311);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     sprintf(t, "%d", critterGetStat(obj_dude, STAT_CARRY_WEIGHT));
-    text_to_buf(win_buf + 640 * y + 288, t, 640, 640, critterIsOverloaded(obj_dude) ? colorTable[31744] : color);
+    text_to_buf(win_buf + (640 * y + 288) * 4, t, 640, 640, critterIsOverloaded(obj_dude) ? colorTable[31744] : color);
 
     // Melee Damage
     y += text_height() + 3;
@@ -2709,10 +2777,10 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 304);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     sprintf(t, "%d", critterGetStat(obj_dude, STAT_MELEE_DAMAGE));
-    text_to_buf(win_buf + 640 * y + 288, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 288) * 4, t, 640, 640, color);
 
     // Damage Resistance
     y += text_height() + 3;
@@ -2725,10 +2793,10 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 305);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     sprintf(t, "%d%%", critterGetStat(obj_dude, STAT_DAMAGE_RESISTANCE));
-    text_to_buf(win_buf + 640 * y + 288, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 288) * 4, t, 640, 640, color);
 
     // Poison Resistance
     y += text_height() + 3;
@@ -2741,10 +2809,10 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 306);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     sprintf(t, "%d%%", critterGetStat(obj_dude, STAT_POISON_RESISTANCE));
-    text_to_buf(win_buf + 640 * y + 288, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 288) * 4, t, 640, 640, color);
 
     // Radiation Resistance
     y += text_height() + 3;
@@ -2757,10 +2825,10 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 307);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     sprintf(t, "%d%%", critterGetStat(obj_dude, STAT_RADIATION_RESISTANCE));
-    text_to_buf(win_buf + 640 * y + 288, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 288) * 4, t, 640, 640, color);
 
     // Sequence
     y += text_height() + 3;
@@ -2773,10 +2841,10 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 308);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     sprintf(t, "%d", critterGetStat(obj_dude, STAT_SEQUENCE));
-    text_to_buf(win_buf + 640 * y + 288, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 288) * 4, t, 640, 640, color);
 
     // Healing Rate
     y += text_height() + 3;
@@ -2789,10 +2857,10 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 309);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     sprintf(t, "%d", critterGetStat(obj_dude, STAT_HEALING_RATE));
-    text_to_buf(win_buf + 640 * y + 288, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 288) * 4, t, 640, 640, color);
 
     // Critical Chance
     y += text_height() + 3;
@@ -2805,10 +2873,10 @@ static void ListDrvdStats()
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 310);
     sprintf(t, "%s", messageListItemText);
-    text_to_buf(win_buf + 640 * y + 194, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 194) * 4, t, 640, 640, color);
 
     sprintf(t, "%d%%", critterGetStat(obj_dude, STAT_CRITICAL_CHANCE));
-    text_to_buf(win_buf + 640 * y + 288, t, 640, 640, color);
+    text_to_buf(win_buf + (640 * y + 288) * 4, t, 640, 640, color);
 }
 
 // 0x436154
@@ -2833,25 +2901,25 @@ static void ListSkills(int a1)
         SliderPlusID = -1;
     }
 
-    buf_to_buf(bckgnd + 370, 270, 252, 640, win_buf + 370, 640);
+    buf_to_buf(bckgnd + (370) * 4, 270, 252, 640, win_buf + (370) * 4, 640);
 
     text_font(103);
 
     // SKILLS
     str = getmsg(&editor_message_file, &mesg, 117);
-    text_to_buf(win_buf + 640 * 5 + 380, str, 640, 640, colorTable[18979]);
+    text_to_buf(win_buf + (640 * 5 + 380) * 4, str, 640, 640, colorTable[18979]);
 
     if (!glblmode) {
         // SKILL POINTS
         str = getmsg(&editor_message_file, &mesg, 112);
-        text_to_buf(win_buf + 640 * 233 + 400, str, 640, 640, colorTable[18979]);
+        text_to_buf(win_buf + (640 * 233 + 400) * 4, str, 640, 640, colorTable[18979]);
 
         value = stat_pc_get(PC_STAT_UNSPENT_SKILL_POINTS);
         PrintBigNum(522, 228, 0, value, 0, edit_win);
     } else {
         // TAG SKILLS
         str = getmsg(&editor_message_file, &mesg, 138);
-        text_to_buf(win_buf + 640 * 233 + 422, str, 640, 640, colorTable[18979]);
+        text_to_buf(win_buf + (640 * 233 + 422) * 4, str, 640, 640, colorTable[18979]);
 
         if (a1 == 2 && !first_skill_list) {
             PrintBigNum(522, 228, ANIMATE, tagskill_count, old_tags, edit_win);
@@ -2882,12 +2950,12 @@ static void ListSkills(int a1)
         }
 
         str = skill_name(i);
-        text_to_buf(win_buf + 640 * y + 380, str, 640, 640, color);
+        text_to_buf(win_buf + (640 * y + 380) * 4, str, 640, 640, color);
 
         value = skill_level(obj_dude, i);
         sprintf(valueString, "%d%%", value);
 
-        text_to_buf(win_buf + 640 * y + 573, valueString, 640, 640, color);
+        text_to_buf(win_buf + (640 * y + 573) * 4, valueString, 640, 640, color);
 
         y += text_height() + 1;
     }
@@ -2901,17 +2969,18 @@ static void ListSkills(int a1)
             GInfo[EDITOR_GRAPHIC_SLIDER].width,
             GInfo[EDITOR_GRAPHIC_SLIDER].height,
             GInfo[EDITOR_GRAPHIC_SLIDER].width,
-            win_buf + 640 * (y + 16) + 592,
+            win_buf + (640 * (y + 16) + 592) * 4,
             640);
 
         if (a1 == 0) {
             if (SliderPlusID == -1) {
+                int S = ui_get_scale();
                 SliderPlusID = win_register_button(
                     edit_win,
-                    614,
-                    slider_y - 7,
-                    GInfo[EDITOR_GRAPHIC_SLIDER_PLUS_ON].width,
-                    GInfo[EDITOR_GRAPHIC_SLIDER_PLUS_ON].height,
+                    614 * S,
+                    (slider_y - 7) * S,
+                    GInfo[EDITOR_GRAPHIC_SLIDER_PLUS_ON].width * S,
+                    GInfo[EDITOR_GRAPHIC_SLIDER_PLUS_ON].height * S,
                     -1,
                     522,
                     521,
@@ -2924,12 +2993,13 @@ static void ListSkills(int a1)
             }
 
             if (SliderNegID == -1) {
+                int S = ui_get_scale();
                 SliderNegID = win_register_button(
                     edit_win,
-                    614,
-                    slider_y + 4 - 12 + GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_ON].height,
-                    GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_ON].width,
-                    GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_OFF].height,
+                    614 * S,
+                    (slider_y + 4 - 12 + GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_ON].height) * S,
+                    GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_ON].width * S,
+                    GInfo[EDITOR_GRAPHIC_SLIDER_MINUS_OFF].height * S,
                     -1,
                     524,
                     523,
@@ -2955,7 +3025,7 @@ static void DrawInfoWin()
         return;
     }
 
-    buf_to_buf(bckgnd + (640 * 267) + 345, 277, 170, 640, win_buf + (267 * 640) + 345, 640);
+    buf_to_buf(bckgnd + ((640 * 267) + 345) * 4, 277, 170, 640, win_buf + ((267 * 640) + 345) * 4, 640);
 
     if (info_line >= 0 && info_line < 7) {
         description = stat_description(info_line);
@@ -3097,8 +3167,8 @@ static int NameWindow()
     int windowWidth = GInfo[EDITOR_GRAPHIC_CHARWIN].width;
     int windowHeight = GInfo[EDITOR_GRAPHIC_CHARWIN].height;
 
-    int nameWindowX = 17;
-    int nameWindowY = 0;
+    int nameWindowX = EDITOR_WINDOW_X + 17 * ui_get_scale();
+    int nameWindowY = EDITOR_WINDOW_Y + 0;
     int win = win_add(nameWindowX, nameWindowY, windowWidth, windowHeight, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
     if (win == -1) {
         return -1;
@@ -3107,26 +3177,26 @@ static int NameWindow()
     unsigned char* windowBuf = win_get_buf(win);
 
     // Copy background
-    memcpy(windowBuf, grphbmp[EDITOR_GRAPHIC_CHARWIN], windowWidth * windowHeight);
+    memcpy(windowBuf, grphbmp[EDITOR_GRAPHIC_CHARWIN], windowWidth * windowHeight * 4);
 
     trans_buf_to_buf(
         grphbmp[EDITOR_GRAPHIC_NAME_BOX],
         GInfo[EDITOR_GRAPHIC_NAME_BOX].width,
         GInfo[EDITOR_GRAPHIC_NAME_BOX].height,
         GInfo[EDITOR_GRAPHIC_NAME_BOX].width,
-        windowBuf + windowWidth * 13 + 13,
+        windowBuf + (windowWidth * 13 + 13) * 4,
         windowWidth);
     trans_buf_to_buf(grphbmp[EDITOR_GRAPHIC_DONE_BOX],
         GInfo[EDITOR_GRAPHIC_DONE_BOX].width,
         GInfo[EDITOR_GRAPHIC_DONE_BOX].height,
         GInfo[EDITOR_GRAPHIC_DONE_BOX].width,
-        windowBuf + windowWidth * 40 + 13,
+        windowBuf + (windowWidth * 40 + 13) * 4,
         windowWidth);
 
     text_font(103);
 
     text = getmsg(&editor_message_file, &mesg, 100);
-    text_to_buf(windowBuf + windowWidth * 44 + 50, text, windowWidth, windowWidth, colorTable[18979]);
+    text_to_buf(windowBuf + (windowWidth * 44 + 50) * 4, text, windowWidth, windowWidth, colorTable[18979]);
 
     int doneBtn = win_register_button(win,
         26,
@@ -3177,7 +3247,7 @@ static int NameWindow()
         GInfo[EDITOR_GRAPHIC_NAME_BOX].width,
         GInfo[EDITOR_GRAPHIC_NAME_BOX].height,
         GInfo[EDITOR_GRAPHIC_NAME_BOX].width,
-        windowBuf + GInfo[EDITOR_GRAPHIC_CHARWIN].width * 13 + 13,
+        windowBuf + (GInfo[EDITOR_GRAPHIC_CHARWIN].width * 13 + 13) * 4,
         GInfo[EDITOR_GRAPHIC_CHARWIN].width);
 
     PrintName(windowBuf, GInfo[EDITOR_GRAPHIC_CHARWIN].width);
@@ -3204,7 +3274,7 @@ static void PrintName(unsigned char* buf, int pitch)
     // TODO: Check.
     strcpy(str, v4);
 
-    text_to_buf(buf + 19 * pitch + 21, str, pitch, pitch, colorTable[992]);
+    text_to_buf(buf + (19 * pitch + 21) * 4, str, pitch, pitch, colorTable[992]);
 }
 
 // 0x436FEC
@@ -3229,8 +3299,8 @@ static int AgeWindow()
     windowWidth = GInfo[EDITOR_GRAPHIC_CHARWIN].width;
     windowHeight = GInfo[EDITOR_GRAPHIC_CHARWIN].height;
 
-    int ageWindowX = GInfo[EDITOR_GRAPHIC_NAME_ON].width + 9;
-    int ageWindowY = 0;
+    int ageWindowX = EDITOR_WINDOW_X + (GInfo[EDITOR_GRAPHIC_NAME_ON].width + 9) * ui_get_scale();
+    int ageWindowY = EDITOR_WINDOW_Y + 0;
     win = win_add(ageWindowX, ageWindowY, windowWidth, windowHeight, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
     if (win == -1) {
         return -1;
@@ -3238,27 +3308,27 @@ static int AgeWindow()
 
     windowBuf = win_get_buf(win);
 
-    memcpy(windowBuf, grphbmp[EDITOR_GRAPHIC_CHARWIN], windowWidth * windowHeight);
+    memcpy(windowBuf, grphbmp[EDITOR_GRAPHIC_CHARWIN], windowWidth * windowHeight * 4);
 
     trans_buf_to_buf(
         grphbmp[EDITOR_GRAPHIC_AGE_BOX],
         GInfo[EDITOR_GRAPHIC_AGE_BOX].width,
         GInfo[EDITOR_GRAPHIC_AGE_BOX].height,
         GInfo[EDITOR_GRAPHIC_AGE_BOX].width,
-        windowBuf + windowWidth * 7 + 8,
+        windowBuf + (windowWidth * 7 + 8) * 4,
         windowWidth);
     trans_buf_to_buf(
         grphbmp[EDITOR_GRAPHIC_DONE_BOX],
         GInfo[EDITOR_GRAPHIC_DONE_BOX].width,
         GInfo[EDITOR_GRAPHIC_DONE_BOX].height,
         GInfo[EDITOR_GRAPHIC_DONE_BOX].width,
-        windowBuf + windowWidth * 40 + 13,
+        windowBuf + (windowWidth * 40 + 13) * 4,
         GInfo[EDITOR_GRAPHIC_CHARWIN].width);
 
     text_font(103);
 
     messageListItemText = getmsg(&editor_message_file, &mesg, 100);
-    text_to_buf(windowBuf + windowWidth * 44 + 50, messageListItemText, windowWidth, windowWidth, colorTable[18979]);
+    text_to_buf(windowBuf + (windowWidth * 44 + 50) * 4, messageListItemText, windowWidth, windowWidth, colorTable[18979]);
 
     age = critterGetStat(obj_dude, STAT_AGE);
     PrintBigNum(55, 10, 0, age, 0, win);
@@ -3368,7 +3438,7 @@ static int AgeWindow()
             PrintAgeBig();
             PrintBasicStat(RENDER_ALL_STATS, 0, 0);
             ListDrvdStats();
-            win_draw(edit_win);
+            editor_draw();
             win_draw(win);
         }
 
@@ -3415,7 +3485,7 @@ static int AgeWindow()
                         PrintAgeBig();
                         PrintBasicStat(RENDER_ALL_STATS, 0, 0);
                         ListDrvdStats();
-                        win_draw(edit_win);
+                        editor_draw();
                         win_draw(win);
                     }
                 }
@@ -3445,7 +3515,7 @@ static int AgeWindow()
     PrintAgeBig();
     PrintBasicStat(RENDER_ALL_STATS, 0, 0);
     ListDrvdStats();
-    win_draw(edit_win);
+    editor_draw();
     win_draw(win);
     win_delete(win);
     return 0;
@@ -3459,10 +3529,10 @@ static void SexWindow()
     int windowWidth = GInfo[EDITOR_GRAPHIC_CHARWIN].width;
     int windowHeight = GInfo[EDITOR_GRAPHIC_CHARWIN].height;
 
-    int genderWindowX = 9
+    int genderWindowX = EDITOR_WINDOW_X + (9
         + GInfo[EDITOR_GRAPHIC_NAME_ON].width
-        + GInfo[EDITOR_GRAPHIC_AGE_ON].width;
-    int genderWindowY = 0;
+        + GInfo[EDITOR_GRAPHIC_AGE_ON].width) * ui_get_scale();
+    int genderWindowY = EDITOR_WINDOW_Y + 0;
     int win = win_add(genderWindowX, genderWindowY, windowWidth, windowHeight, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
 
     if (win == -1) {
@@ -3472,19 +3542,19 @@ static void SexWindow()
     unsigned char* windowBuf = win_get_buf(win);
 
     // Copy background
-    memcpy(windowBuf, grphbmp[EDITOR_GRAPHIC_CHARWIN], windowWidth * windowHeight);
+    memcpy(windowBuf, grphbmp[EDITOR_GRAPHIC_CHARWIN], windowWidth * windowHeight * 4);
 
     trans_buf_to_buf(grphbmp[EDITOR_GRAPHIC_DONE_BOX],
         GInfo[EDITOR_GRAPHIC_DONE_BOX].width,
         GInfo[EDITOR_GRAPHIC_DONE_BOX].height,
         GInfo[EDITOR_GRAPHIC_DONE_BOX].width,
-        windowBuf + windowWidth * 44 + 15,
+        windowBuf + (windowWidth * 44 + 15) * 4,
         windowWidth);
 
     text_font(103);
 
     text = getmsg(&editor_message_file, &mesg, 100);
-    text_to_buf(windowBuf + windowWidth * 48 + 52, text, windowWidth, windowWidth, colorTable[18979]);
+    text_to_buf(windowBuf + (windowWidth * 48 + 52) * 4, text, windowWidth, windowWidth, colorTable[18979]);
 
     int doneBtn = win_register_button(win,
         28,
@@ -3558,7 +3628,7 @@ static void SexWindow()
             stat_set_base(obj_dude, STAT_GENDER, savedGender);
             PrintBasicStat(RENDER_ALL_STATS, 0, 0);
             ListDrvdStats();
-            win_draw(edit_win);
+            editor_draw();
             break;
         }
 
@@ -3652,7 +3722,7 @@ static void StatButton(int eventCode)
                 info_line = incrementingStat;
             }
 
-            win_draw(edit_win);
+            editor_draw();
         }
 
         if (v11 >= 19.2) {
@@ -3694,15 +3764,15 @@ static int OptionWindow()
     };
 
     if (glblmode) {
-        int optionsWindowX = 238;
-        int optionsWindowY = 90;
+        int optionsWindowX = EDITOR_WINDOW_X + 238 * ui_get_scale();
+        int optionsWindowY = EDITOR_WINDOW_Y + 90 * ui_get_scale();
         int win = win_add(optionsWindowX, optionsWindowY, GInfo[41].width, GInfo[41].height, 256, WINDOW_FLAG_MODAL | WINDOW_FLAG_0x02);
         if (win == -1) {
             return -1;
         }
 
         unsigned char* windowBuffer = win_get_buf(win);
-        memcpy(windowBuffer, grphbmp[41], GInfo[41].width * GInfo[41].height);
+        memcpy(windowBuffer, grphbmp[41], GInfo[41].width * GInfo[41].height * 4);
 
         text_font(103);
 
@@ -3719,24 +3789,24 @@ static int OptionWindow()
             }
 
             do {
-                down[index] = (unsigned char*)mem_malloc(size);
+                down[index] = (unsigned char*)mem_malloc(size * 4);
                 if (down[index] == NULL) {
                     err = 1;
                     break;
                 }
 
-                up[index] = (unsigned char*)mem_malloc(size);
+                up[index] = (unsigned char*)mem_malloc(size * 4);
                 if (up[index] == NULL) {
                     err = 2;
                     break;
                 }
 
-                memcpy(down[index], grphbmp[43], size);
-                memcpy(up[index], grphbmp[42], size);
+                memcpy(down[index], grphbmp[43], size * 4);
+                memcpy(up[index], grphbmp[42], size * 4);
 
                 strcpy(string4, getmsg(&editor_message_file, &mesg, 600 + index));
 
-                int offset = width * 7 + width / 2 - text_width(string4) / 2;
+                int offset = (width * 7 + width / 2 - text_width(string4) / 2) * 4;
                 text_to_buf(up[index] + offset, string4, width, width, colorTable[18979]);
                 text_to_buf(down[index] + offset, string4, width, width, colorTable[14723]);
 
@@ -4606,27 +4676,27 @@ static void ResetScreen()
     PrintBasicStat(7, 0, 0);
     ListDrvdStats();
     DrawInfoWin();
-    win_draw(edit_win);
+    editor_draw();
 }
 
 // 0x43A5BC
 static void RegInfoAreas()
 {
-    win_register_button(edit_win, 19, 38, 125, 227, -1, -1, 525, -1, NULL, NULL, NULL, 0);
-    win_register_button(edit_win, 28, 280, 124, 32, -1, -1, 526, -1, NULL, NULL, NULL, 0);
+    win_register_button(edit_win, 19 * ui_get_scale(), 38 * ui_get_scale(), 125 * ui_get_scale(), 227 * ui_get_scale(), -1, -1, 525, -1, NULL, NULL, NULL, 0);
+    win_register_button(edit_win, 28 * ui_get_scale(), 280 * ui_get_scale(), 124 * ui_get_scale(), 32 * ui_get_scale(), -1, -1, 526, -1, NULL, NULL, NULL, 0);
 
     if (glblmode) {
-        win_register_button(edit_win, 52, 324, 169, 20, -1, -1, 533, -1, NULL, NULL, NULL, 0);
-        win_register_button(edit_win, 47, 353, 245, 100, -1, -1, 534, -1, NULL, NULL, NULL, 0);
+        win_register_button(edit_win, 52 * ui_get_scale(), 324 * ui_get_scale(), 169 * ui_get_scale(), 20 * ui_get_scale(), -1, -1, 533, -1, NULL, NULL, NULL, 0);
+        win_register_button(edit_win, 47 * ui_get_scale(), 353 * ui_get_scale(), 245 * ui_get_scale(), 100 * ui_get_scale(), -1, -1, 534, -1, NULL, NULL, NULL, 0);
     } else {
-        win_register_button(edit_win, 28, 363, 283, 105, -1, -1, 527, -1, NULL, NULL, NULL, 0);
+        win_register_button(edit_win, 28 * ui_get_scale(), 363 * ui_get_scale(), 283 * ui_get_scale(), 105 * ui_get_scale(), -1, -1, 527, -1, NULL, NULL, NULL, 0);
     }
 
-    win_register_button(edit_win, 191, 41, 122, 110, -1, -1, 528, -1, NULL, NULL, NULL, 0);
-    win_register_button(edit_win, 191, 175, 122, 135, -1, -1, 529, -1, NULL, NULL, NULL, 0);
-    win_register_button(edit_win, 376, 5, 223, 20, -1, -1, 530, -1, NULL, NULL, NULL, 0);
-    win_register_button(edit_win, 370, 27, 223, 195, -1, -1, 531, -1, NULL, NULL, NULL, 0);
-    win_register_button(edit_win, 396, 228, 171, 25, -1, -1, 532, -1, NULL, NULL, NULL, 0);
+    win_register_button(edit_win, 191 * ui_get_scale(), 41 * ui_get_scale(), 122 * ui_get_scale(), 110 * ui_get_scale(), -1, -1, 528, -1, NULL, NULL, NULL, 0);
+    win_register_button(edit_win, 191 * ui_get_scale(), 175 * ui_get_scale(), 122 * ui_get_scale(), 135 * ui_get_scale(), -1, -1, 529, -1, NULL, NULL, NULL, 0);
+    win_register_button(edit_win, 376 * ui_get_scale(), 5 * ui_get_scale(), 223 * ui_get_scale(), 20 * ui_get_scale(), -1, -1, 530, -1, NULL, NULL, NULL, 0);
+    win_register_button(edit_win, 370 * ui_get_scale(), 27 * ui_get_scale(), 223 * ui_get_scale(), 195 * ui_get_scale(), -1, -1, 531, -1, NULL, NULL, NULL, 0);
+    win_register_button(edit_win, 396 * ui_get_scale(), 228 * ui_get_scale(), 171 * ui_get_scale(), 25 * ui_get_scale(), -1, -1, 532, -1, NULL, NULL, NULL, 0);
 }
 
 // NOTE: Inlined.
@@ -4783,7 +4853,7 @@ static int DrawCard(int graphicId, const char* name, const char* attributes, cha
         return -1;
     }
 
-    buf_to_buf(buf, size.width, size.height, size.width, win_buf + 640 * 309 + 484, 640);
+    buf_to_buf(buf, size.width, size.height, size.width, win_buf + (640 * 309 + 484) * 4, 640);
 
     v9 = 150;
     ptr = buf;
@@ -4803,14 +4873,14 @@ static int DrawCard(int graphicId, const char* name, const char* attributes, cha
 
     text_font(102);
 
-    text_to_buf(win_buf + 640 * 272 + 348, name, 640, 640, colorTable[0]);
+    text_to_buf(win_buf + (640 * 272 + 348) * 4, name, 640, 640, colorTable[0]);
     int nameFontLineHeight = text_height();
     if (attributes != NULL) {
         int nameWidth = text_width(name);
 
         text_font(101);
         int attributesFontLineHeight = text_height();
-        text_to_buf(win_buf + 640 * (268 + nameFontLineHeight - attributesFontLineHeight) + 348 + nameWidth + 8, attributes, 640, 640, colorTable[0]);
+        text_to_buf(win_buf + (640 * (268 + nameFontLineHeight - attributesFontLineHeight) + 348 + nameWidth + 8) * 4, attributes, 640, 640, colorTable[0]);
     }
 
     y = nameFontLineHeight;
@@ -4832,7 +4902,7 @@ static int DrawCard(int graphicId, const char* name, const char* attributes, cha
         short ending = beginnings[i + 1];
         char c = description[ending];
         description[ending] = '\0';
-        text_to_buf(win_buf + 640 * y + 348, description + beginning, 640, 640, colorTable[0]);
+        text_to_buf(win_buf + (640 * y + 348) * 4, description + beginning, 640, 640, colorTable[0]);
         description[ending] = c;
         y += descriptionFontLineHeight;
     }
@@ -4856,6 +4926,9 @@ static int DrawCard(int graphicId, const char* name, const char* attributes, cha
 static void FldrButton()
 {
     mouse_get_position(&mouse_xpos, &mouse_ypos);
+    // Convert absolute screen coords to window-local unscaled coords
+    mouse_xpos = (mouse_xpos - EDITOR_WINDOW_X) / ui_get_scale();
+    mouse_ypos = (mouse_ypos - EDITOR_WINDOW_Y) / ui_get_scale();
     gsound_play_sfx_file("ib3p1xx1");
 
     if (mouse_xpos >= 208) {
@@ -4877,6 +4950,9 @@ static void FldrButton()
 static void InfoButton(int eventCode)
 {
     mouse_get_position(&mouse_xpos, &mouse_ypos);
+    // Convert absolute screen coords to window-local unscaled coords
+    mouse_xpos = (mouse_xpos - EDITOR_WINDOW_X) / ui_get_scale();
+    mouse_ypos = (mouse_ypos - EDITOR_WINDOW_Y) / ui_get_scale();
 
     switch (eventCode) {
     case 525:
@@ -5106,7 +5182,7 @@ static void SliderBtn(int keyCode)
 
             PrintBigNum(522, 228, flags, stat_pc_get(PC_STAT_UNSPENT_SKILL_POINTS), unspentSp, edit_win);
 
-            win_draw(edit_win);
+            editor_draw();
         }
 
         if (!isUsingKeyboard) {
@@ -5201,7 +5277,7 @@ static void TagSkillSelect(int skill)
     ListDrvdStats();
     ListSkills(2);
     DrawInfoWin();
-    win_draw(edit_win);
+    editor_draw();
 }
 
 // 0x43B8A8
@@ -5222,7 +5298,7 @@ static void ListTraits()
         v0 = info_line - 82;
     }
 
-    buf_to_buf(bckgnd + 640 * 353 + 47, 245, 100, 640, win_buf + 640 * 353 + 47, 640);
+    buf_to_buf(bckgnd + (640 * 353 + 47) * 4, 245, 100, 640, win_buf + (640 * 353 + 47) * 4, 640);
 
     text_font(101);
 
@@ -5251,7 +5327,7 @@ static void ListTraits()
         }
 
         traitName = trait_name(i);
-        text_to_buf(win_buf + 640 * (int)y + 47, traitName, 640, 640, color);
+        text_to_buf(win_buf + (640 * (int)y + 47) * 4, traitName, 640, 640, color);
         y += step;
     }
 
@@ -5277,7 +5353,7 @@ static void ListTraits()
         }
 
         traitName = trait_name(i);
-        text_to_buf(win_buf + 640 * (int)y + 199, traitName, 640, 640, color);
+        text_to_buf(win_buf + (640 * (int)y + 199) * 4, traitName, 640, 640, color);
         y += step;
     }
 }
@@ -5346,7 +5422,7 @@ static void TraitSelect(int trait)
     PrintBasicStat(RENDER_ALL_STATS, false, 0);
     ListDrvdStats();
     DrawInfoWin();
-    win_draw(edit_win);
+    editor_draw();
 }
 
 // 0x43BCE0
@@ -5573,7 +5649,7 @@ static int UpdateLevel()
     if (free_perk != 0) {
         folder = 0;
         DrawFolder();
-        win_draw(edit_win);
+        editor_draw();
 
         int rc = perks_dialog();
         if (rc == -1) {
@@ -5596,12 +5672,12 @@ static int UpdateLevel()
 static void RedrwDPrks()
 {
     buf_to_buf(
-        pbckgnd + 280,
+        pbckgnd + (280) * 4,
         293,
-        PERK_WINDOW_HEIGHT,
-        PERK_WINDOW_WIDTH,
-        pwin_buf + 280,
-        PERK_WINDOW_WIDTH);
+        PERK_WINDOW_BASE_HEIGHT,
+        PERK_WINDOW_BASE_WIDTH,
+        pwin_buf + (280) * 4,
+        PERK_WINDOW_BASE_WIDTH);
 
     ListDPerks();
 
@@ -5621,7 +5697,7 @@ static void RedrwDPrks()
 
     DrawCard2(perkFrmId, perkName, perkRank, perkDescription);
 
-    win_draw(pwin);
+    perk_draw();
 }
 
 // 0x43C4F0
@@ -5652,16 +5728,30 @@ static int perks_dialog()
         return -1;
     }
 
-    pwin_buf = win_get_buf(pwin);
-    memcpy(pwin_buf, pbckgnd, PERK_WINDOW_WIDTH * PERK_WINDOW_HEIGHT);
+    perk_actual_win_buf = win_get_buf(pwin);
+    if (ui_get_scale() > 1) {
+        perk_render_buf = (unsigned char*)mem_malloc(PERK_WINDOW_BASE_WIDTH * PERK_WINDOW_BASE_HEIGHT * 4);
+        if (perk_render_buf == NULL) {
+            win_delete(pwin);
+            art_ptr_unlock(backgroundFrmHandle);
+            return -1;
+        }
+        pwin_buf = perk_render_buf;
+    } else {
+        perk_render_buf = NULL;
+        pwin_buf = perk_actual_win_buf;
+    }
+    memcpy(pwin_buf, pbckgnd, PERK_WINDOW_BASE_WIDTH * PERK_WINDOW_BASE_HEIGHT * 4);
 
     int btn;
 
+    int S = ui_get_scale();
+
     btn = win_register_button(pwin,
-        48,
-        186,
-        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].width,
-        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].height,
+        48 * S,
+        186 * S,
+        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].width * S,
+        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].height * S,
         -1,
         -1,
         -1,
@@ -5675,10 +5765,10 @@ static int perks_dialog()
     }
 
     btn = win_register_button(pwin,
-        153,
-        186,
-        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].width,
-        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].height,
+        153 * S,
+        186 * S,
+        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].width * S,
+        GInfo[EDITOR_GRAPHIC_LITTLE_RED_BUTTON_UP].height * S,
         -1,
         -1,
         -1,
@@ -5692,10 +5782,10 @@ static int perks_dialog()
     }
 
     btn = win_register_button(pwin,
-        25,
-        46,
-        GInfo[EDITOR_GRAPHIC_UP_ARROW_ON].width,
-        GInfo[EDITOR_GRAPHIC_UP_ARROW_ON].height,
+        25 * S,
+        46 * S,
+        GInfo[EDITOR_GRAPHIC_UP_ARROW_ON].width * S,
+        GInfo[EDITOR_GRAPHIC_UP_ARROW_ON].height * S,
         -1,
         574,
         572,
@@ -5709,10 +5799,10 @@ static int perks_dialog()
     }
 
     btn = win_register_button(pwin,
-        25,
-        47 + GInfo[EDITOR_GRAPHIC_UP_ARROW_ON].height,
-        GInfo[EDITOR_GRAPHIC_UP_ARROW_ON].width,
-        GInfo[EDITOR_GRAPHIC_UP_ARROW_ON].height,
+        25 * S,
+        (47 + GInfo[EDITOR_GRAPHIC_UP_ARROW_ON].height) * S,
+        GInfo[EDITOR_GRAPHIC_UP_ARROW_ON].width * S,
+        GInfo[EDITOR_GRAPHIC_UP_ARROW_ON].height * S,
         -1,
         575,
         573,
@@ -5726,10 +5816,10 @@ static int perks_dialog()
     }
 
     win_register_button(pwin,
-        PERK_WINDOW_LIST_X,
-        PERK_WINDOW_LIST_Y,
-        PERK_WINDOW_LIST_WIDTH,
-        PERK_WINDOW_LIST_HEIGHT,
+        PERK_WINDOW_LIST_X * S,
+        PERK_WINDOW_LIST_Y * S,
+        PERK_WINDOW_LIST_WIDTH * S,
+        PERK_WINDOW_LIST_HEIGHT * S,
         -1,
         -1,
         -1,
@@ -5745,15 +5835,15 @@ static int perks_dialog()
 
     // PICK A NEW PERK
     msg = getmsg(&editor_message_file, &mesg, 152);
-    text_to_buf(pwin_buf + PERK_WINDOW_WIDTH * 16 + 49, msg, PERK_WINDOW_WIDTH, PERK_WINDOW_WIDTH, colorTable[18979]);
+    text_to_buf(pwin_buf + (PERK_WINDOW_BASE_WIDTH * 16 + 49) * 4, msg, PERK_WINDOW_BASE_WIDTH, PERK_WINDOW_BASE_WIDTH, colorTable[18979]);
 
     // DONE
     msg = getmsg(&editor_message_file, &mesg, 100);
-    text_to_buf(pwin_buf + PERK_WINDOW_WIDTH * 186 + 69, msg, PERK_WINDOW_WIDTH, PERK_WINDOW_WIDTH, colorTable[18979]);
+    text_to_buf(pwin_buf + (PERK_WINDOW_BASE_WIDTH * 186 + 69) * 4, msg, PERK_WINDOW_BASE_WIDTH, PERK_WINDOW_BASE_WIDTH, colorTable[18979]);
 
     // CANCEL
     msg = getmsg(&editor_message_file, &mesg, 102);
-    text_to_buf(pwin_buf + PERK_WINDOW_WIDTH * 186 + 171, msg, PERK_WINDOW_WIDTH, PERK_WINDOW_WIDTH, colorTable[18979]);
+    text_to_buf(pwin_buf + (PERK_WINDOW_BASE_WIDTH * 186 + 171) * 4, msg, PERK_WINDOW_BASE_WIDTH, PERK_WINDOW_BASE_WIDTH, colorTable[18979]);
 
     int count = ListDPerks();
 
@@ -5772,7 +5862,7 @@ static int perks_dialog()
     }
 
     DrawCard2(perkFrmId, perkName, perkRank, perkDescription);
-    win_draw(pwin);
+    perk_draw();
 
     int rc = InputPDLoop(count, RedrwDPrks);
 
@@ -5810,9 +5900,14 @@ static int perks_dialog()
     ListDrvdStats();
     DrawFolder();
     DrawInfoWin();
-    win_draw(edit_win);
+    editor_draw();
 
     art_ptr_unlock(backgroundFrmHandle);
+
+    if (perk_render_buf != NULL) {
+        mem_free(perk_render_buf);
+        perk_render_buf = NULL;
+    }
 
     win_delete(pwin);
 
@@ -5844,7 +5939,7 @@ static int InputPDLoop(int count, void (*refreshProc)())
             rc = 1;
         } else if (keyCode == 501) {
             mouse_get_position(&mouse_xpos, &mouse_ypos);
-            cline = (mouse_ypos - (PERK_WINDOW_Y + PERK_WINDOW_LIST_Y)) / v16;
+            cline = (mouse_ypos - (PERK_WINDOW_Y + PERK_WINDOW_LIST_Y * ui_get_scale())) / (v16 * ui_get_scale());
             if (cline >= 0) {
                 if (count - 1 < cline)
                     cline = count - 1;
@@ -6086,12 +6181,12 @@ static int InputPDLoop(int count, void (*refreshProc)())
 static int ListDPerks()
 {
     buf_to_buf(
-        pbckgnd + PERK_WINDOW_WIDTH * 43 + 45,
+        pbckgnd + (PERK_WINDOW_BASE_WIDTH * 43 + 45) * 4,
         192,
         129,
-        PERK_WINDOW_WIDTH,
-        pwin_buf + PERK_WINDOW_WIDTH * 43 + 45,
-        PERK_WINDOW_WIDTH);
+        PERK_WINDOW_BASE_WIDTH,
+        pwin_buf + (PERK_WINDOW_BASE_WIDTH * 43 + 45) * 4,
+        PERK_WINDOW_BASE_WIDTH);
 
     text_font(101);
 
@@ -6130,12 +6225,12 @@ static int ListDPerks()
             color = colorTable[992];
         }
 
-        text_to_buf(pwin_buf + PERK_WINDOW_WIDTH * y + 45, name_sort_list[index].name, PERK_WINDOW_WIDTH, PERK_WINDOW_WIDTH, color);
+        text_to_buf(pwin_buf + (PERK_WINDOW_BASE_WIDTH * y + 45) * 4, name_sort_list[index].name, PERK_WINDOW_BASE_WIDTH, PERK_WINDOW_BASE_WIDTH, color);
 
         if (perk_level(obj_dude, name_sort_list[index].value) != 0) {
             char rankString[256];
             sprintf(rankString, "(%d)", perk_level(obj_dude, name_sort_list[index].value));
-            text_to_buf(pwin_buf + PERK_WINDOW_WIDTH * y + 207, rankString, PERK_WINDOW_WIDTH, PERK_WINDOW_WIDTH, color);
+            text_to_buf(pwin_buf + (PERK_WINDOW_BASE_WIDTH * y + 207) * 4, rankString, PERK_WINDOW_BASE_WIDTH, PERK_WINDOW_BASE_WIDTH, color);
         }
 
         y += yStep;
@@ -6147,7 +6242,7 @@ static int ListDPerks()
 // 0x43D2F8
 void RedrwDMPrk()
 {
-    buf_to_buf(pbckgnd + 280, 293, PERK_WINDOW_HEIGHT, PERK_WINDOW_WIDTH, pwin_buf + 280, PERK_WINDOW_WIDTH);
+    buf_to_buf(pbckgnd + (280) * 4, 293, PERK_WINDOW_BASE_HEIGHT, PERK_WINDOW_BASE_WIDTH, pwin_buf + (280) * 4, PERK_WINDOW_BASE_WIDTH);
 
     ListMyTraits(optrt_count);
 
@@ -6156,7 +6251,7 @@ void RedrwDMPrk()
     int frmId = trait_pic(name_sort_list[crow + cline].value);
     DrawCard2(frmId, traitName, NULL, tratDescription);
 
-    win_draw(pwin);
+    perk_draw();
 }
 
 // 0x43D38C
@@ -6173,11 +6268,11 @@ static bool GetMutateTrait()
     if (trait_count >= 1) {
         text_font(103);
 
-        buf_to_buf(pbckgnd + PERK_WINDOW_WIDTH * 14 + 49, 206, text_height() + 2, PERK_WINDOW_WIDTH, pwin_buf + PERK_WINDOW_WIDTH * 15 + 49, PERK_WINDOW_WIDTH);
+        buf_to_buf(pbckgnd + (PERK_WINDOW_BASE_WIDTH * 14 + 49) * 4, 206, text_height() + 2, PERK_WINDOW_BASE_WIDTH, pwin_buf + (PERK_WINDOW_BASE_WIDTH * 15 + 49) * 4, PERK_WINDOW_BASE_WIDTH);
 
         // LOSE A TRAIT
         char* msg = getmsg(&editor_message_file, &mesg, 154);
-        text_to_buf(pwin_buf + PERK_WINDOW_WIDTH * 16 + 49, msg, PERK_WINDOW_WIDTH, PERK_WINDOW_WIDTH, colorTable[18979]);
+        text_to_buf(pwin_buf + (PERK_WINDOW_BASE_WIDTH * 16 + 49) * 4, msg, PERK_WINDOW_BASE_WIDTH, PERK_WINDOW_BASE_WIDTH, colorTable[18979]);
 
         optrt_count = 0;
         cline = 0;
@@ -6214,11 +6309,11 @@ static bool GetMutateTrait()
     if (result) {
         text_font(103);
 
-        buf_to_buf(pbckgnd + PERK_WINDOW_WIDTH * 14 + 49, 206, text_height() + 2, PERK_WINDOW_WIDTH, pwin_buf + PERK_WINDOW_WIDTH * 15 + 49, PERK_WINDOW_WIDTH);
+        buf_to_buf(pbckgnd + (PERK_WINDOW_BASE_WIDTH * 14 + 49) * 4, 206, text_height() + 2, PERK_WINDOW_BASE_WIDTH, pwin_buf + (PERK_WINDOW_BASE_WIDTH * 15 + 49) * 4, PERK_WINDOW_BASE_WIDTH);
 
         // PICK A NEW TRAIT
         char* msg = getmsg(&editor_message_file, &mesg, 153);
-        text_to_buf(pwin_buf + PERK_WINDOW_WIDTH * 16 + 49, msg, PERK_WINDOW_WIDTH, PERK_WINDOW_WIDTH, colorTable[18979]);
+        text_to_buf(pwin_buf + (PERK_WINDOW_BASE_WIDTH * 16 + 49) * 4, msg, PERK_WINDOW_BASE_WIDTH, PERK_WINDOW_BASE_WIDTH, colorTable[18979]);
 
         cline = 0;
         crow = 0;
@@ -6256,7 +6351,7 @@ static bool GetMutateTrait()
 // 0x43D668
 static void RedrwDMTagSkl()
 {
-    buf_to_buf(pbckgnd + 280, 293, PERK_WINDOW_HEIGHT, PERK_WINDOW_WIDTH, pwin_buf + 280, PERK_WINDOW_WIDTH);
+    buf_to_buf(pbckgnd + (280) * 4, 293, PERK_WINDOW_BASE_HEIGHT, PERK_WINDOW_BASE_WIDTH, pwin_buf + (280) * 4, PERK_WINDOW_BASE_WIDTH);
 
     ListNewTagSkills();
 
@@ -6265,7 +6360,7 @@ static void RedrwDMTagSkl()
     int frmId = skill_pic(name_sort_list[crow + cline].value);
     DrawCard2(frmId, name, NULL, description);
 
-    win_draw(pwin);
+    perk_draw();
 }
 
 // 0x43D6F8
@@ -6273,11 +6368,11 @@ static bool Add4thTagSkill()
 {
     text_font(103);
 
-    buf_to_buf(pbckgnd + 573 * 14 + 49, 206, text_height() + 2, 573, pwin_buf + 573 * 15 + 49, 573);
+    buf_to_buf(pbckgnd + (573 * 14 + 49) * 4, 206, text_height() + 2, 573, pwin_buf + (573 * 15 + 49) * 4, 573);
 
     // PICK A NEW TAG SKILL
     char* messageListItemText = getmsg(&editor_message_file, &mesg, 155);
-    text_to_buf(pwin_buf + 573 * 16 + 49, messageListItemText, 573, 573, colorTable[18979]);
+    text_to_buf(pwin_buf + (573 * 16 + 49) * 4, messageListItemText, 573, 573, colorTable[18979]);
 
     cline = 0;
     crow = 0;
@@ -6302,7 +6397,7 @@ static bool Add4thTagSkill()
 // 0x43D81C
 static void ListNewTagSkills()
 {
-    buf_to_buf(pbckgnd + PERK_WINDOW_WIDTH * 43 + 45, 192, 129, PERK_WINDOW_WIDTH, pwin_buf + PERK_WINDOW_WIDTH * 43 + 45, PERK_WINDOW_WIDTH);
+    buf_to_buf(pbckgnd + (PERK_WINDOW_BASE_WIDTH * 43 + 45) * 4, 192, 129, PERK_WINDOW_BASE_WIDTH, pwin_buf + (PERK_WINDOW_BASE_WIDTH * 43 + 45) * 4, PERK_WINDOW_BASE_WIDTH);
 
     text_font(101);
 
@@ -6329,7 +6424,7 @@ static void ListNewTagSkills()
             color = colorTable[992];
         }
 
-        text_to_buf(pwin_buf + PERK_WINDOW_WIDTH * y + 45, name_sort_list[index].name, PERK_WINDOW_WIDTH, PERK_WINDOW_WIDTH, color);
+        text_to_buf(pwin_buf + (PERK_WINDOW_BASE_WIDTH * y + 45) * 4, name_sort_list[index].name, PERK_WINDOW_BASE_WIDTH, PERK_WINDOW_BASE_WIDTH, color);
         y += yStep;
     }
 }
@@ -6337,7 +6432,7 @@ static void ListNewTagSkills()
 // 0x43D960
 static int ListMyTraits(int a1)
 {
-    buf_to_buf(pbckgnd + PERK_WINDOW_WIDTH * 43 + 45, 192, 129, PERK_WINDOW_WIDTH, pwin_buf + PERK_WINDOW_WIDTH * 43 + 45, PERK_WINDOW_WIDTH);
+    buf_to_buf(pbckgnd + (PERK_WINDOW_BASE_WIDTH * 43 + 45) * 4, 192, 129, PERK_WINDOW_BASE_WIDTH, pwin_buf + (PERK_WINDOW_BASE_WIDTH * 43 + 45) * 4, PERK_WINDOW_BASE_WIDTH);
 
     text_font(101);
 
@@ -6364,7 +6459,7 @@ static int ListMyTraits(int a1)
                 color = colorTable[992];
             }
 
-            text_to_buf(pwin_buf + PERK_WINDOW_WIDTH * y + 45, name_sort_list[index].name, PERK_WINDOW_WIDTH, PERK_WINDOW_WIDTH, color);
+            text_to_buf(pwin_buf + (PERK_WINDOW_BASE_WIDTH * y + 45) * 4, name_sort_list[index].name, PERK_WINDOW_BASE_WIDTH, PERK_WINDOW_BASE_WIDTH, color);
             y += yStep;
         }
     } else {
@@ -6386,7 +6481,7 @@ static int ListMyTraits(int a1)
                 color = colorTable[992];
             }
 
-            text_to_buf(pwin_buf + PERK_WINDOW_WIDTH * y + 45, name_sort_list[index].name, PERK_WINDOW_WIDTH, PERK_WINDOW_WIDTH, color);
+            text_to_buf(pwin_buf + (PERK_WINDOW_BASE_WIDTH * y + 45) * 4, name_sort_list[index].name, PERK_WINDOW_BASE_WIDTH, PERK_WINDOW_BASE_WIDTH, color);
             y += yStep;
         }
     }
@@ -6414,7 +6509,7 @@ static int DrawCard2(int frmId, const char* name, const char* rank, char* descri
         return -1;
     }
 
-    buf_to_buf(data, width, height, width, pwin_buf + PERK_WINDOW_WIDTH * 64 + 413, PERK_WINDOW_WIDTH);
+    buf_to_buf(data, width, height, width, pwin_buf + (PERK_WINDOW_BASE_WIDTH * 64 + 413) * 4, PERK_WINDOW_BASE_WIDTH);
 
     // Calculate width of transparent pixels on the left side of the image. This
     // space will be occupied by description (in addition to fixed width).
@@ -6441,14 +6536,14 @@ static int DrawCard2(int frmId, const char* name, const char* rank, char* descri
     text_font(102);
     int nameHeight = text_height();
 
-    text_to_buf(pwin_buf + PERK_WINDOW_WIDTH * 27 + 280, name, PERK_WINDOW_WIDTH, PERK_WINDOW_WIDTH, colorTable[0]);
+    text_to_buf(pwin_buf + (PERK_WINDOW_BASE_WIDTH * 27 + 280) * 4, name, PERK_WINDOW_BASE_WIDTH, PERK_WINDOW_BASE_WIDTH, colorTable[0]);
 
     if (rank != NULL) {
         int rankX = text_width(name) + 280 + 8;
         text_font(101);
 
         int rankHeight = text_height();
-        text_to_buf(pwin_buf + PERK_WINDOW_WIDTH * (23 + nameHeight - rankHeight) + rankX, rank, PERK_WINDOW_WIDTH, PERK_WINDOW_WIDTH, colorTable[0]);
+        text_to_buf(pwin_buf + (PERK_WINDOW_BASE_WIDTH * (23 + nameHeight - rankHeight) + rankX) * 4, rank, PERK_WINDOW_BASE_WIDTH, PERK_WINDOW_BASE_WIDTH, colorTable[0]);
     }
 
     win_line(pwin, 280, 27 + nameHeight, 545, 27 + nameHeight, colorTable[0]);
@@ -6473,7 +6568,7 @@ static int DrawCard2(int frmId, const char* name, const char* rank, char* descri
         char ch = *ending;
         *ending = '\0';
 
-        text_to_buf(pwin_buf + PERK_WINDOW_WIDTH * y + 280, beginning, PERK_WINDOW_WIDTH, PERK_WINDOW_WIDTH, colorTable[0]);
+        text_to_buf(pwin_buf + (PERK_WINDOW_BASE_WIDTH * y + 280) * 4, beginning, PERK_WINDOW_BASE_WIDTH, PERK_WINDOW_BASE_WIDTH, colorTable[0]);
 
         *ending = ch;
 
@@ -6578,7 +6673,7 @@ static int folder_init()
     folder_kills_top_line = 0;
 
     if (folder_up_button == -1) {
-        folder_up_button = win_register_button(edit_win, 317, 364, GInfo[22].width, GInfo[22].height, -1, -1, -1, 17000, grphbmp[21], grphbmp[22], NULL, 32);
+        folder_up_button = win_register_button(edit_win, 317 * ui_get_scale(), 364 * ui_get_scale(), GInfo[22].width * ui_get_scale(), GInfo[22].height * ui_get_scale(), -1, -1, -1, 17000, NULL, NULL, NULL, 32);
         if (folder_up_button == -1) {
             return -1;
         }
@@ -6587,17 +6682,12 @@ static int folder_init()
     }
 
     if (folder_down_button == -1) {
-        folder_down_button = win_register_button(edit_win,
-            317,
-            365 + GInfo[22].height,
-            GInfo[4].width,
-            GInfo[4].height,
-            folder_down_button,
+        folder_down_button = win_register_button(edit_win, 317 * ui_get_scale(), (365 + GInfo[22].height) * ui_get_scale(), GInfo[4].width * ui_get_scale(), GInfo[4].height * ui_get_scale(), folder_down_button,
             folder_down_button,
             folder_down_button,
             17001,
-            grphbmp[3],
-            grphbmp[4],
+            NULL,
+            NULL,
             0,
             32);
         if (folder_down_button == -1) {
@@ -6667,11 +6757,11 @@ static void folder_scroll(int direction)
 
     if (info_line >= 10 && info_line < 43) {
         buf_to_buf(
-            bckgnd + 640 * 267 + 345,
+            bckgnd + (640 * 267 + 345) * 4,
             277,
             170,
             640,
-            win_buf + 640 * 267 + 345,
+            win_buf + (640 * 267 + 345) * 4,
             640);
         DrawCard(folder_card_fid, folder_card_title, folder_card_title2, folder_card_desc);
     }
@@ -6732,7 +6822,7 @@ static int folder_print_seperator(const char* string)
                 // TODO: Not sure about this.
                 lineLen = text_width(string) + gap * 4;
                 x = (x - lineLen) / 2;
-                text_to_buf(win_buf + 640 * folder_ypos + 34 + x + gap * 2, string, 640, 640, colorTable[992]);
+                text_to_buf(win_buf + (640 * folder_ypos + 34 + x + gap * 2) * 4, string, 640, 640, colorTable[992]);
                 win_line(edit_win, 34 + x + lineLen, y, 34 + 280, y, colorTable[992]);
             }
             win_line(edit_win, 34, y, 34 + x, y, colorTable[992]);
@@ -6760,7 +6850,7 @@ static bool folder_print_line(const char* string)
                 color = colorTable[992];
             }
 
-            text_to_buf(win_buf + 640 * folder_ypos + 34, string, 640, 640, color);
+            text_to_buf(win_buf + (640 * folder_ypos + 34) * 4, string, 640, 640, color);
             folder_ypos += folder_yoffset;
         }
 
@@ -6794,12 +6884,12 @@ static bool folder_print_kill(const char* name, int kills)
             gap = text_spacing();
             int v11 = folder_ypos + text_height() / 2;
 
-            text_to_buf(win_buf + 640 * folder_ypos + 34, name, 640, 640, color);
+            text_to_buf(win_buf + (640 * folder_ypos + 34) * 4, name, 640, 640, color);
 
             int v12 = text_width(name);
             win_line(edit_win, 34 + v12 + gap, v11, 314 - v6 - gap, v11, color);
 
-            text_to_buf(win_buf + 640 * folder_ypos + 314 - v6, killsString, 640, 640, color);
+            text_to_buf(win_buf + (640 * folder_ypos + 314 - v6) * 4, killsString, 640, 640, color);
             folder_ypos += folder_yoffset;
         }
 

@@ -66,4 +66,15 @@ bool initColors();
 void colorsClose();
 unsigned char* getColorPalette();
 
+// Convert a palette index (0-255) to a 32-bit RGBA pixel value.
+static inline unsigned int paletteIndexToRGBA(int palIdx)
+{
+    unsigned char* pal = getColorPalette();
+    palIdx &= 0xFF;
+    return (0xFFu << 24)
+        | ((pal[palIdx * 3 + 2] << 2) << 16)
+        | ((pal[palIdx * 3 + 1] << 2) << 8)
+        | (pal[palIdx * 3] << 2);
+}
+
 #endif /* FALLOUT_PLIB_COLOR_COLOR_H_ */
