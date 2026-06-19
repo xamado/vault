@@ -260,6 +260,13 @@ static int buf_length;
 // 0x6610AC
 Object* obj_egg;
 
+// Raw 8-bit egg mask data — the original FRM pixel values are intensity
+// blending weights (0=opaque, 1-127=gradient), NOT palette colors.
+// Loaded separately from the palette-converted RGBA art data.
+unsigned char* egg_mask_raw = NULL;
+int egg_mask_width = 0;
+int egg_mask_height = 0;
+
 // 0x6610B0
 static int buf_full;
 
@@ -283,13 +290,13 @@ int obj_init(unsigned char* buf, int width, int height, int pitch)
     int eggFid;
 
     memset(obj_seen, 0, 5001);
-    updateAreaPixelBounds.lrx = width + 320;
-    updateAreaPixelBounds.ulx = -320;
-    updateAreaPixelBounds.lry = height + 240;
-    updateAreaPixelBounds.uly = -240;
+    updateAreaPixelBounds.lrx = width + 320 * tile_scale;
+    updateAreaPixelBounds.ulx = -320 * tile_scale;
+    updateAreaPixelBounds.lry = height + 240 * tile_scale;
+    updateAreaPixelBounds.uly = -240 * tile_scale;
 
-    updateHexWidth = (updateAreaPixelBounds.lrx + 320 + 1) / 32 + 1;
-    updateHexHeight = (updateAreaPixelBounds.lry + 240 + 1) / 12 + 1;
+    updateHexWidth = (updateAreaPixelBounds.lrx + 320 * tile_scale + 1) / hex_w + 1;
+    updateHexHeight = (updateAreaPixelBounds.lry + 240 * tile_scale + 1) / row_step + 1;
     updateHexArea = updateHexWidth * updateHexHeight;
 
     memset(objectTable, 0, sizeof(objectTable));
@@ -351,6 +358,39 @@ int obj_init(unsigned char* buf, int width, int height, int pitch)
     obj_egg->flags |= OBJECT_HIDDEN;
     obj_egg->flags |= OBJECT_LIGHT_THRU;
 
+    // Load raw 8-bit egg mask data.
+    // The egg FRM pixel values are intensity blending weights (not palette
+    // colors): 0 = fully opaque source, 1-127 = blending gradient.
+    // The normal art pipeline converts these through the palette to RGBA,
+    // which produces nonsense for a mask. We need the raw bytes.
+    {
+        CacheEntry* eggHandle;
+        Art* eggArt = art_ptr_lock(eggFid, &eggHandle);
+        if (eggArt != NULL) {
+            art_frame_width_length(eggArt, 0, 0, &egg_mask_width, &egg_mask_height);
+            art_ptr_unlock(eggHandle);
+        }
+
+        char* eggPath = art_get_name(eggFid);
+        if (eggPath != NULL && egg_mask_width > 0 && egg_mask_height > 0) {
+            File* eggFile = db_fopen(eggPath, "rb");
+            if (eggFile != NULL) {
+                // Skip the Art header (62 bytes) and the ArtFrame header (12 bytes).
+                db_fseek(eggFile, sizeof(Art) + sizeof(ArtFrame), SEEK_SET);
+                int numPixels = egg_mask_width * egg_mask_height;
+                egg_mask_raw = (unsigned char*)mem_malloc(numPixels);
+                if (egg_mask_raw != NULL) {
+                    if (db_fread(egg_mask_raw, numPixels, 1, eggFile) != 1) {
+                        mem_free(egg_mask_raw);
+                        egg_mask_raw = NULL;
+                        debug_printf("\n  Error: Failed to read egg mask data");
+                    }
+                }
+                db_fclose(eggFile);
+            }
+        }
+    }
+
     objInitialized = true;
 
     return 0;
@@ -400,6 +440,11 @@ void obj_exit()
         obj_order_table_exit();
 
         obj_offset_table_exit();
+
+        if (egg_mask_raw != NULL) {
+            mem_free(egg_mask_raw);
+            egg_mask_raw = NULL;
+        }
     }
 }
 
@@ -769,13 +814,13 @@ void obj_render_pre_roof(Rect* rect, int elevation)
     }
 
     int ambientLight = light_get_ambient();
-    int minX = updatedRect.ulx - 320;
-    int minY = updatedRect.uly - 240;
-    int maxX = updatedRect.lrx + 320;
-    int maxY = updatedRect.lry + 240;
+    int minX = updatedRect.ulx - 320 * tile_scale;
+    int minY = updatedRect.uly - 240 * tile_scale;
+    int maxX = updatedRect.lrx + 320 * tile_scale;
+    int maxY = updatedRect.lry + 240 * tile_scale;
     int topLeftTile = tile_num(minX, minY, elevation);
-    int updateAreaHexWidth = (maxX - minX + 1) / 32;
-    int updateAreaHexHeight = (maxY - minY + 1) / 12;
+    int updateAreaHexWidth = (maxX - minX + 1) / hex_w;
+    int updateAreaHexHeight = (maxY - minY + 1) / row_step;
 
     int parity = tile_center_tile & 1;
     int* orders = orderTable[parity];
@@ -2343,28 +2388,30 @@ void obj_bound(Object* obj, Rect* rect)
     int width;
     int height;
     art_frame_width_length(art, obj->frame, obj->rotation, &width, &height);
+    int scaledWidth = width * tile_scale;
+    int scaledHeight = height * tile_scale;
 
     if (obj->tile == -1) {
         rect->ulx = obj->sx;
         rect->uly = obj->sy;
-        rect->lrx = obj->sx + width - 1;
-        rect->lry = obj->sy + height - 1;
+        rect->lrx = obj->sx + scaledWidth - 1;
+        rect->lry = obj->sy + scaledHeight - 1;
     } else {
         int tileScreenY;
         int tileScreenX;
         if (tile_coord(obj->tile, &tileScreenX, &tileScreenY, obj->elevation) == 0) {
-            tileScreenX += 16;
-            tileScreenY += 8;
+            tileScreenX += half_hex_w;
+            tileScreenY += half_hex_h;
 
-            tileScreenX += art->xOffsets[obj->rotation];
-            tileScreenY += art->yOffsets[obj->rotation];
+            tileScreenX += art->xOffsets[obj->rotation] * tile_scale;
+            tileScreenY += art->yOffsets[obj->rotation] * tile_scale;
 
-            tileScreenX += obj->x;
-            tileScreenY += obj->y;
+            tileScreenX += obj->x * tile_scale;
+            tileScreenY += obj->y * tile_scale;
 
-            rect->ulx = tileScreenX - width / 2;
-            rect->uly = tileScreenY - height + 1;
-            rect->lrx = width + rect->ulx - 1;
+            rect->ulx = tileScreenX - scaledWidth / 2;
+            rect->uly = tileScreenY - scaledHeight + 1;
+            rect->lrx = scaledWidth + rect->ulx - 1;
             rect->lry = tileScreenY;
         } else {
             rect->ulx = 0;
@@ -2378,10 +2425,12 @@ void obj_bound(Object* obj, Rect* rect)
     art_ptr_unlock(artHandle);
 
     if (isOutlined) {
-        rect->ulx--;
-        rect->uly--;
-        rect->lrx++;
-        rect->lry++;
+        // Outlines render tile_scale × tile_scale blocks that extend beyond
+        // the object rect by up to tile_scale pixels on each side.
+        rect->ulx -= tile_scale;
+        rect->uly -= tile_scale;
+        rect->lrx += tile_scale;
+        rect->lry += tile_scale;
     }
 }
 
@@ -2809,6 +2858,224 @@ void dark_trans_buf_to_buf(unsigned char* src, int srcWidth, int srcHeight, int 
     }
 }
 
+// Scaled variant: stretches source art to fill dstRect using proportional mapping.
+// clipRect is optional (NULL = no clip). When set, only source pixels mapping into
+// the clip region are iterated, and writes outside it are skipped. dstRect controls
+// the mapping and must always be the full unclipped rect to avoid jitter.
+void dark_trans_buf_to_buf_scaled(unsigned char* src, int srcWidth, int srcHeight, int srcPitch,
+    unsigned char* dest, Rect* dstRect, Rect* clipRect, int destPitch, int light)
+{
+    int dstW = dstRect->lrx - dstRect->ulx + 1;
+    int dstH = dstRect->lry - dstRect->uly + 1;
+    if (dstW <= 0 || dstH <= 0) return;
+
+    uint32_t* sp = (uint32_t*)src;
+    uint32_t* destBase = (uint32_t*)dest;
+
+    int lightModifier = light >> 9;
+    if (lightModifier > 128) lightModifier = 128;
+
+    // Compute source iteration range from clipRect.
+    int srcYStart = 0, srcYEnd = srcHeight;
+    int srcXStart = 0, srcXEnd = srcWidth;
+    if (clipRect) {
+        if (clipRect->uly > dstRect->uly)
+            srcYStart = (clipRect->uly - dstRect->uly) * srcHeight / dstH;
+        if (clipRect->lry < dstRect->lry) {
+            srcYEnd = ((clipRect->lry - dstRect->uly + 1) * srcHeight + dstH - 1) / dstH;
+            if (srcYEnd > srcHeight) srcYEnd = srcHeight;
+        }
+        if (clipRect->ulx > dstRect->ulx)
+            srcXStart = (clipRect->ulx - dstRect->ulx) * srcWidth / dstW;
+        if (clipRect->lrx < dstRect->lrx) {
+            srcXEnd = ((clipRect->lrx - dstRect->ulx + 1) * srcWidth + dstW - 1) / dstW;
+            if (srcXEnd > srcWidth) srcXEnd = srcWidth;
+        }
+    }
+
+    for (int srcY = srcYStart; srcY < srcYEnd; srcY++) {
+        int dy0 = (srcY * dstH) / srcHeight;
+        int dy1 = ((srcY + 1) * dstH) / srcHeight;
+
+        for (int srcX = srcXStart; srcX < srcXEnd; srcX++) {
+            uint32_t pixel = sp[srcY * srcPitch + srcX];
+            if (pixel != 0) {
+                unsigned int r = pixel & 0xFF;
+                unsigned int g = (pixel >> 8) & 0xFF;
+                unsigned int b = (pixel >> 16) & 0xFF;
+                r = (r * lightModifier) >> 7;
+                g = (g * lightModifier) >> 7;
+                b = (b * lightModifier) >> 7;
+                if (r > 255) r = 255;
+                if (g > 255) g = 255;
+                if (b > 255) b = 255;
+                uint32_t lit = (0xFFu << 24) | (b << 16) | (g << 8) | r;
+
+                int dx0 = (srcX * dstW) / srcWidth;
+                int dx1 = ((srcX + 1) * dstW) / srcWidth;
+
+                for (int dy = dy0; dy < dy1; dy++) {
+                    int py = dstRect->uly + dy;
+                    if (py < 0) continue;
+                    if (py >= buf_length) break;
+                    if (clipRect && (py < clipRect->uly || py > clipRect->lry)) continue;
+                    uint32_t* row = destBase + py * destPitch;
+                    for (int dx = dx0; dx < dx1; dx++) {
+                        int px = dstRect->ulx + dx;
+                        if (px < 0) continue;
+                        if (px >= destPitch) break;
+                        if (clipRect && (px < clipRect->ulx || px > clipRect->lrx)) continue;
+                        row[px] = lit;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Scaled variant of dark_translucent_trans_buf_to_buf with optional clipRect.
+void dark_translucent_trans_buf_to_buf_scaled(unsigned char* src, int srcWidth, int srcHeight, int srcPitch,
+    unsigned char* dest, Rect* dstRect, Rect* clipRect, int destPitch, int light, int alpha, uint32_t tint_color)
+{
+    int dstW = dstRect->lrx - dstRect->ulx + 1;
+    int dstH = dstRect->lry - dstRect->uly + 1;
+    if (dstW <= 0 || dstH <= 0) return;
+
+    uint32_t* sp = (uint32_t*)src;
+    uint32_t* destBase = (uint32_t*)dest;
+
+    int lightModifier = light >> 9;
+    if (lightModifier > 128) lightModifier = 128;
+
+    unsigned int tint_r = tint_color & 0xFF;
+    unsigned int tint_g = (tint_color >> 8) & 0xFF;
+    unsigned int tint_b = (tint_color >> 16) & 0xFF;
+    unsigned int inv_alpha = 255 - alpha;
+
+    int srcYStart = 0, srcYEnd = srcHeight;
+    int srcXStart = 0, srcXEnd = srcWidth;
+    if (clipRect) {
+        if (clipRect->uly > dstRect->uly)
+            srcYStart = (clipRect->uly - dstRect->uly) * srcHeight / dstH;
+        if (clipRect->lry < dstRect->lry) {
+            srcYEnd = ((clipRect->lry - dstRect->uly + 1) * srcHeight + dstH - 1) / dstH;
+            if (srcYEnd > srcHeight) srcYEnd = srcHeight;
+        }
+        if (clipRect->ulx > dstRect->ulx)
+            srcXStart = (clipRect->ulx - dstRect->ulx) * srcWidth / dstW;
+        if (clipRect->lrx < dstRect->lrx) {
+            srcXEnd = ((clipRect->lrx - dstRect->ulx + 1) * srcWidth + dstW - 1) / dstW;
+            if (srcXEnd > srcWidth) srcXEnd = srcWidth;
+        }
+    }
+
+    for (int srcY = srcYStart; srcY < srcYEnd; srcY++) {
+        int dy0 = (srcY * dstH) / srcHeight;
+        int dy1 = ((srcY + 1) * dstH) / srcHeight;
+
+        for (int srcX = srcXStart; srcX < srcXEnd; srcX++) {
+            uint32_t pixel = sp[srcY * srcPitch + srcX];
+            if (pixel != 0) {
+                unsigned int sr = pixel & 0xFF;
+                unsigned int sg = (pixel >> 8) & 0xFF;
+                unsigned int sb = (pixel >> 16) & 0xFF;
+                unsigned int lum = (sr * 77 + sg * 150 + sb * 29) >> 8;
+                unsigned int tr = (tint_r * lum) / 255;
+                unsigned int tg = (tint_g * lum) / 255;
+                unsigned int tb = (tint_b * lum) / 255;
+
+                int dx0 = (srcX * dstW) / srcWidth;
+                int dx1 = ((srcX + 1) * dstW) / srcWidth;
+
+                for (int dy = dy0; dy < dy1; dy++) {
+                    int py = dstRect->uly + dy;
+                    if (py < 0) continue;
+                    if (py >= buf_length) break;
+                    if (clipRect && (py < clipRect->uly || py > clipRect->lry)) continue;
+                    uint32_t* row = destBase + py * destPitch;
+                    for (int dx = dx0; dx < dx1; dx++) {
+                        int px = dstRect->ulx + dx;
+                        if (px < 0) continue;
+                        if (px >= destPitch) break;
+                        if (clipRect && (px < clipRect->ulx || px > clipRect->lrx)) continue;
+                        uint32_t dpx = row[px];
+                        unsigned int dr = dpx & 0xFF;
+                        unsigned int dg = (dpx >> 8) & 0xFF;
+                        unsigned int db = (dpx >> 16) & 0xFF;
+                        unsigned int r = (tr * alpha + dr * inv_alpha) / 255;
+                        unsigned int g = (tg * alpha + dg * inv_alpha) / 255;
+                        unsigned int b = (tb * alpha + db * inv_alpha) / 255;
+                        r = (r * lightModifier) >> 7;
+                        g = (g * lightModifier) >> 7;
+                        b = (b * lightModifier) >> 7;
+                        if (r > 255) r = 255;
+                        if (g > 255) g = 255;
+                        if (b > 255) b = 255;
+                        row[px] = (0xFFu << 24) | (b << 16) | (g << 8) | r;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Scaled variant of trans_buf_to_buf with optional clipRect.
+void trans_buf_to_buf_scaled(unsigned char* src, int srcWidth, int srcHeight, int srcPitch,
+    unsigned char* dest, Rect* dstRect, Rect* clipRect, int destPitch)
+{
+    int dstW = dstRect->lrx - dstRect->ulx + 1;
+    int dstH = dstRect->lry - dstRect->uly + 1;
+    if (dstW <= 0 || dstH <= 0) return;
+
+    uint32_t* sp = (uint32_t*)src;
+    uint32_t* destBase = (uint32_t*)dest;
+
+    int srcYStart = 0, srcYEnd = srcHeight;
+    int srcXStart = 0, srcXEnd = srcWidth;
+    if (clipRect) {
+        if (clipRect->uly > dstRect->uly)
+            srcYStart = (clipRect->uly - dstRect->uly) * srcHeight / dstH;
+        if (clipRect->lry < dstRect->lry) {
+            srcYEnd = ((clipRect->lry - dstRect->uly + 1) * srcHeight + dstH - 1) / dstH;
+            if (srcYEnd > srcHeight) srcYEnd = srcHeight;
+        }
+        if (clipRect->ulx > dstRect->ulx)
+            srcXStart = (clipRect->ulx - dstRect->ulx) * srcWidth / dstW;
+        if (clipRect->lrx < dstRect->lrx) {
+            srcXEnd = ((clipRect->lrx - dstRect->ulx + 1) * srcWidth + dstW - 1) / dstW;
+            if (srcXEnd > srcWidth) srcXEnd = srcWidth;
+        }
+    }
+
+    for (int srcY = srcYStart; srcY < srcYEnd; srcY++) {
+        int dy0 = (srcY * dstH) / srcHeight;
+        int dy1 = ((srcY + 1) * dstH) / srcHeight;
+
+        for (int srcX = srcXStart; srcX < srcXEnd; srcX++) {
+            uint32_t pixel = sp[srcY * srcPitch + srcX];
+            if (pixel != 0) {
+                int dx0 = (srcX * dstW) / srcWidth;
+                int dx1 = ((srcX + 1) * dstW) / srcWidth;
+
+                for (int dy = dy0; dy < dy1; dy++) {
+                    int py = dstRect->uly + dy;
+                    if (py < 0) continue;
+                    if (py >= buf_length) break;
+                    if (clipRect && (py < clipRect->uly || py > clipRect->lry)) continue;
+                    uint32_t* row = destBase + py * destPitch;
+                    for (int dx = dx0; dx < dx1; dx++) {
+                        int px = dstRect->ulx + dx;
+                        if (px < 0) continue;
+                        if (px >= destPitch) break;
+                        if (clipRect && (px < clipRect->ulx || px > clipRect->lrx)) continue;
+                        row[px] = pixel;
+                    }
+                }
+            }
+        }
+    }
+}
+
 // 0x48BF88
 // Original: skips transparent, converts source to grayscale (gray table), uses that
 // luminance to index into blend table (tintColor * luminance blended with dest),
@@ -2937,6 +3204,107 @@ void intensity_mask_buf_to_buf(unsigned char* src, int srcWidth, int srcHeight, 
     }
 }
 
+// Scaled variant of intensity_mask_buf_to_buf.
+// Renders the egg transparency effect at scaled resolution.
+// - src/srcW/srcH/srcPitch: the source tile/object art (original resolution)
+// - srcDstRect: full screen-space dest rect for the source (for proportional mapping)
+// - mask/maskW/maskH/maskPitch: the egg mask art (original resolution)
+// - maskDstRect: full screen-space dest rect for the egg mask (for proportional mapping)
+// - clipRect: limits writes to the intersection of srcDstRect and maskDstRect
+// - dest: back buffer, destPitch: back buffer width
+void intensity_mask_buf_to_buf_scaled(
+    unsigned char* src, int srcW, int srcH, int srcPitch, Rect* srcDstRect,
+    unsigned char* mask, int maskW, int maskH, int maskPitch, Rect* maskDstRect,
+    Rect* clipRect,
+    unsigned char* dest, int destPitch, int light)
+{
+    if (!clipRect) return;
+
+    int srcRectW = srcDstRect->lrx - srcDstRect->ulx + 1;
+    int srcRectH = srcDstRect->lry - srcDstRect->uly + 1;
+    int maskRectW = maskDstRect->lrx - maskDstRect->ulx + 1;
+    int maskRectH = maskDstRect->lry - maskDstRect->uly + 1;
+    if (srcRectW <= 0 || srcRectH <= 0 || maskRectW <= 0 || maskRectH <= 0) return;
+
+    uint32_t* sp = (uint32_t*)src;
+    uint32_t* destBase = (uint32_t*)dest;
+
+    int lightModifier = light >> 9;
+    int factor = (lightModifier <= 127)
+        ? lightModifier * 512
+        : (lightModifier - 128) * 512;
+    int darken = (lightModifier <= 127);
+
+    // Iterate over screen pixels within the clip rect.
+    for (int py = clipRect->uly; py <= clipRect->lry; py++) {
+        if (py < 0) continue;
+        if (py >= buf_length) break;
+
+        // Map screen Y to source art Y.
+        int srcY = (py - srcDstRect->uly) * srcH / srcRectH;
+        if (srcY < 0 || srcY >= srcH) continue;
+
+        // Map screen Y to mask art Y.
+        int maskY = (py - maskDstRect->uly) * maskH / maskRectH;
+        if (maskY < 0 || maskY >= maskH) continue;
+
+        uint32_t* row = destBase + py * destPitch;
+
+        for (int px = clipRect->ulx; px <= clipRect->lrx; px++) {
+            if (px < 0) continue;
+            if (px >= destPitch) break;
+
+            // Map screen X to source art X.
+            int srcX = (px - srcDstRect->ulx) * srcW / srcRectW;
+            if (srcX < 0 || srcX >= srcW) continue;
+
+            // Map screen X to mask art X.
+            int maskX = (px - maskDstRect->ulx) * maskW / maskRectW;
+            if (maskX < 0 || maskX >= maskW) continue;
+
+            uint32_t pixel = sp[srcY * srcPitch + srcX];
+            if (pixel != 0) {
+                unsigned int sr = pixel & 0xFF;
+                unsigned int sg = (pixel >> 8) & 0xFF;
+                unsigned int sb = (pixel >> 16) & 0xFF;
+                if (darken) {
+                    sr = (sr * factor) >> 16;
+                    sg = (sg * factor) >> 16;
+                    sb = (sb * factor) >> 16;
+                } else {
+                    sr = sr + (((255 - sr) * factor) >> 16);
+                    sg = sg + (((255 - sg) * factor) >> 16);
+                    sb = sb + (((255 - sb) * factor) >> 16);
+                }
+
+                // Mask is raw 8-bit intensity weight from the original FRM.
+                // In the original engine:
+                //   m = 0  → fully opaque source (no blending)
+                //   m > 0  → blend: small m = mostly dest visible (transparent),
+                //             large m = mostly src visible (opaque)
+                // We map to alpha where 0 = all src, 255 = all dest:
+                //   alpha = clamp((128 - m) * 255 / 128, 0, 255)
+                unsigned char m = mask[maskY * maskPitch + maskX];
+                if (m != 0) {
+                    int a = (128 - (int)m) * 255 / 128;
+                    if (a < 0) a = 0;
+                    if (a > 255) a = 255;
+                    unsigned int alpha = (unsigned int)a;
+                    uint32_t dpx = row[px];
+                    unsigned int dr = dpx & 0xFF;
+                    unsigned int dg = (dpx >> 8) & 0xFF;
+                    unsigned int db = (dpx >> 16) & 0xFF;
+                    unsigned int r = (sr * (255 - alpha) + dr * alpha) / 255;
+                    unsigned int g = (sg * (255 - alpha) + dg * alpha) / 255;
+                    unsigned int b = (sb * (255 - alpha) + db * alpha) / 255;
+                    row[px] = (0xFFu << 24) | (b << 16) | (g << 8) | r;
+                } else {
+                    row[px] = (0xFFu << 24) | (sb << 16) | (sg << 8) | sr;
+                }
+            }
+        }
+    }
+}
 
 // 0x48C2B4
 int obj_outline_object(Object* obj, int outlineType, Rect* rect)
@@ -2994,6 +3362,8 @@ int obj_intersects_with(Object* object, int x, int y)
             int width;
             int height;
             art_frame_width_length(art, object->frame, object->rotation, &width, &height);
+            int scaledWidth = width * tile_scale;
+            int scaledHeight = height * tile_scale;
 
             int minX;
             int minY;
@@ -3002,32 +3372,35 @@ int obj_intersects_with(Object* object, int x, int y)
             if (object->tile == -1) {
                 minX = object->sx;
                 minY = object->sy;
-                maxX = minX + width - 1;
-                maxY = minY + height - 1;
+                maxX = minX + scaledWidth - 1;
+                maxY = minY + scaledHeight - 1;
             } else {
                 int tileScreenX;
                 int tileScreenY;
                 tile_coord(object->tile, &tileScreenX, &tileScreenY, object->elevation);
-                tileScreenX += 16;
-                tileScreenY += 8;
+                tileScreenX += half_hex_w;
+                tileScreenY += half_hex_h;
 
-                tileScreenX += art->xOffsets[object->rotation];
-                tileScreenY += art->yOffsets[object->rotation];
+                tileScreenX += art->xOffsets[object->rotation] * tile_scale;
+                tileScreenY += art->yOffsets[object->rotation] * tile_scale;
 
-                tileScreenX += object->x;
-                tileScreenY += object->y;
+                tileScreenX += object->x * tile_scale;
+                tileScreenY += object->y * tile_scale;
 
-                minX = tileScreenX - width / 2;
-                maxX = minX + width - 1;
+                minX = tileScreenX - scaledWidth / 2;
+                maxX = minX + scaledWidth - 1;
 
-                minY = tileScreenY - height + 1;
+                minY = tileScreenY - scaledHeight + 1;
                 maxY = tileScreenY;
             }
 
             if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
                 unsigned char* data = art_frame_data(art, object->frame, object->rotation);
                 if (data != NULL) {
-                    if (((uint32_t*)data)[width * (y - minY) + x - minX] != 0) {
+                    // Map screen pixel back to source pixel for transparency check.
+                    int srcX = (x - minX) / tile_scale;
+                    int srcY = (y - minY) / tile_scale;
+                    if (((uint32_t*)data)[width * srcY + srcX] != 0) {
                         flags |= 0x01;
 
                         if ((object->flags & OBJECT_FLAG_0xFC000) != 0) {
@@ -3076,7 +3449,7 @@ int obj_intersects_with(Object* object, int x, int y)
 // 0x48C5C4
 int obj_create_intersect_list(int x, int y, int elevation, int objectType, ObjectWithFlags** entriesPtr)
 {
-    int v5 = tile_num(x - 320, y - 240, elevation);
+    int v5 = tile_num(x - 320 * tile_scale, y - 240 * tile_scale, elevation);
     *entriesPtr = NULL;
 
     if (updateHexArea <= 0) {
@@ -3348,9 +3721,9 @@ static int obj_offset_table_init()
             int originTileY;
             tile_coord(originTile, &originTileX, &originTileY, 0);
 
-            int parityShift = 16;
-            originTileX += 16;
-            originTileY += 8;
+            int parityShift = half_hex_w;
+            originTileX += half_hex_w;
+            originTileY += half_hex_h;
             if (originTileX > updateAreaPixelBounds.ulx) {
                 parityShift = -parityShift;
             }
@@ -3363,12 +3736,12 @@ static int obj_offset_table_init()
                         goto err;
                     }
 
-                    tileX += 32;
+                    tileX += hex_w;
                     *offsets++ = tile - originTile;
                 }
 
                 tileX = parityShift + originTileX;
-                originTileY += 12;
+                originTileY += row_step;
                 parityShift = -parityShift;
             }
         }
@@ -4712,11 +5085,15 @@ static int obj_adjust_light(Object* obj, int a2, Rect* rect)
         Rect* lightDistanceRect = &(light_rect[obj->lightDistance]);
         memcpy(rect, lightDistanceRect, sizeof(*lightDistanceRect));
 
+        // Scale the 1x light rect to match the current tile scale.
+        rect->lrx *= tile_scale;
+        rect->lry *= tile_scale;
+
         int x;
         int y;
         tile_coord(obj->tile, &x, &y, obj->elevation);
-        x += 16;
-        y += 8;
+        x += half_hex_w;
+        y += half_hex_h;
 
         x -= rect->lrx / 2;
         y -= rect->lry / 2;
@@ -4741,143 +5118,179 @@ static void obj_render_outline(Object* object, Rect* rect)
     int frameHeight = 0;
     art_frame_width_length(art, object->frame, object->rotation, &frameWidth, &frameHeight);
 
-    Rect clipRect;
-    clipRect.ulx = 0;
-    clipRect.uly = 0;
-    clipRect.lrx = frameWidth - 1;
-
-    // FIXME: I'm not sure why it ignores frameHeight and makes separate call
-    // to obtain height.
-    int artHeight = art_frame_length(art, object->frame, object->rotation);
-    clipRect.lry = artHeight - 1;
+    int scaledW = frameWidth * tile_scale;
+    int scaledH = frameHeight * tile_scale;
 
     Rect objectRect;
     if (object->tile == -1) {
         objectRect.ulx = object->sx;
         objectRect.uly = object->sy;
-        objectRect.lrx = object->sx + frameWidth - 1;
-        objectRect.lry = object->sy + frameHeight - 1;
+        objectRect.lrx = object->sx + scaledW - 1;
+        objectRect.lry = object->sy + scaledH - 1;
     } else {
         int x;
         int y;
         tile_coord(object->tile, &x, &y, object->elevation);
-        x += 16;
-        y += 8;
+        x += half_hex_w;
+        y += half_hex_h;
 
-        x += art->xOffsets[object->rotation];
-        y += art->yOffsets[object->rotation];
+        x += art->xOffsets[object->rotation] * tile_scale;
+        y += art->yOffsets[object->rotation] * tile_scale;
 
-        x += object->x;
-        y += object->y;
+        x += object->x * tile_scale;
+        y += object->y * tile_scale;
 
-        objectRect.ulx = x - frameWidth / 2;
-        objectRect.uly = y - (frameHeight - 1);
-        objectRect.lrx = objectRect.ulx + frameWidth - 1;
+        objectRect.ulx = x - scaledW / 2;
+        objectRect.uly = y - (scaledH - 1);
+        objectRect.lrx = objectRect.ulx + scaledW - 1;
         objectRect.lry = y;
 
         object->sx = objectRect.ulx;
         object->sy = objectRect.uly;
     }
 
+    // Expand clip region by tile_scale so outline pixels just outside the
+    // object rect are included.
     Rect expandedRect;
     rectCopy(&expandedRect, rect);
-
-    expandedRect.ulx--;
-    expandedRect.uly--;
-    expandedRect.lrx++;
-    expandedRect.lry++;
-
+    expandedRect.ulx -= tile_scale;
+    expandedRect.uly -= tile_scale;
+    expandedRect.lrx += tile_scale;
+    expandedRect.lry += tile_scale;
     rect_inside_bound(&expandedRect, &buf_rect, &expandedRect);
 
-    if (rect_inside_bound(&objectRect, &expandedRect, &objectRect) == 0) {
-        clipRect.ulx += objectRect.ulx - object->sx;
-        clipRect.uly += objectRect.uly - object->sy;
-        clipRect.lrx = clipRect.ulx + (objectRect.lrx - objectRect.ulx);
-        clipRect.lry = clipRect.uly + (objectRect.lry - objectRect.uly);
+    Rect visibleRect;
+    if (rect_inside_bound(&objectRect, &expandedRect, &visibleRect) != 0) {
+        art_ptr_unlock(cacheEntry);
+        return;
+    }
+    // Expand visibleRect by tile_scale for outline pixels adjacent to the object.
+    visibleRect.ulx -= tile_scale;
+    visibleRect.uly -= tile_scale;
+    visibleRect.lrx += tile_scale;
+    visibleRect.lry += tile_scale;
+    rect_inside_bound(&visibleRect, &buf_rect, &visibleRect);
 
-        unsigned char* src = art_frame_data(art, object->frame, object->rotation);
+    unsigned char* src = art_frame_data(art, object->frame, object->rotation);
+    uint32_t* src32 = (uint32_t*)src;
+    uint32_t* destBase = (uint32_t*)back_buf;
 
-        unsigned char* dest = back_buf + (buf_full * object->sy + object->sx) * 4;
-        int destStep = buf_full - frameWidth;
+    unsigned char color;
+    int paletted = object->outline & OUTLINE_PALETTED;
+    int outlineType = object->outline & OUTLINE_TYPE_MASK;
+    int cycleLen = 1;
+    int cycleInterval = 0;
 
-        unsigned char color;
-        unsigned char* grayTable = NULL;
-        unsigned char* blendTable = NULL;
-        int paletted = object->outline & OUTLINE_PALETTED;
-        int outlineType = object->outline & OUTLINE_TYPE_MASK;
-        int cycleLen;
-        int cycleInterval;
+    switch (outlineType) {
+    case OUTLINE_TYPE_HOSTILE:
+        color = 243;
+        paletted = 0;
+        cycleLen = 5;
+        cycleInterval = frameHeight / 5;
+        break;
+    case OUTLINE_TYPE_2:
+        color = colorTable[31744];
+        cycleInterval = 0;
+        break;
+    case OUTLINE_TYPE_4:
+        color = colorTable[15855];
+        cycleInterval = 0;
+        break;
+    case OUTLINE_TYPE_FRIENDLY:
+        cycleLen = 4;
+        cycleInterval = frameHeight / 4;
+        color = 229;
+        paletted = 0;
+        break;
+    case OUTLINE_TYPE_ITEM:
+        cycleInterval = 0;
+        color = colorTable[30632];
+        break;
+    case OUTLINE_TYPE_32:
+        color = 61;
+        paletted = 0;
+        cycleLen = 1;
+        cycleInterval = frameHeight;
+        break;
+    default:
+        color = colorTable[31775];
+        paletted = 0;
+        cycleInterval = 0;
+        break;
+    }
 
-        switch (outlineType) {
-        case OUTLINE_TYPE_HOSTILE:
-            color = 243;
-            paletted = 0;
-            cycleLen = 5;
-            cycleInterval = frameHeight / 5;
-            break;
-        case OUTLINE_TYPE_2:
-            color = colorTable[31744];
-            cycleInterval = 0;
-            if (paletted != 0) {
-                grayTable = commonGrayTable;
-                blendTable = redBlendTable;
+    // Use system palette (not cmap) because some outline colors like
+    // fire_fast (indices 243-247) are animated via palette cycling and
+    // only have live values in the system palette.
+    unsigned char* pal = getSystemPalette();
+    uint32_t color32 = (0xFFu << 24)
+        | ((pal[color * 3 + 2] << 2) << 16)
+        | ((pal[color * 3 + 1] << 2) << 8)
+        | (pal[color * 3] << 2);
+
+    int objX = object->sx;
+    int objY = object->sy;
+
+    // Write a tile_scale × tile_scale block at the screen position corresponding
+    // to source pixel (sx, sy) offset by (offX, offY) in source space.
+    #define WRITE_OUTLINE_BLOCK(sx, sy, offX, offY, outColor) do { \
+        int bx = objX + ((sx) + (offX)) * tile_scale; \
+        int by = objY + ((sy) + (offY)) * tile_scale; \
+        for (int _dy = 0; _dy < tile_scale; _dy++) { \
+            int py = by + _dy; \
+            if (py < visibleRect.uly || py > visibleRect.lry) continue; \
+            uint32_t* row = destBase + py * buf_full; \
+            for (int _dx = 0; _dx < tile_scale; _dx++) { \
+                int px = bx + _dx; \
+                if (px < visibleRect.ulx || px > visibleRect.lrx) continue; \
+                row[px] = (outColor); \
+            } \
+        } \
+    } while(0)
+
+    // Horizontal edge detection pass — scan each source row.
+    unsigned char curIdx = color;
+    uint32_t curColor = color32;
+    for (int y = 0; y < frameHeight; y++) {
+        if (cycleInterval != 0) {
+            if (y % cycleInterval == 0) {
+                curIdx++;
+                curColor = (0xFFu << 24)
+                    | ((pal[curIdx * 3 + 2] << 2) << 16)
+                    | ((pal[curIdx * 3 + 1] << 2) << 8)
+                    | (pal[curIdx * 3] << 2);
             }
-            break;
-        case OUTLINE_TYPE_4:
-            color = colorTable[15855];
-            cycleInterval = 0;
-            if (paletted != 0) {
-                grayTable = commonGrayTable;
-                blendTable = wallBlendTable;
+            if (curIdx > cycleLen + color - 1) {
+                curIdx = color;
+                curColor = color32;
             }
-            break;
-        case OUTLINE_TYPE_FRIENDLY:
-            cycleLen = 4;
-            cycleInterval = frameHeight / 4;
-            color = 229;
-            paletted = 0;
-            break;
-        case OUTLINE_TYPE_ITEM:
-            cycleInterval = 0;
-            color = colorTable[30632];
-            if (paletted != 0) {
-                grayTable = commonGrayTable;
-                blendTable = redBlendTable;
-            }
-            break;
-        case OUTLINE_TYPE_32:
-            color = 61;
-            paletted = 0;
-            cycleLen = 1;
-            cycleInterval = frameHeight;
-            break;
-        default:
-            color = colorTable[31775];
-            paletted = 0;
-            cycleInterval = 0;
-            break;
         }
 
-        // Use system palette (not cmap) because some outline colors like
-        // fire_fast (indices 243-247) are animated via palette cycling and
-        // only have live values in the system palette.
-        unsigned char* pal = getSystemPalette();
-        uint32_t color32 = (0xFFu << 24)
-            | ((pal[color * 3 + 2] << 2) << 16)
-            | ((pal[color * 3 + 1] << 2) << 8)
-            | (pal[color * 3] << 2);
+        bool cycle = true;
+        for (int x = 0; x < frameWidth; x++) {
+            uint32_t pixel = src32[y * frameWidth + x];
+            if (pixel != 0 && cycle) {
+                // Left edge — write outline pixel to the left.
+                WRITE_OUTLINE_BLOCK(x, y, -1, 0, curColor);
+                cycle = false;
+            } else if (pixel == 0 && !cycle) {
+                // Right edge — write outline pixel here.
+                WRITE_OUTLINE_BLOCK(x, y, 0, 0, curColor);
+                cycle = true;
+            }
+        }
+        // If the last pixel in the row was opaque, outline to the right.
+        if (src32[y * frameWidth + frameWidth - 1] != 0) {
+            WRITE_OUTLINE_BLOCK(frameWidth - 1, y, 1, 0, curColor);
+        }
+    }
 
-        uint32_t* dest32 = (uint32_t*)dest;
-        uint32_t* src32 = (uint32_t*)src;
-        int destStepPixels = buf_full - frameWidth;
-
-        // Horizontal edge detection pass
-        unsigned char curIdx = color;
-        uint32_t curColor = color32;
-        uint32_t* destRow = dest32;
-        uint32_t* srcRow = src32;
+    // Vertical edge detection pass — scan each source column.
+    for (int x = 0; x < frameWidth; x++) {
+        bool cycle = true;
+        curIdx = color;
+        curColor = color32;
         for (int y = 0; y < frameHeight; y++) {
-            bool cycle = true;
             if (cycleInterval != 0) {
                 if (y % cycleInterval == 0) {
                     curIdx++;
@@ -4886,98 +5299,34 @@ static void obj_render_outline(Object* object, Rect* rect)
                         | ((pal[curIdx * 3 + 1] << 2) << 8)
                         | (pal[curIdx * 3] << 2);
                 }
-
-                if (curIdx > cycleLen + color - 1) {
+                if (curIdx > color + cycleLen - 1) {
                     curIdx = color;
                     curColor = color32;
                 }
             }
 
-            int destOfs = (int)(destRow - (uint32_t*)back_buf);
-            for (int x = 0; x < frameWidth; x++) {
-                destOfs = (int)(destRow - (uint32_t*)back_buf);
-                if (*srcRow != 0 && cycle) {
-                    if (x >= clipRect.ulx && x <= clipRect.lrx && y >= clipRect.uly && y <= clipRect.lry && destOfs > 0 && destOfs % buf_full != 0) {
-                        *(destRow - 1) = curColor;
-                    }
-                    cycle = false;
-                } else if (*srcRow == 0 && !cycle) {
-                    if (x >= clipRect.ulx && x <= clipRect.lrx && y >= clipRect.uly && y <= clipRect.lry) {
-                        *destRow = curColor;
-                    }
-                    cycle = true;
-                }
-                destRow++;
-                srcRow++;
+            uint32_t pixel = src32[y * frameWidth + x];
+            if (pixel != 0 && cycle) {
+                // Top edge — write outline pixel above.
+                WRITE_OUTLINE_BLOCK(x, y, 0, -1, curColor);
+                cycle = false;
+            } else if (pixel == 0 && !cycle) {
+                // Bottom edge — write outline pixel here.
+                WRITE_OUTLINE_BLOCK(x, y, 0, 0, curColor);
+                cycle = true;
             }
-
-            if (*(srcRow - 1) != 0) {
-                if (destOfs < buf_full * buf_length) {
-                    int v23 = frameWidth - 1;
-                    if (v23 >= clipRect.ulx && v23 <= clipRect.lrx && y >= clipRect.uly && y <= clipRect.lry) {
-                        *destRow = curColor;
-                    }
-                }
-            }
-
-            destRow += destStepPixels;
         }
-
-        // Vertical edge detection pass
-        for (int x = 0; x < frameWidth; x++) {
-            bool cycle = true;
-            unsigned char curIdx = color;
-            uint32_t curColor = color32;
-            uint32_t* destCol = dest32 + x;
-            uint32_t* srcCol = src32 + x;
-            for (int y = 0; y < frameHeight; y++) {
-                if (cycleInterval != 0) {
-                    if (y % cycleInterval == 0) {
-                        curIdx++;
-                        curColor = (0xFFu << 24)
-                            | ((pal[curIdx * 3 + 2] << 2) << 16)
-                            | ((pal[curIdx * 3 + 1] << 2) << 8)
-                            | (pal[curIdx * 3] << 2);
-                    }
-
-                    if (curIdx > color + cycleLen - 1) {
-                        curIdx = color;
-                        curColor = color32;
-                    }
-                }
-
-                if (*srcCol != 0 && cycle) {
-                    if (x >= clipRect.ulx && x <= clipRect.lrx && y >= clipRect.uly && y <= clipRect.lry) {
-                        uint32_t* above = destCol - buf_full;
-                        if (above >= (uint32_t*)back_buf) {
-                            *above = curColor;
-                        }
-                    }
-                    cycle = false;
-                } else if (*srcCol == 0 && !cycle) {
-                    if (x >= clipRect.ulx && x <= clipRect.lrx && y >= clipRect.uly && y <= clipRect.lry) {
-                        *destCol = curColor;
-                    }
-                    cycle = true;
-                }
-
-                destCol += buf_full;
-                srcCol += frameWidth;
-            }
-
-            if (srcCol[-frameWidth] != 0) {
-                if ((destCol - (uint32_t*)back_buf) < buf_full * buf_length) {
-                    int y = frameHeight - 1;
-                    if (x >= clipRect.ulx && x <= clipRect.lrx && y >= clipRect.uly && y <= clipRect.lry) {
-                        *destCol = curColor;
-                    }
-                }
-            }
+        // If the last pixel in the column was opaque, outline below.
+        if (src32[(frameHeight - 1) * frameWidth + x] != 0) {
+            WRITE_OUTLINE_BLOCK(x, frameHeight - 1, 0, 1, curColor);
         }
     }
 
+    #undef WRITE_OUTLINE_BLOCK
+
     art_ptr_unlock(cacheEntry);
 }
+
 
 // 0x48F1B0
 static void obj_render_object(Object* object, Rect* rect, int light)
@@ -4995,55 +5344,57 @@ static void obj_render_object(Object* object, Rect* rect, int light)
 
     int frameWidth = art_frame_width(art, object->frame, object->rotation);
     int frameHeight = art_frame_length(art, object->frame, object->rotation);
+    int scaledWidth = frameWidth * tile_scale;
+    int scaledHeight = frameHeight * tile_scale;
 
     Rect objectRect;
     if (object->tile == -1) {
+        // Floating objects (e.g. thrown items) — no tile position, use stored screen coords.
         objectRect.ulx = object->sx;
         objectRect.uly = object->sy;
-        objectRect.lrx = object->sx + frameWidth - 1;
-        objectRect.lry = object->sy + frameHeight - 1;
+        objectRect.lrx = object->sx + scaledWidth - 1;
+        objectRect.lry = object->sy + scaledHeight - 1;
     } else {
         int objectScreenX;
         int objectScreenY;
         tile_coord(object->tile, &objectScreenX, &objectScreenY, object->elevation);
-        objectScreenX += 16;
-        objectScreenY += 8;
+        objectScreenX += half_hex_w;
+        objectScreenY += half_hex_h;
 
-        objectScreenX += art->xOffsets[object->rotation];
-        objectScreenY += art->yOffsets[object->rotation];
+        objectScreenX += art->xOffsets[object->rotation] * tile_scale;
+        objectScreenY += art->yOffsets[object->rotation] * tile_scale;
 
-        objectScreenX += object->x;
-        objectScreenY += object->y;
+        objectScreenX += object->x * tile_scale;
+        objectScreenY += object->y * tile_scale;
 
-        objectRect.ulx = objectScreenX - frameWidth / 2;
-        objectRect.uly = objectScreenY - (frameHeight - 1);
-        objectRect.lrx = objectRect.ulx + frameWidth - 1;
+        objectRect.ulx = objectScreenX - scaledWidth / 2;
+        objectRect.uly = objectScreenY - (scaledHeight - 1);
+        objectRect.lrx = objectRect.ulx + scaledWidth - 1;
         objectRect.lry = objectScreenY;
 
         object->sx = objectRect.ulx;
         object->sy = objectRect.uly;
     }
 
-    if (rect_inside_bound(&objectRect, rect, &objectRect) != 0) {
+    Rect visibleRect;
+    if (rect_inside_bound(&objectRect, rect, &visibleRect) != 0) {
         art_ptr_unlock(cacheEntry);
         return;
     }
 
+    // Full source art and full unclipped dest rect — mapping is always stable.
+    // visibleRect (clipped region) is passed as clipRect for efficiency.
     unsigned char* src = art_frame_data(art, object->frame, object->rotation);
-    unsigned char* src2 = src;
-    int v50 = objectRect.ulx - object->sx;
-    int v49 = objectRect.uly - object->sy;
-    src += (frameWidth * v49 + v50) * 4;
-    int objectWidth = objectRect.lrx - objectRect.ulx + 1;
-    int objectHeight = objectRect.lry - objectRect.uly + 1;
+
+    Rect fullDstRect;
+    fullDstRect.ulx = object->sx;
+    fullDstRect.uly = object->sy;
+    fullDstRect.lrx = object->sx + scaledWidth - 1;
+    fullDstRect.lry = object->sy + scaledHeight - 1;
 
     if (type == 6) {
-        trans_buf_to_buf(src,
-            objectWidth,
-            objectHeight,
-            frameWidth,
-            back_buf + (buf_full * objectRect.uly + objectRect.ulx) * 4,
-            buf_full);
+        trans_buf_to_buf_scaled(src, frameWidth, frameHeight, frameWidth,
+            back_buf, &fullDstRect, &visibleRect, buf_full);
         art_ptr_unlock(cacheEntry);
         return;
     }
@@ -5084,78 +5435,79 @@ static void obj_render_object(Object* object, Rect* rect, int light)
             if (v17) {
                 CacheEntry* eggHandle;
                 Art* egg = art_ptr_lock(obj_egg->fid, &eggHandle);
-                if (egg == NULL) {
-                    return;
+                if (egg == NULL || egg_mask_raw == NULL) {
+                    if (egg != NULL) art_ptr_unlock(eggHandle);
+                    // Fall through to normal rendering if raw mask unavailable.
+                    goto no_egg;
                 }
 
                 int eggWidth;
                 int eggHeight;
                 art_frame_width_length(egg, 0, 0, &eggWidth, &eggHeight);
+                int eggScaledW = eggWidth * tile_scale;
+                int eggScaledH = eggHeight * tile_scale;
 
                 int eggScreenX;
                 int eggScreenY;
                 tile_coord(obj_egg->tile, &eggScreenX, &eggScreenY, obj_egg->elevation);
-                eggScreenX += 16;
-                eggScreenY += 8;
+                eggScreenX += half_hex_w;
+                eggScreenY += half_hex_h;
 
-                eggScreenX += egg->xOffsets[0];
-                eggScreenY += egg->yOffsets[0];
+                eggScreenX += egg->xOffsets[0] * tile_scale;
+                eggScreenY += egg->yOffsets[0] * tile_scale;
 
-                eggScreenX += obj_egg->x;
-                eggScreenY += obj_egg->y;
+                eggScreenX += obj_egg->x * tile_scale;
+                eggScreenY += obj_egg->y * tile_scale;
 
                 Rect eggRect;
-                eggRect.ulx = eggScreenX - eggWidth / 2;
-                eggRect.uly = eggScreenY - (eggHeight - 1);
-                eggRect.lrx = eggRect.ulx + eggWidth - 1;
+                eggRect.ulx = eggScreenX - eggScaledW / 2;
+                eggRect.uly = eggScreenY - (eggScaledH - 1);
+                eggRect.lrx = eggRect.ulx + eggScaledW - 1;
                 eggRect.lry = eggScreenY;
 
                 obj_egg->sx = eggRect.ulx;
                 obj_egg->sy = eggRect.uly;
 
                 Rect updatedEggRect;
-                if (rect_inside_bound(&eggRect, &objectRect, &updatedEggRect) == 0) {
+                if (rect_inside_bound(&eggRect, &visibleRect, &updatedEggRect) == 0) {
                     Rect rects[4];
 
-                    rects[0].ulx = objectRect.ulx;
-                    rects[0].uly = objectRect.uly;
-                    rects[0].lrx = objectRect.lrx;
+                    rects[0].ulx = visibleRect.ulx;
+                    rects[0].uly = visibleRect.uly;
+                    rects[0].lrx = visibleRect.lrx;
                     rects[0].lry = updatedEggRect.uly - 1;
 
-                    rects[1].ulx = objectRect.ulx;
+                    rects[1].ulx = visibleRect.ulx;
                     rects[1].uly = updatedEggRect.uly;
                     rects[1].lrx = updatedEggRect.ulx - 1;
                     rects[1].lry = updatedEggRect.lry;
 
                     rects[2].ulx = updatedEggRect.lrx + 1;
                     rects[2].uly = updatedEggRect.uly;
-                    rects[2].lrx = objectRect.lrx;
+                    rects[2].lrx = visibleRect.lrx;
                     rects[2].lry = updatedEggRect.lry;
 
-                    rects[3].ulx = objectRect.ulx;
+                    rects[3].ulx = visibleRect.ulx;
                     rects[3].uly = updatedEggRect.lry + 1;
-                    rects[3].lrx = objectRect.lrx;
-                    rects[3].lry = objectRect.lry;
+                    rects[3].lrx = visibleRect.lrx;
+                    rects[3].lry = visibleRect.lry;
 
                     for (int i = 0; i < 4; i++) {
                         Rect* v21 = &(rects[i]);
                         if (v21->ulx <= v21->lrx && v21->uly <= v21->lry) {
-                            unsigned char* sp = src + (frameWidth * (v21->uly - objectRect.uly) + (v21->ulx - objectRect.ulx)) * 4;
-                            dark_trans_buf_to_buf(sp, v21->lrx - v21->ulx + 1, v21->lry - v21->uly + 1, frameWidth, back_buf, v21->ulx, v21->uly, buf_full, light);
+                            // Each sub-rect is a clip region around the egg hole.
+                            dark_trans_buf_to_buf_scaled(src, frameWidth, frameHeight, frameWidth, back_buf, &fullDstRect, v21, buf_full, light);
                         }
                     }
 
-                    unsigned char* mask = art_frame_data(egg, 0, 0);
-                    intensity_mask_buf_to_buf(
-                        src + (frameWidth * (updatedEggRect.uly - objectRect.uly) + (updatedEggRect.ulx - objectRect.ulx)) * 4,
-                        updatedEggRect.lrx - updatedEggRect.ulx + 1,
-                        updatedEggRect.lry - updatedEggRect.uly + 1,
-                        frameWidth,
-                        back_buf + (buf_full * updatedEggRect.uly + updatedEggRect.ulx) * 4,
-                        buf_full,
-                        mask + (eggWidth * (updatedEggRect.uly - eggRect.uly) + (updatedEggRect.ulx - eggRect.ulx)) * 4,
-                        eggWidth,
-                        light);
+                    // Render the egg mask region — blends object and background
+                    // through the egg's alpha gradient using raw 8-bit mask data.
+                    intensity_mask_buf_to_buf_scaled(
+                        src, frameWidth, frameHeight, frameWidth, &fullDstRect,
+                        egg_mask_raw, egg_mask_width, egg_mask_height, egg_mask_width, &eggRect,
+                        &updatedEggRect,
+                        back_buf, buf_full, light);
+
                     art_ptr_unlock(eggHandle);
                     art_ptr_unlock(cacheEntry);
                     return;
@@ -5166,24 +5518,25 @@ static void obj_render_object(Object* object, Rect* rect, int light)
         }
     }
 
+no_egg:
     switch (object->flags & OBJECT_FLAG_0xFC000) {
     case OBJECT_TRANS_RED:
-        dark_translucent_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, light, 128, TINT_RED);
+        dark_translucent_trans_buf_to_buf_scaled(src, frameWidth, frameHeight, frameWidth, back_buf, &fullDstRect, &visibleRect, buf_full, light, 128, TINT_RED);
         break;
     case OBJECT_TRANS_WALL:
-        dark_translucent_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, 0x10000, 128, TINT_WALL);
+        dark_translucent_trans_buf_to_buf_scaled(src, frameWidth, frameHeight, frameWidth, back_buf, &fullDstRect, &visibleRect, buf_full, 0x10000, 128, TINT_WALL);
         break;
     case OBJECT_TRANS_GLASS:
-        dark_translucent_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, light, 128, TINT_GLASS);
+        dark_translucent_trans_buf_to_buf_scaled(src, frameWidth, frameHeight, frameWidth, back_buf, &fullDstRect, &visibleRect, buf_full, light, 128, TINT_GLASS);
         break;
     case OBJECT_TRANS_STEAM:
-        dark_translucent_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, light, 96, TINT_STEAM);
+        dark_translucent_trans_buf_to_buf_scaled(src, frameWidth, frameHeight, frameWidth, back_buf, &fullDstRect, &visibleRect, buf_full, light, 96, TINT_STEAM);
         break;
     case OBJECT_TRANS_ENERGY:
-        dark_translucent_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, light, 128, TINT_ENERGY);
+        dark_translucent_trans_buf_to_buf_scaled(src, frameWidth, frameHeight, frameWidth, back_buf, &fullDstRect, &visibleRect, buf_full, light, 128, TINT_ENERGY);
         break;
     default:
-        dark_trans_buf_to_buf(src, objectWidth, objectHeight, frameWidth, back_buf, objectRect.ulx, objectRect.uly, buf_full, light);
+        dark_trans_buf_to_buf_scaled(src, frameWidth, frameHeight, frameWidth, back_buf, &fullDstRect, &visibleRect, buf_full, light);
         break;
     }
 

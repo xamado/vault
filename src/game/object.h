@@ -24,6 +24,9 @@ extern Object* moveBlockObj;
 extern unsigned char glassGrayTable[256];
 extern unsigned char commonGrayTable[256];
 extern Object* obj_egg;
+extern unsigned char* egg_mask_raw;
+extern int egg_mask_width;
+extern int egg_mask_height;
 extern Object* obj_dude;
 
 int obj_init(unsigned char* buf, int width, int height, int pitch);
@@ -88,6 +91,12 @@ void translucent_trans_buf_to_buf(unsigned char* src, int srcWidth, int srcHeigh
 void dark_trans_buf_to_buf(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsigned char* dest, int destX, int destY, int destPitch, int light);
 void dark_translucent_trans_buf_to_buf(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsigned char* dest, int destX, int destY, int destPitch, int light, int alpha, uint32_t tint_color);
 void intensity_mask_buf_to_buf(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsigned char* dest, int destPitch, unsigned char* mask, int maskPitch, int light);
+// Scaled blit variants — draw source art stretched to fill dstRect.
+// clipRect is optional (NULL = no clip) — limits writes without changing the mapping.
+void dark_trans_buf_to_buf_scaled(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsigned char* dest, Rect* dstRect, Rect* clipRect, int destPitch, int light);
+void dark_translucent_trans_buf_to_buf_scaled(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsigned char* dest, Rect* dstRect, Rect* clipRect, int destPitch, int light, int alpha, uint32_t tint_color);
+void trans_buf_to_buf_scaled(unsigned char* src, int srcWidth, int srcHeight, int srcPitch, unsigned char* dest, Rect* dstRect, Rect* clipRect, int destPitch);
+void intensity_mask_buf_to_buf_scaled(unsigned char* src, int srcW, int srcH, int srcPitch, Rect* srcDstRect, unsigned char* mask, int maskW, int maskH, int maskPitch, Rect* maskDstRect, Rect* clipRect, unsigned char* dest, int destPitch, int light);
 int obj_outline_object(Object* obj, int a2, Rect* rect);
 int obj_remove_outline(Object* obj, Rect* rect);
 int obj_intersects_with(Object* object, int x, int y);

@@ -149,7 +149,7 @@ int iso_init()
     // NOTE: Uninline.
     square_init();
 
-    display_win = win_add(0, 0, scr_size.lrx - scr_size.ulx + 1, scr_size.lry - scr_size.uly - 99, 256, 10);
+    display_win = win_add(0, 0, scr_size.lrx - scr_size.ulx + 1, scr_size.lry - scr_size.uly + 1, 256, 10);
     if (display_win == -1) {
         debug_printf("win_add failed in iso_init\n");
         return -1;
@@ -173,14 +173,14 @@ int iso_init()
 
     debug_printf(">art_init\t\t");
 
-    if (tile_init(square, SQUARE_GRID_WIDTH, SQUARE_GRID_HEIGHT, HEX_GRID_WIDTH, HEX_GRID_HEIGHT, display_buf, scr_size.lrx - scr_size.ulx + 1, scr_size.lry - scr_size.uly - 99, scr_size.lrx - scr_size.ulx + 1, map_display_draw) != 0) {
+    if (tile_init(square, SQUARE_GRID_WIDTH, SQUARE_GRID_HEIGHT, HEX_GRID_WIDTH, HEX_GRID_HEIGHT, display_buf, scr_size.lrx - scr_size.ulx + 1, scr_size.lry - scr_size.uly + 1, scr_size.lrx - scr_size.ulx + 1, map_display_draw) != 0) {
         debug_printf("tile_init failed in iso_init\n");
         return -1;
     }
 
     debug_printf(">tile_init\t\t");
 
-    if (obj_init(display_buf, scr_size.lrx - scr_size.ulx + 1, scr_size.lry - scr_size.uly - 99, scr_size.lrx - scr_size.ulx + 1) != 0) {
+    if (obj_init(display_buf, scr_size.lrx - scr_size.ulx + 1, scr_size.lry - scr_size.uly + 1, scr_size.lrx - scr_size.ulx + 1) != 0) {
         debug_printf("obj_init failed in iso_init\n");
         return -1;
     }
@@ -596,8 +596,8 @@ int map_scroll(int dx, int dy)
 
     map_last_scroll_time = get_time();
 
-    int screenDx = dx * 32;
-    int screenDy = dy * 24;
+    int screenDx = dx * hex_w;
+    int screenDy = dy * sq_row_dy;
 
     if (screenDx == 0 && screenDy == 0) {
         return -1;
@@ -608,8 +608,8 @@ int map_scroll(int dx, int dy)
     int centerScreenX;
     int centerScreenY;
     tile_coord(tile_center_tile, &centerScreenX, &centerScreenY, map_elevation);
-    centerScreenX += screenDx + 16;
-    centerScreenY += screenDy + 8;
+    centerScreenX += screenDx + half_hex_w;
+    centerScreenY += screenDy + half_hex_h;
 
     int newCenterTile = tile_num(centerScreenX, centerScreenY, map_elevation);
     if (newCenterTile == -1) {
@@ -628,14 +628,14 @@ int map_scroll(int dx, int dy)
 
     int width = scr_size.lrx - scr_size.ulx + 1;
     int pitch = width;
-    int height = scr_size.lry - scr_size.uly - 99;
+    int height = scr_size.lry - scr_size.uly + 1;
 
     if (screenDx != 0) {
-        width -= 32;
+        width -= abs(screenDx);
     }
 
     if (screenDy != 0) {
-        height -= 24;
+        height -= abs(screenDy);
     }
 
     if (screenDx < 0) {
@@ -650,7 +650,7 @@ int map_scroll(int dx, int dy)
     if (screenDy < 0) {
         r1.lry = r1.uly - screenDy;
         src = display_buf + pitch * (height - 1) * 4;
-        dest = display_buf + pitch * (scr_size.lry - scr_size.uly - 100) * 4;
+        dest = display_buf + pitch * (scr_size.lry - scr_size.uly) * 4;
         if (screenDx < 0) {
             dest -= screenDx * 4;
         } else {
@@ -821,7 +821,7 @@ int map_load_file(File* stream)
 
     int rc = 0;
 
-    win_fill(display_win, 0, 0, scr_size.lrx - scr_size.ulx + 1, scr_size.lry - scr_size.uly - 99, colorTable[0]);
+    win_fill(display_win, 0, 0, scr_size.lrx - scr_size.ulx + 1, scr_size.lry - scr_size.uly + 1, colorTable[0]);
     win_draw(display_win);
     anim_stop();
     scr_disable();

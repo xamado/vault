@@ -441,7 +441,7 @@ void scale_art(int fid, unsigned char* dest, int width, int height, int pitch)
                 frameWidth,
                 frameHeight,
                 frameWidth,
-                dest + pitch * ((height - width * frameHeight / frameWidth) / 2),
+                dest + pitch * ((height - width * frameHeight / frameWidth) / 2) * 4,
                 width,
                 width * frameHeight / frameWidth,
                 pitch);
@@ -450,7 +450,7 @@ void scale_art(int fid, unsigned char* dest, int width, int height, int pitch)
                 frameWidth,
                 frameHeight,
                 frameWidth,
-                dest + (width - height * frameWidth / frameHeight) / 2,
+                dest + ((width - height * frameWidth / frameHeight) / 2) * 4,
                 height * frameWidth / frameHeight,
                 height,
                 pitch);
@@ -460,7 +460,7 @@ void scale_art(int fid, unsigned char* dest, int width, int height, int pitch)
             frameWidth,
             frameHeight,
             frameWidth,
-            dest + pitch * (remainingHeight / 2) + remainingWidth / 2,
+            dest + (pitch * (remainingHeight / 2) + remainingWidth / 2) * 4,
             pitch);
     }
 

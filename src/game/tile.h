@@ -15,6 +15,16 @@ typedef void(TileWindowRefreshElevationProc)(Rect* rect, int elevation);
 
 extern int off_tile[2][6];
 
+// Tile geometry constants — derived from integer scale factor in tile_init().
+extern int hex_w;        // hex tile width (32 * scale)
+extern int hex_h;        // hex tile height (16 * scale)
+extern int row_step;     // vertical step per hex row (12 * scale)
+extern int sq_col_dx;    // square column horizontal step (48 * scale)
+extern int sq_row_dy;    // square row vertical step (24 * scale)
+extern int half_hex_w;   // hex_w / 2
+extern int half_hex_h;   // hex_h / 2
+extern int tile_scale;   // integer scale factor
+
 extern int tile_center_tile;
 
 int tile_init(TileData** a1, int squareGridWidth, int squareGridHeight, int hexGridWidth, int hexGridHeight, unsigned char* buf, int windowWidth, int windowHeight, int windowPitch, TileWindowRefreshProc* windowRefreshProc);
@@ -45,7 +55,6 @@ bool tile_get_scroll_limiting();
 int square_coord(int squareTile, int* coordX, int* coordY, int elevation);
 int square_coord_roof(int squareTile, int* screenX, int* screenY, int elevation);
 int square_num(int screenX, int screenY, int elevation);
-int square_num_roof(int screenX, int screenY, int elevation);
 void square_xy(int screenX, int screenY, int elevation, int* coordX, int* coordY);
 void square_xy_roof(int screenX, int screenY, int elevation, int* coordX, int* coordY);
 void square_render_roof(Rect* rect, int elevation);

@@ -2059,14 +2059,14 @@ int make_straight_path_func(Object* a1, int from, int to, StraightPathNode* path
     int fromX;
     int fromY;
     tile_coord(from, &fromX, &fromY, a1->elevation);
-    fromX += 16;
-    fromY += 8;
+    fromX += half_hex_w;
+    fromY += half_hex_h;
 
     int toX;
     int toY;
     tile_coord(to, &toX, &toY, a1->elevation);
-    toX += 16;
-    toY += 8;
+    toX += half_hex_w;
+    toY += half_hex_h;
 
     int stepX;
     int deltaX = toX - fromX;
@@ -2114,8 +2114,8 @@ int make_straight_path_func(Object* a1, int from, int to, StraightPathNode* path
                     pathNode->elevation = a1->elevation;
 
                     tile_coord(tile, &fromX, &fromY, a1->elevation);
-                    pathNode->x = tileX - fromX - 16;
-                    pathNode->y = tileY - fromY - 8;
+                    pathNode->x = (tileX - fromX - half_hex_w) / tile_scale;
+                    pathNode->y = (tileY - fromY - half_hex_h) / tile_scale;
                 }
 
                 v22 = 0;
@@ -2167,8 +2167,8 @@ int make_straight_path_func(Object* a1, int from, int to, StraightPathNode* path
                     pathNode->elevation = a1->elevation;
 
                     tile_coord(tile, &fromX, &fromY, a1->elevation);
-                    pathNode->x = tileX - fromX - 16;
-                    pathNode->y = tileY - fromY - 8;
+                    pathNode->x = (tileX - fromX - half_hex_w) / tile_scale;
+                    pathNode->y = (tileY - fromY - half_hex_h) / tile_scale;
                 }
 
                 v22 = 0;
@@ -2216,8 +2216,8 @@ int make_straight_path_func(Object* a1, int from, int to, StraightPathNode* path
             pathNode->elevation = a1->elevation;
 
             tile_coord(tile, &fromX, &fromY, a1->elevation);
-            pathNode->x = tileX - fromX - 16;
-            pathNode->y = tileY - fromY - 8;
+            pathNode->x = (tileX - fromX - half_hex_w) / tile_scale;
+            pathNode->y = (tileY - fromY - half_hex_h) / tile_scale;
         }
 
         pathNodeIndex += 1;
@@ -2281,14 +2281,14 @@ static int make_stair_path(Object* object, int from, int fromElevation, int to, 
     int fromX;
     int fromY;
     tile_coord(from, &fromX, &fromY, fromElevation);
-    fromX += 16;
-    fromY += 8;
+    fromX += half_hex_w;
+    fromY += half_hex_h;
 
     int toX;
     int toY;
     tile_coord(to, &toX, &toY, toElevation);
-    toX += 16;
-    toY += 8;
+    toX += half_hex_w;
+    toY += half_hex_h;
 
     if (obstaclePtr != NULL) {
         *obstaclePtr = NULL;
@@ -2343,8 +2343,8 @@ static int make_stair_path(Object* object, int from, int fromElevation, int to, 
                     pathNode->elevation = elevation;
 
                     tile_coord(tile, &fromX, &fromY, elevation);
-                    pathNode->x = tileX - fromX - 16;
-                    pathNode->y = tileY - fromY - 8;
+                    pathNode->x = (tileX - fromX - half_hex_w) / tile_scale;
+                    pathNode->y = (tileY - fromY - half_hex_h) / tile_scale;
                 }
 
                 iteration = 0;
@@ -2390,8 +2390,8 @@ static int make_stair_path(Object* object, int from, int fromElevation, int to, 
                     pathNode->elevation = elevation;
 
                     tile_coord(tile, &fromX, &fromY, elevation);
-                    pathNode->x = tileX - fromX - 16;
-                    pathNode->y = tileY - fromY - 8;
+                    pathNode->x = (tileX - fromX - half_hex_w) / tile_scale;
+                    pathNode->y = (tileY - fromY - half_hex_h) / tile_scale;
                 }
 
                 iteration = 0;
@@ -2433,8 +2433,8 @@ static int make_stair_path(Object* object, int from, int fromElevation, int to, 
             pathNode->elevation = elevation;
 
             tile_coord(tile, &fromX, &fromY, elevation);
-            pathNode->x = tileX - fromX - 16;
-            pathNode->y = tileY - fromY - 8;
+            pathNode->x = (tileX - fromX - half_hex_w) / tile_scale;
+            pathNode->y = (tileY - fromY - half_hex_h) / tile_scale;
         }
 
         pathNodeIndex++;
