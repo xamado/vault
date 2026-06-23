@@ -4823,7 +4823,11 @@ void combat_display(Attack* attack)
         }
     } else if (mainCritter != NULL) {
         mainCritterName = object_name(mainCritter);
-        if (critterGetStat(mainCritter, STAT_GENDER) == GENDER_MALE) {
+        // A missed ranged attack can reassign the defender to a non-critter
+        // obstacle (wall/scenery) with DAM_HIT set. Guard against reading the
+        // critter stat array from a smaller, non-critter proto.
+        if (FID_TYPE(mainCritter->fid) == OBJ_TYPE_CRITTER
+            && critterGetStat(mainCritter, STAT_GENDER) == GENDER_MALE) {
             baseMessageId = 600;
         } else {
             baseMessageId = 700;
