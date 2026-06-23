@@ -8,10 +8,20 @@
 
 typedef enum WindowFlags {
     WINDOW_FLAG_0x01 = 0x01,
+    // win_show leaves the window at its current z-order instead of raising it to
+    // the front ("don't raise on show"). Purely z-order; nothing to do with
+    // transparency (see WINDOW_FLAG_0x20 for that).
     WINDOW_FLAG_0x02 = 0x02,
     WINDOW_FLAG_ALWAYS_ON_TOP = 0x04,
     WINDOW_HIDDEN = 0x08,
     WINDOW_FLAG_MODAL = 0x10,
+    // Transparent window: its buffer blits skipping 0x00000000 pixels (see-through),
+    // and win_clip does NOT let it occlude windows beneath it, so lower windows
+    // recomposite through its holes. This is the original engine's transparency
+    // flag (vanilla paired 0x20 with a per-window trans_buf_to_buf blitProc +
+    // global buffering); restored here as the dedicated transparency bit, kept
+    // separate from the unrelated don't-raise bit 0x02.
+    WINDOW_FLAG_0x20 = 0x20,
     WINDOW_FLAG_0x40 = 0x40,
     WINDOW_FLAG_0x80 = 0x80,
     WINDOW_FLAG_0x0100 = 0x0100,

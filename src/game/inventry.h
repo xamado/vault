@@ -29,9 +29,6 @@ typedef enum InventoryWindowType {
     // Looting/strealing interface.
     INVENTORY_WINDOW_TYPE_LOOT,
 
-    // Barter interface.
-    INVENTORY_WINDOW_TYPE_TRADE,
-
     // Supplementary "Move items" window. Used to set quantity of items when
     // moving items between inventories.
     INVENTORY_WINDOW_TYPE_MOVE_ITEMS,
@@ -81,10 +78,6 @@ int inven_from_button(int a1, Object** a2, Object*** a3, Object** a4);
 void inven_display_msg(char* string);
 void inven_obj_examine_func(Object* critter, Object* item);
 void inven_action_cursor(int eventCode, int inventoryWindowType);
-int loot_container(Object* a1, Object* a2);
-int inven_steal_container(Object* a1, Object* a2);
-int move_inventory(Object* a1, int a2, Object* a3, bool a4);
-void barter_inventory(int win, Object* a2, Object* a3, Object* a4, int a5);
 void container_enter(int a1, int a2);
 void container_exit(int keyCode, int inventoryWindowType);
 int drop_into_container(Object* a1, Object* a2, int a3, Object** a4, int quantity);

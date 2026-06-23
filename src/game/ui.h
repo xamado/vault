@@ -12,6 +12,8 @@ void ui_image_fill_indexed(Art* art, int win, int x, int y, int width, int heigh
 void ui_image_32(Art* art, int win, int x, int y, int width, int height);
 void ui_image_fill_32(Art* art, int win, int x, int y, int width, int height);
 int ui_get_scale(void);
+
+void ui_text(int win, const char* str, int x, int y, int w, int h, int font, int color);
 void ui_scaled_text(int win, const char* str, int x, int y, float scale, int color);
 
 int ui_register_button(int win, int x, int y, int width, int height, int mouseEnterEventCode, int mouseExitEventCode, int mouseDownEventCode, int mouseUpEventCode, Art* up, Art* dn, Art* hover, int flags);

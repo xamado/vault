@@ -165,7 +165,12 @@ void GNW95_ShowRect(unsigned char* src, int srcPitch, int a3, int srcX, int srcY
         for (int y = 0; y < srcHeight; y++) {
             uint32_t* destRow = (uint32_t*)(dest + (destY + y) * pitch + (destX * 4));
             uint32_t* srcRow = (uint32_t*)(src + (srcY + y) * srcPitch * 4 + srcX * 4);
-            memcpy(destRow, srcRow, srcWidth * 4);
+            for (int x = 0; x < srcWidth; x++) {
+                uint32_t pixel = srcRow[x];
+                if (pixel != 0) {
+                    destRow[x] = pixel;
+                }
+            }
         }
         os_window_unlock();
     }

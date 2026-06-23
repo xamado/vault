@@ -313,6 +313,20 @@ void ui_scaled_text(int win, const char* str, int x, int y, float scale, int col
     mem_free(temp_buf);
 }
 
+void ui_text(int win, const char* str, int x, int y, int w, int h, int font, int color)
+{
+    int oldFont = text_curr();
+
+    text_font(font);
+
+    unsigned char* main_window_buf = (unsigned char*)win_get_buf(win);
+    int pitch = win_width(win);
+
+    text_to_buf(main_window_buf + (y * pitch + x) * 4, str, w, pitch, color);
+
+    text_font(oldFont);
+}
+
 // TODO: This kinda wraps button because we still have both co-exist, but the
 // win_register_button has to go.
 int ui_register_button(int win, int x, int y, int width, int height, int mouseEnterEventCode, int mouseExitEventCode, int mouseDownEventCode, int mouseUpEventCode, Art* up, Art* dn, Art* hover, int flags) {

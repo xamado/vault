@@ -304,7 +304,8 @@ int win_add(int x, int y, int width, int height, int a4, int flags)
     if (a4 != 256) {
         unsigned char* pal = getColorPalette();
         int palIdx = a4 & 0xFF;
-        w->backgroundColor = (0xFF << 24) | ((pal[palIdx * 3 + 2] << 2) << 16) | ((pal[palIdx * 3 + 1] << 2) << 8) | (pal[palIdx * 3] << 2);
+        unsigned int alpha = (palIdx == 0) ? 0x00 : 0xFF;
+        w->backgroundColor = (alpha << 24) | ((pal[palIdx * 3 + 2] << 2) << 16) | ((pal[palIdx * 3 + 1] << 2) << 8) | (pal[palIdx * 3] << 2);
     } else {
         w->backgroundColor = a4;
     }
@@ -620,7 +621,8 @@ void win_fill(int win, int x, int y, int width, int height, int a6)
     // a6 is now a palette index — convert to RGBA
     unsigned char* pal = getColorPalette();
     int palIdx = a6 & 0xFF;
-    unsigned int color32 = (0xFFu << 24)
+    unsigned int alpha = (palIdx == 0) ? 0x00 : 0xFF;
+    unsigned int color32 = (alpha << 24)
         | ((pal[palIdx * 3 + 2] << 2) << 16)
         | ((pal[palIdx * 3 + 1] << 2) << 8)
         | (pal[palIdx * 3] << 2);
@@ -814,6 +816,15 @@ void GNW_win_refresh(Window* w, Rect* rect, unsigned char* destBuf)
                     GNW_button_refresh(w, &(v20->rect));
 
                     if (destBuf) {
+                        if (w->flags & WINDOW_FLAG_0x20) {
+                            trans_buf_to_buf(
+                                w->buffer + (v20->rect.ulx - w->rect.ulx + (v20->rect.uly - w->rect.uly) * w->width) * 4,
+                                v20->rect.lrx - v20->rect.ulx + 1,
+                                v20->rect.lry - v20->rect.uly + 1,
+                                w->width,
+                                destBuf + (dest_pitch * (v20->rect.uly - rect->uly) + v20->rect.ulx - rect->ulx) * 4,
+                                dest_pitch);
+                        } else {
                         buf_to_buf(
                             w->buffer + (v20->rect.ulx - w->rect.ulx + (v20->rect.uly - w->rect.uly) * w->width) * 4,
                             v20->rect.lrx - v20->rect.ulx + 1,
@@ -821,6 +832,7 @@ void GNW_win_refresh(Window* w, Rect* rect, unsigned char* destBuf)
                             w->width,
                             destBuf + (dest_pitch * (v20->rect.uly - rect->uly) + v20->rect.ulx - rect->ulx) * 4,
                             dest_pitch);
+                        }
                     } else {
                         GNW95_ShowRect(
                                 w->buffer + (v20->rect.ulx - w->rect.ulx) * 4 + (v20->rect.uly - w->rect.uly) * w->width * 4,
@@ -841,12 +853,7 @@ void GNW_win_refresh(Window* w, Rect* rect, unsigned char* destBuf)
                 while (v16 != NULL) {
                     int width = v16->rect.lrx - v16->rect.ulx + 1;
                     int height = v16->rect.lry - v16->rect.uly + 1;
-                    if (dest_pitch != 0) {
-                        // NOTE: Unhandled in 32-bit conversion.
-                    } else {
-                        {
-                            unsigned int* buf32 = (unsigned int*)mem_malloc(width * height * 4);
-                            if (buf32 != NULL) {
+                    
                                 unsigned char* globalPal = getColorPalette();
                                 int palIndex = bk_color & 0xFF;
                                 unsigned int fgColor = (0xFF << 24) | 
@@ -854,6 +861,16 @@ void GNW_win_refresh(Window* w, Rect* rect, unsigned char* destBuf)
                                                        ((globalPal[palIndex * 3 + 1] << 2) << 8) |
                                                        (globalPal[palIndex * 3] << 2);
 
+                    if (dest_pitch != 0) {
+                        buf_fill(destBuf + (dest_pitch * (v16->rect.uly - rect->uly) + v16->rect.ulx - rect->ulx) * 4,
+                            width,
+                            height,
+                            dest_pitch,
+                            fgColor);
+                    } else {
+                        {
+                            unsigned int* buf32 = (unsigned int*)mem_malloc(width * height * 4);
+                            if (buf32 != NULL) {
                                 for (int i = 0; i < width * height; i++) {
                                     buf32[i] = fgColor;
                                 }
@@ -905,10 +922,15 @@ static void win_clip(Window* w, RectPtr* rectListNodePtr, unsigned char* a3)
             break;
         }
 
-        // TODO: Review.
-        Window* w = window[win];
-        if (!(w->flags & WINDOW_HIDDEN)) {
-            rect_clip_list(rectListNodePtr, &(w->rect));
+        Window* above_w = window[win];
+        // A WINDOW_FLAG_0x20 window above is transparent (it floats over live
+        // content with see-through holes), so it must NOT occlude: we keep its
+        // area in the redraw list so this lower window repaints beneath it during
+        // a full recomposite (refresh_all). That bottom-to-top recompose is what
+        // erases the software cursor when it moves over a transparent window —
+        // without this, the old cursor is never redrawn over and leaves a trail.
+        if (!(above_w->flags & WINDOW_HIDDEN) && !(above_w->flags & WINDOW_FLAG_0x20)) {
+            rect_clip_list(rectListNodePtr, &(above_w->rect));
         }
     }
 

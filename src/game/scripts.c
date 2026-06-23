@@ -26,6 +26,7 @@
 #include "game/protinst.h"
 #include "game/queue.h"
 #include "game/tile.h"
+#include "game/ui/loot.h"
 #include "plib/gnw/gnw.h"
 #include "plib/gnw/intrface.h"
 #include "game/worldmap.h"

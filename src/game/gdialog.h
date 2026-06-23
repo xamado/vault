@@ -44,6 +44,5 @@ void gdialogUpdatePartyStatus();
 void talk_to_critter_reacts(int a1);
 void gdialogSetBarterMod(int modifier);
 int gdActivateBarter(int modifier);
-void barter_end_to_talk_to();
 
 #endif /* FALLOUT_GAME_GDIALOG_H_ */
